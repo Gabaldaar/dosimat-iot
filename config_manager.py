@@ -8,11 +8,11 @@ WIFI_CONFIG_FILE = "wifi_config.json"
 
 DEFAULT_CONFIG = {
     "config_version": 1,
-    "tespera_seg": 3600,       # Tiempo de espera por defecto (1 hora)
+    "tespera_seg": 1800,       # Tiempo de espera por defecto (30 minutos)
     "tdosis_seg": 300,         # Tiempo de dosificación por defecto (5 minutos)
-    "ajuste_baja": 10,         # % de ajuste en temporada baja (ej: 10%)
-    "temporada_alta_inicio": "11-01",  # Inicio temporada alta (MM-DD)
-    "temporada_alta_fin": "03-31"      # Fin temporada alta (MM-DD)
+    "ajuste_baja": 50,         # % de ajuste en temporada baja (50%)
+    "temporada_alta_inicio": "10-30",  # Inicio temporada alta (MM-DD)
+    "temporada_alta_fin": "03-30"      # Fin temporada alta (MM-DD)
 }
 
 config_data = {}
@@ -52,8 +52,7 @@ async def guardar_configuracion(nueva_config):
         await _guardar_interno(config_data)
 
 async def _guardar_interno(data):
-    """Escribe de manera atómica usando un archivo temporal para prevenir corrupción"""
-    tmp_file = CONFIG_FILE + ".tmp"
+    """Escribe la configuración de forma directa y segura en la Flash"""
     try:
         await asyncio.sleep_ms(10)
         try:
@@ -61,27 +60,12 @@ async def _guardar_interno(data):
             if hasattr(main, "feed_wdt"): main.feed_wdt()
         except Exception: pass
 
-        with open(tmp_file, "w") as f:
+        with open(CONFIG_FILE, "w") as f:
             json.dump(data, f)
             
-        await asyncio.sleep_ms(10)
-        try:
-            import main
-            if hasattr(main, "feed_wdt"): main.feed_wdt()
-        except Exception: pass
-
-        try:
-            os.remove(CONFIG_FILE)
-        except OSError:
-            pass
-        os.rename(tmp_file, CONFIG_FILE)
-        print("[CONFIG] Guardado atómico completado.")
+        print("[CONFIG] Guardado completado en Flash.")
     except Exception as e:
         print("[CONFIG] Error al guardar configuración:", e)
-        try:
-            os.remove(tmp_file)
-        except OSError:
-            pass
     finally:
         await asyncio.sleep_ms(10)
 
