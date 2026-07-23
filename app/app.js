@@ -32,9 +32,37 @@ var lastProgramasData = null;
 var unsavedChanges = false;
 var isTechRemoteActive = false;
 
+var globalSoporteWsp = "5491136932456";
+var globalSoporteMail = "soporte@dosimat.com";
+
+var pendingCronogramaTimeoutId = null;
 var unsubscribeFirestore = null;
 var unsubscribeConfig = null;
 var unsubscribeProgramas = null;
+var unsubscribeSoporte = null;
+
+// === LISTENERS DE CONTACTOS DE SOPORTE GLOBAL ===
+function listenSupportContacts() {
+    if (unsubscribeSoporte) unsubscribeSoporte();
+    const docRef = doc(db, "configuracion_global", "contactos_soporte");
+    unsubscribeSoporte = onSnapshot(docRef, (docSnap) => {
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            if (data.whatsapp) globalSoporteWsp = data.whatsapp;
+            if (data.email) globalSoporteMail = data.email;
+
+            const inpWsp = document.getElementById('inpConfigWsp');
+            const inpMail = document.getElementById('inpConfigMail');
+            if (inpWsp) inpWsp.value = globalSoporteWsp;
+            if (inpMail) inpMail.value = globalSoporteMail;
+        }
+    }, (err) => {
+        console.warn("Snapshot contactos_soporte:", err.message);
+    });
+}
+
+document.addEventListener('DOMContentLoaded', listenSupportContacts);
+listenSupportContacts();
 
 // === POPULAR DROPDOWNS DE FECHAS DE TEMPORADA ===
 function initSeasonDropdowns() {
@@ -434,7 +462,6 @@ async function checkUserRole(user) {
     if (!user) return;
     const email = (user.email || "").toLowerCase();
     
-    // Verificar si es Super Admin o Técnico
     let isSuper = (email === "gab.aldazabal@gmail.com" || email === "gabrielsew61@gmail.com");
     let isTecnico = isSuper;
 
@@ -453,6 +480,11 @@ async function checkUserRole(user) {
     const cardGestion = document.getElementById('cardGestionTecnicos');
     if (cardGestion) {
         cardGestion.style.display = isSuper ? "block" : "none";
+    }
+
+    const cardConfigSoporte = document.getElementById('cardConfigSoporte');
+    if (cardConfigSoporte) {
+        cardConfigSoporte.style.display = (isSuper || isTecnico) ? "block" : "none";
     }
 
     if (isSuper || isTecnico) {
@@ -567,6 +599,16 @@ function connectNube() {
             const data = JSON.parse(payload);
             const innerData = data.tipo === "TELEMETRIA" ? data.data : data;
 
+            if (data.tipo === "ACK_CRON" || data.comando === "ACK_CRON") {
+                if (pendingCronogramaTimeoutId) {
+                    clearTimeout(pendingCronogramaTimeoutId);
+                    pendingCronogramaTimeoutId = null;
+                    setCronogramaInputsDisabled(false);
+                    showToast("🎉 Cronograma guardado y confirmado por el dosificador.");
+                }
+                return;
+            }
+
             if (topic === `dosimat/${currentMac}/telemetry`) {
                 if (modoConexion !== "BLE") {
                     setConexionModo("NUBE", innerData.wifi_ssid || innerData.ssid || "");
@@ -626,6 +668,12 @@ function connectNube() {
     const progRef = doc(db, "equipos", currentMac, "programas", "actual");
     unsubscribeProgramas = onSnapshot(progRef, (docSnap) => {
         if (docSnap.exists()) {
+            if (pendingCronogramaTimeoutId) {
+                clearTimeout(pendingCronogramaTimeoutId);
+                pendingCronogramaTimeoutId = null;
+                setCronogramaInputsDisabled(false);
+                showToast("🎉 Cronograma confirmado por el dosificador.");
+            }
             updateProgramasUI(docSnap.data());
         }
     }, (err) => {
@@ -682,7 +730,6 @@ function updateUI(raw_data) {
     let tr = data.tr !== undefined ? data.tr : 0;
     currentDosisSec = tr;
 
-    // Actualizar Temperatura del RTC
     let temp = data.temp !== undefined ? data.temp : (data.temperatura !== undefined ? data.temperatura : (data.temp_rtc !== undefined ? data.temp_rtc : null));
     const lblTemp = document.getElementById('lblTemp');
     if (lblTemp) {
@@ -697,7 +744,6 @@ function updateUI(raw_data) {
     actualizarPanelTemporada();
     updateSubtexto();
 
-    // Icono y Texto de Estado Principal
     const lblEstado = document.getElementById('lblEstado');
     const iconEstado = document.getElementById('iconEstado');
 
@@ -718,7 +764,6 @@ function updateUI(raw_data) {
         }
     }
 
-    // Tarjeta Bomba
     const isBombaOn = (globalEstadoDosificador === "FILTRO" || globalEstadoDosificador === "DOSIS" || globalEstadoDosificador === "FILTRO_PRE" || globalEstadoDosificador === "FILTRO_POST" || globalEstadoDosificador === "FILTRO_MANUAL");
     const panelBomba = document.getElementById('panelBomba');
     const lblBomba = document.getElementById('lblBomba');
@@ -741,7 +786,6 @@ function updateUI(raw_data) {
         }
     }
 
-    // Tarjeta Refuerzo
     const isRefuerzoOn = (globalRefuerzo === 1 || globalRefuerzo === true);
     const panelRefuerzo = document.getElementById('panelRefuerzo');
     const lblRefuerzo = document.getElementById('lblRefuerzo');
@@ -758,7 +802,6 @@ function updateUI(raw_data) {
         }
     }
 
-    // Tarjeta Dosis Manual
     const isDosisManualOn = (globalModoCiclo === "MANUAL" && (globalEstadoDosificador === "FILTRO_PRE" || globalEstadoDosificador === "DOSIS" || globalEstadoDosificador === "FILTRO_POST"));
     const panelDosisManual = document.getElementById('panelDosisManual');
     const lblDosisManual = document.getElementById('lblDosisManual');
@@ -769,7 +812,6 @@ function updateUI(raw_data) {
         else panelDosisManual.classList.remove('active-on');
     }
 
-    // Tarjeta Pausa
     const isPausaOn = (globalEstadoDosificador === "PAUSA");
     const panelPausa = document.getElementById('panelPausa');
     const lblPausa = document.getElementById('lblPausa');
@@ -786,7 +828,6 @@ function updateUI(raw_data) {
         }
     }
 
-    // Anuladas
     const lblAnuladas = document.getElementById('lblAnuladas');
     const lblAnuladasControl = document.getElementById('lblAnuladasControl');
     if (lblAnuladas) lblAnuladas.innerText = globalDosisAnuladas;
@@ -928,6 +969,16 @@ if (btnRestar) {
 }
 
 // === GESTIÓN DE PROGRAMAS / CRONOGRAMAS ===
+function setCronogramaInputsDisabled(disabled) {
+    document.querySelectorAll('#cronogramaContainer input, #cronogramaContainer button, #cronogramaContainer .day-btn, #btnAgregarHorario, #btnProgAuto, #btnGuardarCronograma').forEach(el => {
+        if (el.classList.contains('day-btn')) {
+            el.style.pointerEvents = disabled ? 'none' : 'auto';
+        } else {
+            el.disabled = disabled;
+        }
+    });
+}
+
 function agregarFilaCronograma(inicio = "21:00", duracion = 60, dosifica = true, dias = "0123456") {
     const container = document.getElementById('cronogramaContainer');
     if (!container) return;
@@ -1057,8 +1108,40 @@ if (btnGuardarCronograma) {
                 objPayload[`PR${i}_dias`] = [];
             }
         }
-        sendCommand({ comando: "SET_PROGRAMAS", ...objPayload });
-        showToast("Programación enviada al equipo.");
+
+        setCronogramaInputsDisabled(true);
+        showToast("Guardando cronograma en el equipo...");
+
+        const waitTime = (modoConexion === "BLE") ? 10000 : 5000;
+        pendingCronogramaTimeoutId = setTimeout(() => {
+            setCronogramaInputsDisabled(false);
+            pendingCronogramaTimeoutId = null;
+            customAlert("El dosificador no confirmó los cambios del cronograma. Es posible que haya mala señal. Se revirtieron los cambios locales.", "Error de comunicación");
+            if (lastProgramasData) updateProgramasUI(lastProgramasData);
+        }, waitTime);
+
+        if (modoConexion === "BLE") {
+            try {
+                await sendCommand({ comando: "cron_start", total: cron.length }, true);
+                await new Promise(r => setTimeout(r, 300));
+                for (let i = 0; i < cron.length; i++) {
+                    await sendCommand({
+                        comando: "cron_add",
+                        idx: i,
+                        on: cron[i].on,
+                        duracion: cron[i].duracion,
+                        dosifica: cron[i].dosifica,
+                        dias: cron[i].dias
+                    }, true);
+                    await new Promise(r => setTimeout(r, 300));
+                }
+                await sendCommand({ comando: "cron_commit" });
+            } catch (e) {
+                console.error("Error BLE cron:", e);
+            }
+        } else {
+            sendCommand({ comando: "SET_PROGRAMAS", ...objPayload });
+        }
     };
 }
 
@@ -1169,18 +1252,20 @@ if (btnGuardarWifi) {
     };
 }
 
-// === PESTAÑA DE SOPORTE TÉCNICO ===
+// === PESTAÑA DE SOPORTE TÉCNICO Y AJUSTE DE CONTACTOS ===
 const btnSoporteWsp = document.getElementById('btnSoporteWsp');
 if (btnSoporteWsp) {
     btnSoporteWsp.onclick = () => {
-        window.open('https://wa.me/5491136932456?text=Hola,%20necesito%20soporte%20técnico%20con%20mi%20Dosimat%20IoT', '_blank');
+        const wspNum = globalSoporteWsp || "5491136932456";
+        window.open(`https://wa.me/${wspNum}?text=Hola,%20necesito%20soporte%20técnico%20con%20mi%20Dosimat%20IoT`, '_blank');
     };
 }
 
 const btnSoporteMail = document.getElementById('btnSoporteMail');
 if (btnSoporteMail) {
     btnSoporteMail.onclick = () => {
-        window.location.href = 'mailto:soporte@dosimat.com?subject=Soporte%20Dosimat%20IoT';
+        const mailAddr = globalSoporteMail || "soporte@dosimat.com";
+        window.location.href = `mailto:${mailAddr}?subject=Soporte%20Dosimat%20IoT`;
     };
 }
 
@@ -1215,6 +1300,37 @@ if (btnResetFabrica) {
     btnResetFabrica.onclick = async () => {
         if (await customConfirm("¿Estás seguro de reiniciar el equipo a valores de fábrica?", "Restablecer Fábrica")) {
             sendCommand({ comando: "RESET_FACTORY" });
+        }
+    };
+}
+
+const btnGuardarContactosSoporte = document.getElementById('btnGuardarContactosSoporte');
+if (btnGuardarContactosSoporte) {
+    btnGuardarContactosSoporte.onclick = async () => {
+        const inpWsp = document.getElementById('inpConfigWsp');
+        const inpMail = document.getElementById('inpConfigMail');
+        if (!inpWsp || !inpMail) return;
+
+        const wsp = inpWsp.value.trim();
+        const mail = inpMail.value.trim().toLowerCase();
+
+        if (!wsp || !mail) {
+            customAlert("Debes completar el número de WhatsApp y el Email de soporte.");
+            return;
+        }
+
+        try {
+            await setDoc(doc(db, "configuracion_global", "contactos_soporte"), {
+                whatsapp: wsp,
+                email: mail,
+                updatedAt: Date.now()
+            }, { merge: true });
+            
+            globalSoporteWsp = wsp;
+            globalSoporteMail = mail;
+            showToast("Contactos de soporte guardados correctamente.");
+        } catch (e) {
+            showToast("Error al guardar contactos: " + e.message, true);
         }
     };
 }
@@ -1397,4 +1513,4 @@ window.connectRemoteDevice = connectRemoteDevice;
 window.deleteRemoteDevice = deleteRemoteDevice;
 window.deleteTecnico = deleteTecnico;
 
-console.log("Dosimat PWA v2 (Re-implementación de Alta Fidelidad) inicializada.");
+console.log("Dosimat PWA v2 (Con soporte ACK de Cronogramas y Contactos Dinámicos) inicializada.");

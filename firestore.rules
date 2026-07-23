@@ -23,6 +23,10 @@ service cloud.firestore {
       allow read, write: if isAuthenticated();
     }
 
+    match /configuracion_global/{docId} {
+      allow read, write: if isAuthenticated();
+    }
+
     // Colección de Equipos y todas sus Subcolecciones (estado, config, programas, comandos, logs)
     match /equipos/{chipId} {
       allow read, write: if isAuthenticated();

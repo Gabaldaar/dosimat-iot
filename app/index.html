@@ -467,6 +467,22 @@
                 <p style="color: var(--text-muted); font-size: 0.9rem;">Cargando...</p>
             </div>
         </div>
+
+        <!-- Configuración de Contactos de Soporte -->
+        <div class="card" id="cardConfigSoporte" style="margin-top: 1rem; display: none; border: 1px solid var(--accent);">
+            <h2>Contactos de Ayuda / Soporte</h2>
+            <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1rem;">Número de WhatsApp y correo de soporte para los botones de la solapa Ayuda.</p>
+            
+            <div class="form-group">
+                <label for="inpConfigWsp">Número de WhatsApp (con código de país sin +)</label>
+                <input type="text" id="inpConfigWsp" placeholder="Ej: 5491136932456">
+            </div>
+            <div class="form-group">
+                <label for="inpConfigMail">Email de Soporte</label>
+                <input type="email" id="inpConfigMail" placeholder="Ej: soporte@dosimat.com">
+            </div>
+            <button id="btnGuardarContactosSoporte" class="btn" style="margin-top: 0.5rem;">Guardar Contactos de Soporte</button>
+        </div>
     </div>
 
     <!-- Navigation Bar (Botones Inferiores) -->
@@ -509,6 +525,6 @@
         </div>
     </div>
 
-    <script type="module" src="app.js?v=6.34"></script>
+    <script type="module" src="app.js?v=6.35"></script>
 </body>
 </html>
