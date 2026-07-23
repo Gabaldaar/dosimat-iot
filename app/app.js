@@ -43,64 +43,74 @@ var unsubscribeProgramas = null;
 var unsubscribeSoporte = null;
 var unsubscribeLogs = null;
 
-// === SIMULACIÓN DE PATRÓN DE LED VIRTUAL DEL EQUIPO ===
+const LED_PATRONES = {
+    'En_espera_wifi':       [[1, 200], [0, 4000]],
+    'En_espera_ble':        [[1, 200], [0, 2000]],
+    'inactivo_refuerzo':    [[1, 200], [0, 200], [1, 200], [0, 4000]],
+    'dosificando':          [[1, 1000], [0, 1000]],
+    'dosificando_refuerzo': [[1, 4000], [0, 200]],
+    'solo_bomba':           [[1, 500], [0, 500]],
+    'mantenimiento':        [[1, 200], [0, 200]]
+};
+
 var ledTimerId = null;
+var currentLedPattern = null;
 var ledStepIndex = 0;
 
 function actualizarLedVirtual() {
     const ledEl = document.getElementById('panelLed');
     if (!ledEl) return;
 
+    const state = globalEstadoDosificador;
+    const refuerzo_activo = (globalRefuerzo === 1 || globalRefuerzo === true);
+    
+    let patronSel = 'En_espera_ble';
+    
+    if (state === "PAUSA" || state === "ANTI" || state === "RESET") {
+        patronSel = 'mantenimiento';
+    } else if (state.startsWith("FILTRO")) {
+        patronSel = 'solo_bomba';
+    } else if (state === "DOSIS") {
+        patronSel = refuerzo_activo ? 'dosificando_refuerzo' : 'dosificando';
+    } else if (state === "IDLE") {
+        if (refuerzo_activo) {
+            patronSel = 'inactivo_refuerzo';
+        } else {
+            patronSel = (modoConexion === "NUBE") ? 'En_espera_wifi' : 'En_espera_ble';
+        }
+    }
+
+    if (currentLedPattern === patronSel && ledTimerId !== null) {
+        return; 
+    }
+
     if (ledTimerId) {
-        clearInterval(ledTimerId);
+        clearTimeout(ledTimerId);
         ledTimerId = null;
     }
+    
+    currentLedPattern = patronSel;
+    const pattern = LED_PATRONES[patronSel] || LED_PATRONES['En_espera_ble'];
+    ledStepIndex = 0;
 
-    const state = globalEstadoDosificador;
+    function runLedStep() {
+        const step = pattern[ledStepIndex];
+        const val = step[0];
+        const dur = step[1];
 
-    if (state === "PAUSA") {
-        // Doble destello corto
-        ledStepIndex = 0;
-        ledTimerId = setInterval(() => {
-            ledStepIndex = (ledStepIndex + 1) % 15;
-            if (ledStepIndex === 0 || ledStepIndex === 2) {
-                ledEl.classList.remove('off');
-                ledEl.classList.add('on');
-            } else {
-                ledEl.classList.remove('on');
-                ledEl.classList.add('off');
-            }
-        }, 100);
-    } else if (state === "DOSIS") {
-        // Parpadeo constante (500ms ON / 500ms OFF)
-        ledTimerId = setInterval(() => {
-            ledEl.classList.toggle('on');
-            ledEl.classList.toggle('off');
-        }, 500);
-    } else if (state.startsWith("FILTRO")) {
-        // Destello rápido (200ms ON / 200ms OFF)
-        ledTimerId = setInterval(() => {
-            ledEl.classList.toggle('on');
-            ledEl.classList.toggle('off');
-        }, 200);
-    } else if (state === "RESET") {
-        // Continuo encendido
-        ledEl.classList.remove('off');
-        ledEl.classList.add('on');
-    } else {
-        // IDLE: Destello corto cada 2 segundos
-        ledStepIndex = 0;
-        ledTimerId = setInterval(() => {
-            ledStepIndex = (ledStepIndex + 1) % 20;
-            if (ledStepIndex === 0) {
-                ledEl.classList.remove('off');
-                ledEl.classList.add('on');
-            } else {
-                ledEl.classList.remove('on');
-                ledEl.classList.add('off');
-            }
-        }, 100);
+        if (val === 1) {
+            ledEl.classList.remove('off');
+            ledEl.classList.add('on');
+        } else {
+            ledEl.classList.remove('on');
+            ledEl.classList.add('off');
+        }
+
+        ledStepIndex = (ledStepIndex + 1) % pattern.length;
+        ledTimerId = setTimeout(runLedStep, dur);
     }
+    
+    runLedStep();
 }
 
 // === DICCIONARIO DE AYUDA (BOTONES HELP) ===
