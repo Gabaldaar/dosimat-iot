@@ -144,7 +144,8 @@ async def procesar_comando(cmd_dict):
             ciclo_suspendido = False
             fase_actual_interrumpida = None
             abort_event.set()
-            await sys_log.log_event({"tipo": "ciclo_manual", "refuerzo": refuerzo_activo})
+            await sys_log.log_event({"msg": "Dosis Manual solicitada"})
+            await enviar_telemetria()
             
     elif cmd == "START_PUMP":
         if estado_dosimat in ("IDLE", "PAUSA"):
@@ -153,7 +154,8 @@ async def procesar_comando(cmd_dict):
             ciclo_suspendido = False
             fase_actual_interrumpida = None
             abort_event.set()
-            await sys_log.log_event({"tipo": "bomba_manual", "msg": "Bomba de filtrado encendida manualmente"})
+            await sys_log.log_event({"msg": "Bomba de filtrado encendida manualmente"})
+            await enviar_telemetria()
             
     elif cmd == "SET_REFUERZO":
         val = bool(cmd_dict.get("refuerzo", False))
@@ -171,11 +173,9 @@ async def procesar_comando(cmd_dict):
 
     elif cmd == "PAUSE_CYCLE":
         if estado_dosimat != "PAUSA":
-            if estado_dosimat != "IDLE":
-                ciclo_suspendido = True
+            if estado_dosimat in ("FILTRO_PRE", "DOSIS", "FILTRO_POST", "FILTRO_MANUAL", "FILTRO"):
                 tiempo_acumulado_fase = tiempo_restante
             else:
-                ciclo_suspendido = False
                 tiempo_acumulado_fase = 0
                 
             fase_actual_interrumpida = estado_dosimat
@@ -201,7 +201,7 @@ async def procesar_comando(cmd_dict):
             set_relays(False, False)
             led_manager.actualizar_patron(estado_dosimat, False, False, refuerzo_activo)
             abort_event.set()
-            await sys_log.log_event({"tipo": "cancelar"})
+            await sys_log.log_event({"msg": "Ciclo cancelado por usuario"})
             await enviar_telemetria()
             
     elif cmd == "RUN_ANTI":
@@ -250,13 +250,16 @@ async def procesar_comando(cmd_dict):
         await config_manager.guardar_configuracion(cfg_to_save)
         config_ref.update(cfg_to_save)
         await tx_queue.put({"tipo": "ACK_CONFIG", "status": "OK", "_destino": origen})
+        await tx_queue.put({"tipo": "CONFIG", "data": config_ref.copy(), "_destino": origen})
         await enviar_telemetria()
 
     elif cmd in ("SET_PROGRAMAS", "config_cronograma"):
         cron_list = []
+        raw_programas = {}
         if "cronograma" in cmd_dict and isinstance(cmd_dict["cronograma"], list):
             cron_list = cmd_dict["cronograma"]
         else:
+            raw_programas = cmd_dict.copy()
             for i in range(1, 11):
                 ini = cmd_dict.get(f"PR{i}_inicio")
                 dur = cmd_dict.get(f"PR{i}_duracion_min", 0)
@@ -270,9 +273,11 @@ async def procesar_comando(cmd_dict):
                         "dosifica": bool(dos),
                         "dias": dias_str
                     })
-        await config_manager.guardar_configuracion({"cronograma": cron_list, "raw_programas": cmd_dict})
+        await config_manager.guardar_configuracion({"cronograma": cron_list, "raw_programas": raw_programas})
         config_ref["cronograma"] = cron_list
+        config_ref["raw_programas"] = raw_programas
         await tx_queue.put({"tipo": "ACK_CRON", "status": "OK", "_destino": origen})
+        await tx_queue.put({"tipo": "PROGRAMAS", "data": raw_programas, "_destino": origen})
         await enviar_telemetria()
 
     elif cmd == "GET_LOGS":
@@ -304,7 +309,8 @@ async def cron_scheduler_task():
     while True:
         try:
             t = time.localtime()
-            current_hm = f"{t[3]:02d}{t[4]:02d}"
+            current_hm_colon = f"{t[3]:02d}:{t[4]:02d}"
+            current_hm_nocolon = f"{t[3]:02d}{t[4]:02d}"
             
             # En JavaScript 0 es Domingo y 1 es Lunes, en ESP32 0 es Lunes y 6 es Domingo
             # Convertimos RTC (0=Lunes...6=Dom) a JS-style (0=Dom, 1=Lun...)
@@ -325,16 +331,18 @@ async def cron_scheduler_task():
                 ultimo_minuto_procesado = t[4]
                 cronograma = config_ref.get("cronograma", [])
                 
-                if estado_dosimat != "PAUSA":
+                if estado_dosimat != "PAUSA" and isinstance(cronograma, list):
                     for prog in cronograma:
-                        if prog.get("on") == current_hm:
-                            dias = prog.get("dias", [])
+                        if not isinstance(prog, dict): continue
+                        prog_on = str(prog.get("on", ""))
+                        if prog_on == current_hm_colon or prog_on == current_hm_nocolon:
+                            dias = prog.get("dias", "0123456")
                             if str(js_weekday) in str(dias):
                                 print(f"[CORE] Cronograma disparado: {prog}")
                                 modo_ciclo = "AUTO"
                                 
                                 # Verificamos si tiene dosis
-                                incluye_dosis = prog.get("dosis", True)
+                                incluye_dosis = prog.get("dosifica", prog.get("dosis", True))
                                 if dosis_anuladas > 0 and incluye_dosis:
                                     dosis_anuladas -= 1
                                     incluye_dosis = False
@@ -346,13 +354,14 @@ async def cron_scheduler_task():
                                     estado_dosimat = "FILTRO_PRE"
                                     # Descontamos el tiempo de espera del total de filtrado
                                     t_espera = config_ref.get("tespera_seg", 1800)
-                                    tfiltro_restante = max(0, (prog.get("duracion", 60) * 60) - t_espera)
+                                    tfiltro_restante = max(0, (int(prog.get("duracion", 60)) * 60) - t_espera)
                                 else:
                                     # Si no hay dosis, va directo a FILTRO_POST para solo filtrar
                                     estado_dosimat = "FILTRO_POST"
-                                    tfiltro_restante = prog.get("duracion", 60) * 60
+                                    tfiltro_restante = int(prog.get("duracion", 60)) * 60
 
                                 abort_event.set()
+                                await enviar_telemetria()
                                 break
         except Exception as e:
             print("[CORE] Error en Scheduler:", e)

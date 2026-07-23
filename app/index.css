@@ -415,11 +415,18 @@ input:checked + .slider:before {
 }
 .status-item.active-on {
     border-color: var(--success) !important;
-    background-color: var(--success-light) !important;
+    background-color: rgba(16, 185, 129, 0.2) !important;
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.4) !important;
 }
 .status-item.active-warning {
     border-color: var(--warning) !important;
-    background-color: var(--warning-light) !important;
+    background-color: rgba(245, 158, 11, 0.25) !important;
+    box-shadow: 0 0 10px rgba(245, 158, 11, 0.4) !important;
+}
+.status-item.active-warning .status-val,
+.status-item.active-warning .status-label {
+    color: var(--warning) !important;
+    font-weight: bold;
 }
 .status-item.active-danger {
     border-color: var(--danger) !important;
