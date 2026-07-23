@@ -183,14 +183,14 @@ async def procesar_comando(cmd_dict):
             set_relays(False, False)
             led_manager.actualizar_patron(estado_dosimat, False, False, refuerzo_activo)
             abort_event.set()
-            await sys_log.log_event({"tipo": "pausa"})
+            await sys_log.log_event({"msg": "Inicio de Pausa/Mantenimiento"})
             await enviar_telemetria()
             
     elif cmd == "RESUME_CYCLE":
         if estado_dosimat == "PAUSA":
             ciclo_suspendido = False
             abort_event.set()
-            await sys_log.log_event({"tipo": "reanudar"})
+            await sys_log.log_event({"msg": "Fin de Pausa/Mantenimiento"})
             await enviar_telemetria()
             
     elif cmd == "CANCEL_CYCLE":
@@ -233,8 +233,10 @@ async def procesar_comando(cmd_dict):
                 await tx_queue.put({"tipo": "ACK_RTC", "status": "OK", "_destino": origen})
             except Exception: pass
 
-    elif cmd == "config_cronograma":
+    elif cmd in ("SET_PROGRAMAS", "config_cronograma"):
         cron = cmd_dict.get("cronograma", [])
+        if not cron and "PR1_inicio" in cmd_dict:
+            cron = cmd_dict
         await config_manager.guardar_configuracion({"cronograma": cron})
         config_ref["cronograma"] = cron
         await tx_queue.put({"tipo": "ACK_CRON", "status": "OK", "_destino": origen})
@@ -303,7 +305,7 @@ async def cron_scheduler_task():
                                     dosis_anuladas -= 1
                                     incluye_dosis = False
                                     print(f"[CORE] Dosis automatica anulada. Restan: {dosis_anuladas}")
-                                    await sys_log.log_event({"tipo": "dosis_anulada"})
+                                    await sys_log.log_event({"msg": "Dosis Salteada a Pedido"})
                                     await enviar_telemetria()
 
                                 if incluye_dosis:
@@ -390,13 +392,14 @@ async def dispenser_loop():
                 if refuerzo_activo:
                     tiempo_restante *= 2
                     
-                await sys_log.log_event({
-                    "tipo": "estado_dosis", 
-                    "modo": modo_ciclo,
-                    "duracion": tiempo_restante, 
-                    "refuerzo": refuerzo_activo,
-                    "temporada": "Alta" if es_temporada_alta() else "Baja"
-                })
+                m = tiempo_restante // 60
+                s = tiempo_restante % 60
+                dur_str = f"{m:02d}m {s:02d}s"
+                ref_str = " - Refuerzo activo" if refuerzo_activo else ""
+                temp_str = "Alta" if es_temporada_alta() else "Baja"
+                tipo_dosis = "Dosis Manual" if modo_ciclo == "MANUAL" else "Dosis Automática"
+                msg_log = f"{tipo_dosis} - Duración: {dur_str}{ref_str} - Temp: {temp_str}"
+                await sys_log.log_event({"msg": msg_log})
                 
             fase_actual_interrumpida = None
             tiempo_acumulado_fase = 0

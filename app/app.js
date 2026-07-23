@@ -689,7 +689,7 @@ function appendLogToTerminal(logText) {
         term.innerText = "";
     }
     const timestamp = new Date().toLocaleTimeString('es-AR', { hour12: false });
-    term.innerText = `[${timestamp}] ${logText}\n` + term.innerText;
+    term.innerText = `${timestamp} - ${logText}\n` + term.innerText;
 }
 
 function renderLogsList(logs) {
@@ -698,11 +698,11 @@ function renderLogsList(logs) {
     if (!logs || !Array.isArray(logs)) return;
     let linesArr = logs.map(item => {
         if (typeof item === 'string') return item;
-        const ts = item.timestamp ? new Date(item.timestamp).toLocaleTimeString('es-AR') : "";
+        const ts = item.ts ? new Date(item.ts * 1000).toLocaleTimeString('es-AR', { hour12: false }) : (item.timestamp ? new Date(item.timestamp).toLocaleTimeString('es-AR', { hour12: false }) : "");
         const msg = item.msg || item.mensaje || item.tipo || JSON.stringify(item);
-        return ts ? `[${ts}] ${msg}` : msg;
+        return ts ? `${ts} - ${msg}` : msg;
     });
-    term.innerText = linesArr.join('\n');
+    term.innerText = linesArr.slice(0, 20).join('\n');
 }
 
 function listenLogsCollection() {
@@ -718,11 +718,11 @@ function listenLogsCollection() {
             let logsArr = [];
             snap.forEach(docSnap => {
                 const data = docSnap.data();
-                const ts = data.timestamp ? new Date(data.timestamp).toLocaleString('es-AR') : "";
+                const ts = data.timestamp ? new Date(data.timestamp).toLocaleTimeString('es-AR', { hour12: false }) : "";
                 const msg = data.mensaje || data.msg || data.log || JSON.stringify(data);
-                logsArr.push(`[${ts}] ${msg}`);
+                logsArr.push(`${ts} - ${msg}`);
             });
-            term.innerText = logsArr.join('\n');
+            term.innerText = logsArr.slice(0, 20).join('\n');
         }, (err) => {
             console.warn("Snapshot logs:", err.message);
         });
@@ -762,7 +762,7 @@ function connectNube() {
             const data = JSON.parse(payload);
             const innerData = data.tipo === "TELEMETRIA" ? data.data : data;
 
-            if (data.tipo === "ACK_CRON" || data.comando === "ACK_CRON") {
+            if (data.tipo === "ACK_CRON" || data.comando === "ACK_CRON" || data.status === "OK") {
                 if (pendingCronogramaTimeoutId) {
                     clearTimeout(pendingCronogramaTimeoutId);
                     pendingCronogramaTimeoutId = null;
@@ -974,7 +974,7 @@ function updateUI(raw_data) {
             iconEstado.style.color = "var(--warning)";
             iconEstado.classList.add('anim-drop');
         } else if (globalEstadoDosificador.startsWith("FILTRO")) {
-            iconEstado.innerText = "fan";
+            iconEstado.innerText = "mode_fan";
             iconEstado.style.color = "var(--accent)";
             iconEstado.classList.add('anim-fan');
         }
@@ -1020,8 +1020,8 @@ function updateUI(raw_data) {
         }
     }
 
-    // Tarjeta Dosis Manual (Permanece "apretada" y activa durante todo el ciclo de dosis manual)
-    const isDosisManualOn = (globalModoCiclo === "MANUAL" && (globalEstadoDosificador === "FILTRO_PRE" || globalEstadoDosificador === "DOSIS" || globalEstadoDosificador === "FILTRO_POST"));
+    // Tarjeta Dosis Manual (Permanece activada y apretada desde su activación hasta terminar la fase de Dosificando)
+    const isDosisManualOn = (globalModoCiclo === "MANUAL" && (globalEstadoDosificador === "FILTRO_PRE" || globalEstadoDosificador === "DOSIS"));
     const panelDosisManual = document.getElementById('panelDosisManual');
     const lblDosisManual = document.getElementById('lblDosisManual');
 
@@ -1091,13 +1091,15 @@ function updateSubtexto() {
             html += `<div style="color: var(--warning); font-size: 0.8rem; margin-top: 4px; font-weight: 600;">⚠️ Próxima dosis automática ANULADA (restan: ${globalDosisAnuladas})</div>`;
         }
         lblEstadoSubtexto.innerHTML = html;
+    } else if (globalEstadoDosificador === "FILTRO_MANUAL") {
+        lblEstadoSubtexto.innerText = `Bomba de filtrado activa durante: ${formatTime(tr)}`;
     } else if (globalEstadoDosificador === "FILTRO_PRE") {
         lblEstadoSubtexto.innerText = `Filtrado de estabilización de caudal - Fin de fase en: ${formatTime(tr)}`;
     } else if (globalEstadoDosificador === "DOSIS") {
         lblEstadoSubtexto.innerText = isManual ? `DOSIS MANUAL - Dosificando cloro - Restan: ${formatTime(tr)}` : `Dosificando cloro - Restan: ${formatTime(tr)}`;
     } else if (globalEstadoDosificador === "FILTRO_POST") {
         lblEstadoSubtexto.innerText = `Bomba de filtrado activa (Post-Dosis). Fin de fase en: ${formatTime(tr)}`;
-    } else if (globalEstadoDosificador === "FILTRO" || globalEstadoDosificador === "FILTRO_MANUAL") {
+    } else if (globalEstadoDosificador === "FILTRO") {
         lblEstadoSubtexto.innerText = `Bomba de filtrado activa. Fin de fase en: ${formatTime(tr)}`;
     } else if (globalEstadoDosificador === "PAUSA") {
         lblEstadoSubtexto.innerText = "Ciclo suspendido temporalmente por mantenimiento.";
@@ -1342,7 +1344,7 @@ if (btnGuardarCronograma) {
         setCronogramaInputsDisabled(true);
         showToast("Guardando cronograma en el equipo...");
 
-        const waitTime = (modoConexion === "BLE") ? 10000 : 5000;
+        const waitTime = (modoConexion === "BLE") ? 10000 : 8000;
         pendingCronogramaTimeoutId = setTimeout(() => {
             setCronogramaInputsDisabled(false);
             pendingCronogramaTimeoutId = null;
@@ -1765,4 +1767,4 @@ window.connectRemoteDevice = connectRemoteDevice;
 window.deleteRemoteDevice = deleteRemoteDevice;
 window.deleteTecnico = deleteTecnico;
 
-console.log("Dosimat PWA v2 (Con textos de estado, hélice, gota y GET_LOGS optimizado) inicializada.");
+console.log("Dosimat PWA v2 (Con hélice mode_fan, subtextos y ACK SET_PROGRAMAS) inicializada.");
