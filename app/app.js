@@ -1067,8 +1067,19 @@ function updateUI(raw_data) {
     const isDosisManualOn = (globalModoCiclo === "MANUAL" && (globalEstadoDosificador === "FILTRO_PRE" || globalEstadoDosificador === "DOSIS" || globalEstadoDosificador === "FILTRO_POST"));
     const panelDosisManual = document.getElementById('panelDosisManual');
     const lblDosisManual = document.getElementById('lblDosisManual');
+    const iconDosisManual = document.getElementById('iconDosisManual');
 
     if (lblDosisManual) lblDosisManual.innerText = isDosisManualOn ? "Activa" : "Iniciar";
+    if (iconDosisManual) {
+        if (isDosisManualOn) {
+            iconDosisManual.style.color = "var(--warning)";
+            if (globalEstadoDosificador === "DOSIS") iconDosisManual.classList.add('anim-drop');
+            else iconDosisManual.classList.remove('anim-drop');
+        } else {
+            iconDosisManual.style.color = "var(--accent)";
+            iconDosisManual.classList.remove('anim-drop');
+        }
+    }
     if (panelDosisManual) {
         if (isDosisManualOn) {
             panelDosisManual.classList.add('active-warning');
