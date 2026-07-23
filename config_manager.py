@@ -16,11 +16,17 @@ DEFAULT_CONFIG = {
 }
 
 config_data = {}
-_lock = asyncio.Lock()
+_lock = None
+
+def _get_lock():
+    global _lock
+    if _lock is None:
+        _lock = asyncio.Lock()
+    return _lock
 
 async def cargar_configuracion():
     global config_data
-    async with _lock:
+    async with _get_lock():
         try:
             with open(CONFIG_FILE, "r") as f:
                 config_data = json.load(f)
@@ -41,7 +47,7 @@ async def cargar_configuracion():
 
 async def guardar_configuracion(nueva_config):
     global config_data
-    async with _lock:
+    async with _get_lock():
         config_data.update(nueva_config)
         await _guardar_interno(config_data)
 

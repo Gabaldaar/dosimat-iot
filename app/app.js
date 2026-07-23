@@ -759,15 +759,18 @@ function setConexionModo(modo, ssid = "") {
 }
 
 function formatLogDate(tsVal) {
-    if (!tsVal) return "";
     let ts = tsVal;
     if (typeof ts === 'string') {
         if (ts.includes("-") && ts.includes("/")) return ts;
         ts = Number(ts) || Date.now();
     }
+    if (!ts || isNaN(ts)) ts = Date.now();
     if (ts < 10000000000) ts = ts * 1000;
-    const d = new Date(ts);
-    if (isNaN(d.getTime()) || d.getFullYear() < 2024) return "";
+    
+    let d = new Date(ts);
+    if (isNaN(d.getTime()) || d.getFullYear() < 2000) {
+        d = new Date();
+    }
     
     const dd = String(d.getDate()).padStart(2, '0');
     const mm = String(d.getMonth() + 1).padStart(2, '0');

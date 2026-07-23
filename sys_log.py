@@ -21,12 +21,12 @@ async def log_event(event_dict, wifi_activo=None):
     event_dict["ts"] = time.time()
     try:
         t = time.localtime()
-        if t[0] >= 2024:
-            date_prefix = f"{t[2]:02d}/{t[1]:02d}/{str(t[0])[-2:]} - {t[3]:02d}:{t[4]:02d}:{t[5]:02d}"
-            if "msg" in event_dict:
-                msg_body = event_dict["msg"]
-                if not ("/" in msg_body[:5] and "-" in msg_body[:15]):
-                    event_dict["msg"] = f"{date_prefix} - {msg_body}"
+        year_str = str(t[0])[-2:] if t[0] >= 2000 else "26"
+        date_prefix = f"{t[2]:02d}/{t[1]:02d}/{year_str} - {t[3]:02d}:{t[4]:02d}:{t[5]:02d}"
+        if "msg" in event_dict:
+            msg_body = event_dict["msg"]
+            if not ("/" in msg_body[:5] and "-" in msg_body[:15]):
+                event_dict["msg"] = f"{date_prefix} - {msg_body}"
     except Exception:
         pass
     
