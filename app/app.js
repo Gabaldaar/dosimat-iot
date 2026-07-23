@@ -710,8 +710,7 @@ function listenLogsCollection() {
                 const msg = data.mensaje || data.log || JSON.stringify(data);
                 logsArr.push(`[${ts}] ${msg}`);
             });
-            term.innerText = logsArr.join("
-");
+            term.innerText = logsArr.join("\n");
         }, (err) => {
             console.warn("Snapshot logs:", err.message);
         });
