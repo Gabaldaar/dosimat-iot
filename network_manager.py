@@ -306,18 +306,27 @@ async def tarea_tx_queue():
         if destino in ("ALL", "MQTT"):
             if mqtt_client and wifi_conectado:
                 try:
+                    gc.collect()
                     tipo = msg_dict.get("tipo", "")
-                    if tipo in ("LOG_ENTRY", "LOGS_END"):
-                        topic_pub = f"dosimat/{dosimat_core.chip_id}/sys_log"
-                    elif tipo in ("CONFIG", "ACK_CFG", "ACK_CRON", "ACK_RTC", "ACK_CLEAR_LOGS", "ACK_WIFI"):
+                    if tipo in ("LOG_ENTRY", "LOGS_END", "LOGS_LIST"):
+                        topic_pub = f"dosimat/{dosimat_core.chip_id}/logs"
+                    elif tipo in ("CONFIG", "ACK_CFG", "ACK_CONFIG", "ACK_RTC", "ACK_CLEAR_LOGS", "ACK_WIFI"):
                         topic_pub = f"dosimat/{dosimat_core.chip_id}/config"
+                    elif tipo in ("PROGRAMAS", "ACK_CRON"):
+                        topic_pub = f"dosimat/{dosimat_core.chip_id}/programas"
                     else:
                         topic_pub = f"dosimat/{dosimat_core.chip_id}/telemetry"
+                    
                     if msg_dict.get("tipo") != "TELEMETRIA":
                         print(f"[MQTT] TX ({topic_pub}): {msg_dict}")
                     json_bytes = json.dumps(msg_dict).encode('utf-8')
                     mqtt_client.publish(topic_pub, json_bytes)
+                except MemoryError:
+                    print("[NET_TX] Memoria insuficiente temporal para publicar MQTT. Reclamando RAM...")
+                    gc.collect()
+                except OSError as e:
+                    print("[NET_TX] Error de socket publicando MQTT:", e)
+                    mqtt_client = None
                 except Exception as e:
                     print("[NET_TX] Error publicando telemetría MQTT:", e)
-                    mqtt_client = None
         await asyncio.sleep_ms(50)

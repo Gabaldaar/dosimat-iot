@@ -1065,8 +1065,8 @@ function updateUI(raw_data) {
         }
     }
 
-    // Tarjeta Dosis Manual (Activa desde que inicia el ciclo manual hasta volver a IDLE)
-    const isDosisManualOn = (globalModoCiclo === "MANUAL" && globalEstadoDosificador !== "IDLE" && globalEstadoDosificador !== "PAUSA" && globalEstadoDosificador !== "RESET");
+    // Tarjeta Dosis Manual (Activa exclusivamente durante fases de dosis manual: FILTRO_PRE, DOSIS, FILTRO_POST)
+    const isDosisManualOn = (globalModoCiclo === "MANUAL" && (globalEstadoDosificador === "FILTRO_PRE" || globalEstadoDosificador === "DOSIS" || globalEstadoDosificador === "FILTRO_POST"));
     const panelDosisManual = document.getElementById('panelDosisManual');
     const lblDosisManual = document.getElementById('lblDosisManual');
     const iconDosisManual = document.getElementById('iconDosisManual');
@@ -1207,7 +1207,7 @@ if (pRefuerzo) {
 const pDosisManual = document.getElementById('panelDosisManual');
 if (pDosisManual) {
     pDosisManual.onclick = () => {
-        const isDosisManualOn = (globalModoCiclo === "MANUAL" && globalEstadoDosificador !== "IDLE" && globalEstadoDosificador !== "PAUSA" && globalEstadoDosificador !== "RESET");
+        const isDosisManualOn = (globalModoCiclo === "MANUAL" && (globalEstadoDosificador === "FILTRO_PRE" || globalEstadoDosificador === "DOSIS" || globalEstadoDosificador === "FILTRO_POST"));
         if (isDosisManualOn) {
             globalModoCiclo = "AUTO";
             globalEstadoDosificador = "IDLE";
