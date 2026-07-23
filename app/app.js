@@ -41,6 +41,55 @@ var unsubscribeFirestore = null;
 var unsubscribeConfig = null;
 var unsubscribeProgramas = null;
 var unsubscribeSoporte = null;
+var unsubscribeLogs = null;
+
+// === DICIONARIO DE AYUDA (BOTONES HELP) ===
+const HELP_TOPICS = {
+    "soporte-tecnico": {
+        title: "Soporte Técnico",
+        text: "Utiliza los botones para comunicarte directamente con el servicio de atención oficial de Dosimat vía WhatsApp o correo electrónico."
+    },
+    "info-equipo": {
+        title: "Información del Equipo",
+        text: "Muestra el identificador único (MAC) de tu equipo Dosimat IoT y la hora sincronizada del reloj en tiempo real."
+    },
+    "dashboard": {
+        title: "Panel Principal",
+        text: "Monitorea el estado actual del dosificador, bombas activas, temperatura del agua y te permite iniciar dosis manuales o pausar el equipo."
+    },
+    "programacion": {
+        title: "Programación de Cronogramas",
+        text: "Configura hasta 10 horarios diarios de filtrado y dosificación de cloro, seleccionando inicio, duración y días específicos."
+    },
+    "configuracion": {
+        title: "Ajustes de Parámetros",
+        text: "Modifica los tiempos de espera del motor, tiempos de dosis de cloro y porcentajes de ajuste para la temporada baja."
+    },
+    "historial": {
+        title: "Logs del Sistema",
+        text: "Muestra el registro cronológico de eventos, fases ejecutadas, inicios de bomba y alertas del dosificador."
+    },
+    "tecnicos": {
+        title: "Portal Técnico",
+        text: "Sección exclusiva de administración para conectarse remotamente a equipos por MAC y gestionar cuentas de técnicos."
+    }
+};
+
+function initHelpButtons() {
+    document.querySelectorAll('.btn-help').forEach(btn => {
+        btn.onclick = (e) => {
+            e.stopPropagation();
+            const topic = btn.dataset.help;
+            if (HELP_TOPICS[topic]) {
+                customAlert(HELP_TOPICS[topic].text, HELP_TOPICS[topic].title);
+            } else {
+                customAlert("Información sobre esta sección de la aplicación.", "Ayuda");
+            }
+        };
+    });
+}
+
+document.addEventListener('DOMContentLoaded', initHelpButtons);
 
 // === LISTENERS DE CONTACTOS DE SOPORTE GLOBAL ===
 function listenSupportContacts() {
@@ -243,6 +292,8 @@ async function switchTab(btn, target) {
         loadAdminGlobal();
         loadTecnicosUI();
     }
+
+    initHelpButtons();
 }
 
 document.querySelectorAll('nav button').forEach(btn => {
@@ -512,6 +563,7 @@ if (btnSignOut) {
         if (unsubscribeFirestore) { unsubscribeFirestore(); unsubscribeFirestore = null; }
         if (unsubscribeConfig) { unsubscribeConfig(); unsubscribeConfig = null; }
         if (unsubscribeProgramas) { unsubscribeProgramas(); unsubscribeProgramas = null; }
+        if (unsubscribeLogs) { unsubscribeLogs(); unsubscribeLogs = null; }
         if (mqttClient) { try { mqttClient.disconnect(); } catch (e) {} mqttClient = null; }
 
         await signOut(auth);
@@ -602,6 +654,7 @@ onAuthStateChanged(auth, async (user) => {
         if (unsubscribeFirestore) { unsubscribeFirestore(); unsubscribeFirestore = null; }
         if (unsubscribeConfig) { unsubscribeConfig(); unsubscribeConfig = null; }
         if (unsubscribeProgramas) { unsubscribeProgramas(); unsubscribeProgramas = null; }
+        if (unsubscribeLogs) { unsubscribeLogs(); unsubscribeLogs = null; }
         if (mqttClient) { try { mqttClient.disconnect(); } catch (e) {} mqttClient = null; }
         
         setConexionModo("OFFLINE");
@@ -626,6 +679,44 @@ function setConexionModo(modo, ssid = "") {
     } else {
         badge.innerHTML = `<span class="material-symbols-outlined" style="font-size: 1rem; vertical-align: middle;">wifi_off</span> <span>Offline</span>`;
         badge.className = "conn-badge conn-offline";
+    }
+}
+
+function appendLogToTerminal(logText) {
+    const term = document.getElementById('logsTerminal');
+    if (!term) return;
+    if (term.innerText.includes("Esperando eventos...")) {
+        term.innerText = "";
+    }
+    const timestamp = new Date().toLocaleTimeString('es-AR', { hour12: false });
+    term.innerText = `[${timestamp}] ${logText}
+` + term.innerText;
+}
+
+function listenLogsCollection() {
+    if (!currentMac) return;
+    if (unsubscribeLogs) unsubscribeLogs();
+    
+    try {
+        const q = query(collection(db, "equipos", currentMac, "logs"), orderBy("timestamp", "desc"), limit(50));
+        unsubscribeLogs = onSnapshot(q, (snap) => {
+            const term = document.getElementById('logsTerminal');
+            if (!term) return;
+            if (snap.empty) return;
+            let logsArr = [];
+            snap.forEach(docSnap => {
+                const data = docSnap.data();
+                const ts = data.timestamp ? new Date(data.timestamp).toLocaleString('es-AR') : "";
+                const msg = data.mensaje || data.log || JSON.stringify(data);
+                logsArr.push(`[${ts}] ${msg}`);
+            });
+            term.innerText = logsArr.join("
+");
+        }, (err) => {
+            console.warn("Snapshot logs:", err.message);
+        });
+    } catch (e) {
+        console.warn("Error buscando colección de logs:", e);
     }
 }
 
@@ -679,6 +770,8 @@ function connectNube() {
                 updateConfigUI(innerData);
             } else if (topic === `dosimat/${currentMac}/programas`) {
                 updateProgramasUI(innerData);
+            } else if (topic === `dosimat/${currentMac}/logs`) {
+                appendLogToTerminal(typeof innerData === 'string' ? innerData : JSON.stringify(innerData));
             }
         } catch (e) {
             console.error("Error procesando MQTT:", e);
@@ -693,6 +786,7 @@ function connectNube() {
             mqttClient.subscribe(`dosimat/${currentMac}/telemetry`);
             mqttClient.subscribe(`dosimat/${currentMac}/config`);
             mqttClient.subscribe(`dosimat/${currentMac}/programas`);
+            mqttClient.subscribe(`dosimat/${currentMac}/logs`);
             if (modoConexion !== "BLE") setConexionModo("NUBE", globalWifiSSID);
             sendCommand({ comando: "GET_STATE" }, true);
         },
@@ -740,6 +834,8 @@ function connectNube() {
     }, (err) => {
         console.warn("Firestore snapshot programas:", err.message);
     });
+
+    listenLogsCollection();
 }
 
 // === ENVÍO DE COMANDOS Y FORMATO DE TIEMPO ===
@@ -797,6 +893,17 @@ function updateUI(raw_data) {
         lblTemp.innerText = temp !== null ? `${temp}°C` : "--°C";
     }
 
+    let rtcStr = data.rtc || data.rtc_time || data.hora_rtc || data.hora || data.time;
+    const lblRTC = document.getElementById('lblRTC');
+    if (lblRTC) {
+        if (rtcStr) {
+            lblRTC.innerText = rtcStr;
+        } else {
+            const now = new Date();
+            lblRTC.innerText = now.toLocaleDateString('es-AR') + ' ' + now.toLocaleTimeString('es-AR', { hour12: false });
+        }
+    }
+
     if (modoConexion !== "BLE") {
         const wifiName = data.wifi_ssid || data.ssid || "";
         setConexionModo("NUBE", wifiName);
@@ -805,24 +912,24 @@ function updateUI(raw_data) {
     actualizarPanelTemporada();
     updateSubtexto();
 
-    // Actualización dinámica del borde del Panel de Estado según los requisitos del usuario
+    // Actualización dinámica del FONDO del Panel de Estado según los requisitos exactos
     const panelEstado = document.querySelector('.panel-estado');
     if (panelEstado) {
         panelEstado.classList.remove('bg-green-soft', 'bg-blue-soft', 'bg-red-soft', 'bg-yellow-soft');
         if (globalEstadoDosificador === "PAUSA") {
-            // Al pausar: color ROJO
+            // Al pausar: FONDO ROJO
             panelEstado.classList.add('bg-red-soft');
         } else if (globalEstadoDosificador === "DOSIS") {
-            // Al dosificar: color AMARILLO
+            // Al dosificar: FONDO AMARILLO
             panelEstado.classList.add('bg-yellow-soft');
         } else if (globalEstadoDosificador === "FILTRO" || globalEstadoDosificador === "FILTRO_PRE" || globalEstadoDosificador === "FILTRO_POST" || globalEstadoDosificador === "FILTRO_MANUAL") {
-            // Al filtrar: color AZUL
+            // Al filtrar: FONDO AZUL
             panelEstado.classList.add('bg-blue-soft');
         } else if (globalDosisAnuladas > 0) {
-            // Al anular dosis (en IDLE): color AMARILLO (el mismo que en pausar anteriormente)
+            // Al anular dosis (en reposo): FONDO AMARILLO (el mismo amarillo de pausar)
             panelEstado.classList.add('bg-yellow-soft');
         } else {
-            // Reposo normal: color VERDE
+            // Reposo normal: FONDO VERDE
             panelEstado.classList.add('bg-green-soft');
         }
     }
@@ -1350,6 +1457,25 @@ if (btnGuardarWifi) {
     };
 }
 
+// === HISTORIAL / LOGS DEL SISTEMA ===
+const btnPedirHistorial = document.getElementById('btnPedirHistorial');
+if (btnPedirHistorial) {
+    btnPedirHistorial.onclick = () => {
+        sendCommand({ comando: "GET_LOGS" });
+        listenLogsCollection();
+        showToast("Solicitando historial...");
+    };
+}
+
+const btnLimpiarHistorial = document.getElementById('btnLimpiarHistorial');
+if (btnLimpiarHistorial) {
+    btnLimpiarHistorial.onclick = () => {
+        const term = document.getElementById('logsTerminal');
+        if (term) term.innerText = "Historial limpiado.";
+        showToast("Historial limpiado.");
+    };
+}
+
 // === PESTAÑA DE SOPORTE TÉCNICO Y AJUSTE DE CONTACTOS ===
 const btnSoporteWsp = document.getElementById('btnSoporteWsp');
 if (btnSoporteWsp) {
@@ -1614,4 +1740,4 @@ window.connectRemoteDevice = connectRemoteDevice;
 window.deleteRemoteDevice = deleteRemoteDevice;
 window.deleteTecnico = deleteTecnico;
 
-console.log("Dosimat PWA v2 (Con guardia de navegación en Programar y Colores Dinámicos) inicializada.");
+console.log("Dosimat PWA v2 (Con fondo suave de estado, RTC, Logs e Iconos de Ayuda) inicializada.");
