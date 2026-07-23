@@ -242,11 +242,9 @@ async def procesar_comando(cmd_dict):
     elif cmd == "GET_LOGS":
         try:
             logs = await sys_log.get_logs(incluir_ram=True)
-            for item in logs:
-                await tx_queue.put({"tipo": "LOG_ENTRY", "data": item, "_destino": origen})
-                await asyncio.sleep_ms(300)
-            await tx_queue.put({"tipo": "LOGS_END", "_destino": origen})
-        except Exception: pass
+            await tx_queue.put({"tipo": "LOGS_LIST", "logs": logs, "_destino": origen})
+        except Exception as e:
+            print("[LOGS] Error obteniendo logs:", e)
             
     elif cmd == "CLEAR_LOGS":
         try:

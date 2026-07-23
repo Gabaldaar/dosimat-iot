@@ -43,7 +43,7 @@ var unsubscribeProgramas = null;
 var unsubscribeSoporte = null;
 var unsubscribeLogs = null;
 
-// === DICIONARIO DE AYUDA (BOTONES HELP) ===
+// === DICCIONARIO DE AYUDA (BOTONES HELP) ===
 const HELP_TOPICS = {
     "soporte-tecnico": {
         title: "Soporte Técnico",
@@ -689,8 +689,20 @@ function appendLogToTerminal(logText) {
         term.innerText = "";
     }
     const timestamp = new Date().toLocaleTimeString('es-AR', { hour12: false });
-    term.innerText = `[${timestamp}] ${logText}
-` + term.innerText;
+    term.innerText = `[${timestamp}] ${logText}\n` + term.innerText;
+}
+
+function renderLogsList(logs) {
+    const term = document.getElementById('logsTerminal');
+    if (!term) return;
+    if (!logs || !Array.isArray(logs)) return;
+    let linesArr = logs.map(item => {
+        if (typeof item === 'string') return item;
+        const ts = item.timestamp ? new Date(item.timestamp).toLocaleTimeString('es-AR') : "";
+        const msg = item.msg || item.mensaje || item.tipo || JSON.stringify(item);
+        return ts ? `[${ts}] ${msg}` : msg;
+    });
+    term.innerText = linesArr.join('\n');
 }
 
 function listenLogsCollection() {
@@ -698,7 +710,7 @@ function listenLogsCollection() {
     if (unsubscribeLogs) unsubscribeLogs();
     
     try {
-        const q = query(collection(db, "equipos", currentMac, "logs"), orderBy("timestamp", "desc"), limit(50));
+        const q = query(collection(db, "equipos", currentMac, "logs"), orderBy("timestamp", "desc"), limit(20));
         unsubscribeLogs = onSnapshot(q, (snap) => {
             const term = document.getElementById('logsTerminal');
             if (!term) return;
@@ -707,10 +719,10 @@ function listenLogsCollection() {
             snap.forEach(docSnap => {
                 const data = docSnap.data();
                 const ts = data.timestamp ? new Date(data.timestamp).toLocaleString('es-AR') : "";
-                const msg = data.mensaje || data.log || JSON.stringify(data);
+                const msg = data.mensaje || data.msg || data.log || JSON.stringify(data);
                 logsArr.push(`[${ts}] ${msg}`);
             });
-            term.innerText = logsArr.join("\n");
+            term.innerText = logsArr.join('\n');
         }, (err) => {
             console.warn("Snapshot logs:", err.message);
         });
@@ -760,6 +772,11 @@ function connectNube() {
                 return;
             }
 
+            if (data.tipo === "LOGS_LIST" && data.logs) {
+                renderLogsList(data.logs);
+                return;
+            }
+
             if (topic === `dosimat/${currentMac}/telemetry`) {
                 if (modoConexion !== "BLE") {
                     setConexionModo("NUBE", innerData.wifi_ssid || innerData.ssid || "");
@@ -770,7 +787,11 @@ function connectNube() {
             } else if (topic === `dosimat/${currentMac}/programas`) {
                 updateProgramasUI(innerData);
             } else if (topic === `dosimat/${currentMac}/logs`) {
-                appendLogToTerminal(typeof innerData === 'string' ? innerData : JSON.stringify(innerData));
+                if (Array.isArray(innerData)) {
+                    renderLogsList(innerData);
+                } else {
+                    appendLogToTerminal(typeof innerData === 'string' ? innerData : JSON.stringify(innerData));
+                }
             }
         } catch (e) {
             console.error("Error procesando MQTT:", e);
@@ -911,46 +932,51 @@ function updateUI(raw_data) {
     actualizarPanelTemporada();
     updateSubtexto();
 
-    // Actualización dinámica del FONDO del Panel de Estado según los requisitos exactos
+    // Actualización dinámica del FONDO del Panel de Estado
     const panelEstado = document.querySelector('.panel-estado');
     if (panelEstado) {
         panelEstado.classList.remove('bg-green-soft', 'bg-blue-soft', 'bg-red-soft', 'bg-yellow-soft');
         if (globalEstadoDosificador === "PAUSA") {
-            // Al pausar: FONDO ROJO
             panelEstado.classList.add('bg-red-soft');
         } else if (globalEstadoDosificador === "DOSIS") {
-            // Al dosificar: FONDO AMARILLO
             panelEstado.classList.add('bg-yellow-soft');
-        } else if (globalEstadoDosificador === "FILTRO" || globalEstadoDosificador === "FILTRO_PRE" || globalEstadoDosificador === "FILTRO_POST" || globalEstadoDosificador === "FILTRO_MANUAL") {
-            // Al filtrar: FONDO AZUL
+        } else if (globalEstadoDosificador.startsWith("FILTRO")) {
             panelEstado.classList.add('bg-blue-soft');
         } else if (globalDosisAnuladas > 0) {
-            // Al anular dosis (en reposo): FONDO AMARILLO (el mismo amarillo de pausar)
             panelEstado.classList.add('bg-yellow-soft');
         } else {
-            // Reposo normal: FONDO VERDE
             panelEstado.classList.add('bg-green-soft');
         }
     }
 
-    // Icono y Texto de Estado Principal
+    // Texto de Estado Principal según especificaciones exactas
     const lblEstado = document.getElementById('lblEstado');
     const iconEstado = document.getElementById('iconEstado');
 
-    if (lblEstado) lblEstado.innerText = globalEstadoDosificador;
+    let textoEstadoMostrar = globalEstadoDosificador;
+    if (globalEstadoDosificador === "IDLE") textoEstadoMostrar = "EN ESPERA...";
+    else if (globalEstadoDosificador === "DOSIS") textoEstadoMostrar = "DOSIFICANDO...";
+    else if (globalEstadoDosificador.startsWith("FILTRO")) textoEstadoMostrar = "FILTRANDO...";
+    else if (globalEstadoDosificador === "PAUSA") textoEstadoMostrar = "PAUSA";
+    else if (globalEstadoDosificador === "RESET") textoEstadoMostrar = "REINICIANDO...";
+
+    if (lblEstado) lblEstado.innerText = textoEstadoMostrar;
     if (iconEstado) {
+        iconEstado.className = "material-symbols-outlined";
         if (globalEstadoDosificador === "IDLE") {
             iconEstado.innerText = "schedule";
             iconEstado.style.color = "var(--text-muted)";
-            iconEstado.classList.remove('anim-clock');
         } else if (globalEstadoDosificador === "PAUSA") {
             iconEstado.innerText = "pause_circle";
             iconEstado.style.color = "var(--danger)";
-            iconEstado.classList.remove('anim-clock');
-        } else {
-            iconEstado.innerText = "play_circle";
+        } else if (globalEstadoDosificador === "DOSIS") {
+            iconEstado.innerText = "water_drop";
+            iconEstado.style.color = "var(--warning)";
+            iconEstado.classList.add('anim-drop');
+        } else if (globalEstadoDosificador.startsWith("FILTRO")) {
+            iconEstado.innerText = "fan";
             iconEstado.style.color = "var(--accent)";
-            iconEstado.classList.add('anim-clock');
+            iconEstado.classList.add('anim-fan');
         }
     }
 
@@ -994,7 +1020,7 @@ function updateUI(raw_data) {
         }
     }
 
-    // Tarjeta Dosis Manual
+    // Tarjeta Dosis Manual (Permanece "apretada" y activa durante todo el ciclo de dosis manual)
     const isDosisManualOn = (globalModoCiclo === "MANUAL" && (globalEstadoDosificador === "FILTRO_PRE" || globalEstadoDosificador === "DOSIS" || globalEstadoDosificador === "FILTRO_POST"));
     const panelDosisManual = document.getElementById('panelDosisManual');
     const lblDosisManual = document.getElementById('lblDosisManual');
@@ -1005,7 +1031,7 @@ function updateUI(raw_data) {
         else panelDosisManual.classList.remove('active-on');
     }
 
-    // Tarjeta Pausa (Al pausar: ROJO)
+    // Tarjeta Pausa
     const isPausaOn = (globalEstadoDosificador === "PAUSA");
     const panelPausa = document.getElementById('panelPausa');
     const lblPausa = document.getElementById('lblPausa');
@@ -1066,13 +1092,13 @@ function updateSubtexto() {
         }
         lblEstadoSubtexto.innerHTML = html;
     } else if (globalEstadoDosificador === "FILTRO_PRE") {
-        lblEstadoSubtexto.innerText = isManual ? `DOSIS MANUAL\nFiltrando. Esperando Dosis - Restan: ${formatTime(tr)}` : `Bomba de filtrado activa (Estabilizando). Fin de fase en: ${formatTime(tr)}`;
-    } else if (globalEstadoDosificador === "FILTRO_POST" || globalEstadoDosificador === "FILTRO") {
-        lblEstadoSubtexto.innerText = isManual ? `DOSIS MANUAL\nFiltrado post Dosis - Restan: ${formatTime(tr)}` : `Bomba de filtrado activa (Post-lavado). Fin de fase en: ${formatTime(tr)}`;
-    } else if (globalEstadoDosificador === "FILTRO_MANUAL") {
-        lblEstadoSubtexto.innerText = `FILTRANDO\nBomba activa por ${formatTime(tr)}`;
+        lblEstadoSubtexto.innerText = `Filtrado de estabilización de caudal - Fin de fase en: ${formatTime(tr)}`;
     } else if (globalEstadoDosificador === "DOSIS") {
-        lblEstadoSubtexto.innerText = isManual ? `DOSIS MANUAL\nDosificando cloro - Restan: ${formatTime(tr)}` : `Dosificando cloro - Restan: ${formatTime(tr)}`;
+        lblEstadoSubtexto.innerText = isManual ? `DOSIS MANUAL - Dosificando cloro - Restan: ${formatTime(tr)}` : `Dosificando cloro - Restan: ${formatTime(tr)}`;
+    } else if (globalEstadoDosificador === "FILTRO_POST") {
+        lblEstadoSubtexto.innerText = `Bomba de filtrado activa (Post-Dosis). Fin de fase en: ${formatTime(tr)}`;
+    } else if (globalEstadoDosificador === "FILTRO" || globalEstadoDosificador === "FILTRO_MANUAL") {
+        lblEstadoSubtexto.innerText = `Bomba de filtrado activa. Fin de fase en: ${formatTime(tr)}`;
     } else if (globalEstadoDosificador === "PAUSA") {
         lblEstadoSubtexto.innerText = "Ciclo suspendido temporalmente por mantenimiento.";
     } else if (globalEstadoDosificador === "RESET") {
@@ -1739,4 +1765,4 @@ window.connectRemoteDevice = connectRemoteDevice;
 window.deleteRemoteDevice = deleteRemoteDevice;
 window.deleteTecnico = deleteTecnico;
 
-console.log("Dosimat PWA v2 (Con fondo suave de estado, RTC, Logs e Iconos de Ayuda) inicializada.");
+console.log("Dosimat PWA v2 (Con textos de estado, hélice, gota y GET_LOGS optimizado) inicializada.");
