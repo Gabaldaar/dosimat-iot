@@ -6,6 +6,8 @@ raw_content.txt
 *.log
 
 # Scratch scripts
+scrap/
+dosimat_core_backup.py
 analyze_extracted_helpers.py
 append_missing_features_clean.py
 apply_*.py
