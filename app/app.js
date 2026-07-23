@@ -43,6 +43,66 @@ var unsubscribeProgramas = null;
 var unsubscribeSoporte = null;
 var unsubscribeLogs = null;
 
+// === SIMULACIÓN DE PATRÓN DE LED VIRTUAL DEL EQUIPO ===
+var ledTimerId = null;
+var ledStepIndex = 0;
+
+function actualizarLedVirtual() {
+    const ledEl = document.getElementById('panelLed');
+    if (!ledEl) return;
+
+    if (ledTimerId) {
+        clearInterval(ledTimerId);
+        ledTimerId = null;
+    }
+
+    const state = globalEstadoDosificador;
+
+    if (state === "PAUSA") {
+        // Doble destello corto
+        ledStepIndex = 0;
+        ledTimerId = setInterval(() => {
+            ledStepIndex = (ledStepIndex + 1) % 15;
+            if (ledStepIndex === 0 || ledStepIndex === 2) {
+                ledEl.classList.remove('off');
+                ledEl.classList.add('on');
+            } else {
+                ledEl.classList.remove('on');
+                ledEl.classList.add('off');
+            }
+        }, 100);
+    } else if (state === "DOSIS") {
+        // Parpadeo constante (500ms ON / 500ms OFF)
+        ledTimerId = setInterval(() => {
+            ledEl.classList.toggle('on');
+            ledEl.classList.toggle('off');
+        }, 500);
+    } else if (state.startsWith("FILTRO")) {
+        // Destello rápido (200ms ON / 200ms OFF)
+        ledTimerId = setInterval(() => {
+            ledEl.classList.toggle('on');
+            ledEl.classList.toggle('off');
+        }, 200);
+    } else if (state === "RESET") {
+        // Continuo encendido
+        ledEl.classList.remove('off');
+        ledEl.classList.add('on');
+    } else {
+        // IDLE: Destello corto cada 2 segundos
+        ledStepIndex = 0;
+        ledTimerId = setInterval(() => {
+            ledStepIndex = (ledStepIndex + 1) % 20;
+            if (ledStepIndex === 0) {
+                ledEl.classList.remove('off');
+                ledEl.classList.add('on');
+            } else {
+                ledEl.classList.remove('on');
+                ledEl.classList.add('off');
+            }
+        }, 100);
+    }
+}
+
 // === DICCIONARIO DE AYUDA (BOTONES HELP) ===
 const HELP_TOPICS = {
     "soporte-tecnico": {
@@ -698,8 +758,17 @@ function setConexionModo(modo, ssid = "") {
     }
 }
 
-function formatLogDate(ts) {
-    const d = ts ? new Date(ts) : new Date();
+function formatLogDate(tsVal) {
+    if (!tsVal) return "";
+    let ts = tsVal;
+    if (typeof ts === 'string') {
+        if (ts.includes("-") && ts.includes("/")) return ts;
+        ts = Number(ts) || Date.now();
+    }
+    if (ts < 10000000000) ts = ts * 1000;
+    const d = new Date(ts);
+    if (isNaN(d.getTime()) || d.getFullYear() < 2024) return "";
+    
     const dd = String(d.getDate()).padStart(2, '0');
     const mm = String(d.getMonth() + 1).padStart(2, '0');
     const aa = String(d.getFullYear()).slice(-2);
@@ -716,7 +785,7 @@ function appendLogToTerminal(logText) {
         term.innerText = "";
     }
     const prefix = formatLogDate(Date.now());
-    term.innerText = `${prefix} - ${logText}\n` + term.innerText;
+    term.innerText = prefix ? `${prefix} - ${logText}\n` + term.innerText : `${logText}\n` + term.innerText;
 }
 
 function renderLogsList(logs) {
@@ -725,15 +794,17 @@ function renderLogsList(logs) {
     if (!logs || !Array.isArray(logs)) return;
     let linesArr = logs.map(item => {
         if (typeof item === 'string') {
-            if (item.includes(" - ")) return item;
-            return `${formatLogDate(Date.now())} - ${item}`;
+            if (item.includes(" - ") && item.includes("/")) return item;
+            const pfx = formatLogDate(Date.now());
+            return pfx ? `${pfx} - ${item}` : item;
         }
-        const ts = item.ts ? item.ts * 1000 : (item.timestamp || Date.now());
+        const ts = item.ts ? item.ts : (item.timestamp || Date.now());
         const msg = item.msg || item.mensaje || item.tipo || JSON.stringify(item);
         if (msg.includes(" - ") && msg.split(" - ").length >= 2 && msg.includes("/")) {
             return msg;
         }
-        return `${formatLogDate(ts)} - ${msg}`;
+        const pfx = formatLogDate(ts);
+        return pfx ? `${pfx} - ${msg}` : msg;
     });
     term.innerText = linesArr.slice(0, 20).join('\n');
 }
@@ -756,7 +827,8 @@ function listenLogsCollection() {
                 if (msg.includes(" - ") && msg.split(" - ").length >= 2 && msg.includes("/")) {
                     logsArr.push(msg);
                 } else {
-                    logsArr.push(`${formatLogDate(ts)} - ${msg}`);
+                    const pfx = formatLogDate(ts);
+                    logsArr.push(pfx ? `${pfx} - ${msg}` : msg);
                 }
             });
             term.innerText = logsArr.slice(0, 20).join('\n');
@@ -797,7 +869,7 @@ function connectNube() {
         const payload = message.payloadString;
         try {
             const data = JSON.parse(payload);
-            const innerData = data.tipo === "TELEMETRIA" ? data.data : data;
+            const innerData = data.tipo === "TELEMETRIA" ? data.data : (data.data || data);
 
             if (data.tipo === "ACK_CRON" || data.comando === "ACK_CRON" || data.status === "OK") {
                 if (pendingCronogramaTimeoutId) {
@@ -806,12 +878,10 @@ function connectNube() {
                     setCronogramaInputsDisabled(false);
                     showToast("🎉 Cronograma guardado y confirmado por el dosificador.");
                 }
-                return;
             }
 
             if (data.tipo === "ACK_CONFIG") {
                 showToast("🎉 Parámetros confirmados por el dosificador.");
-                return;
             }
 
             if (data.tipo === "LOGS_LIST" && data.logs) {
@@ -942,7 +1012,7 @@ function updateUI(raw_data) {
     if (data.fase_real !== undefined) globalEstadoDosificador = data.fase_real;
     else if (data.estado !== undefined) globalEstadoDosificador = data.estado;
     else if (data.est !== undefined) globalEstadoDosificador = (data.est === "FILTRO" && globalEstadoDosificador.startsWith("FILTRO")) ? globalEstadoDosificador : data.est;
-    
+
     if (data.modo !== undefined) globalModoCiclo = data.modo;
     if (data.m !== undefined) globalModoCiclo = data.m;
     if (data.refuerzo !== undefined) globalRefuerzo = data.refuerzo;
@@ -976,6 +1046,7 @@ function updateUI(raw_data) {
 
     actualizarPanelTemporada();
     updateSubtexto();
+    actualizarLedVirtual();
 
     // Actualización dinámica del FONDO del Panel de Estado
     const panelEstado = document.querySelector('.panel-estado');
@@ -1065,7 +1136,7 @@ function updateUI(raw_data) {
         }
     }
 
-    // Tarjeta Dosis Manual (Activa exclusivamente durante fases de dosis manual: FILTRO_PRE, DOSIS, FILTRO_POST)
+    // Tarjeta Dosis Manual (Activa exclusivamente durante fases de dosis manual)
     const isDosisManualOn = (globalModoCiclo === "MANUAL" && (globalEstadoDosificador === "FILTRO_PRE" || globalEstadoDosificador === "DOSIS" || globalEstadoDosificador === "FILTRO_POST"));
     const panelDosisManual = document.getElementById('panelDosisManual');
     const lblDosisManual = document.getElementById('lblDosisManual');
@@ -1199,8 +1270,10 @@ const pRefuerzo = document.getElementById('panelRefuerzo');
 if (pRefuerzo) {
     pRefuerzo.onclick = () => {
         const isRefuerzoOn = (globalRefuerzo === 1 || globalRefuerzo === true);
-        const val = isRefuerzoOn ? false : true;
-        sendCommand({ comando: "SET_REFUERZO", refuerzo: val });
+        const nuevoValor = isRefuerzoOn ? 0 : 1;
+        globalRefuerzo = nuevoValor;
+        updateUI({});
+        sendCommand({ comando: "SET_REFUERZO", refuerzo: nuevoValor === 1 });
     };
 }
 
@@ -1832,4 +1905,4 @@ window.connectRemoteDevice = connectRemoteDevice;
 window.deleteRemoteDevice = deleteRemoteDevice;
 window.deleteTecnico = deleteTecnico;
 
-console.log("Dosimat PWA v2 (Con animaciones CSS, SET_CONFIG, SET_PROGRAMAS y fecha DD/MM/AA) inicializada.");
+console.log("Dosimat PWA v2 (Con LED virtual, timestamps seguros y refuerzo instantáneo) inicializada.");
