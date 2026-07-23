@@ -1529,13 +1529,13 @@ function updateConfigUI(data) {
     }
     actualizarPanelTemporada();
 
-    const espSegs = data.tespera_seg !== undefined ? data.tespera_seg : 1800;
+    const espSegs = data.tespera_seg !== undefined ? data.tespera_seg : 90;
     const inpEspMin = document.getElementById('inpEsperaMin');
     const inpEspSeg = document.getElementById('inpEsperaSeg');
     if (inpEspMin) inpEspMin.value = Math.floor(espSegs / 60);
     if (inpEspSeg) inpEspSeg.value = espSegs % 60;
 
-    const dosSegs = data.tdosis_seg !== undefined ? data.tdosis_seg : 300;
+    const dosSegs = data.tdosis_seg !== undefined ? data.tdosis_seg : 90;
     const inpDosMin = document.getElementById('inpDosisMin');
     const inpDosSeg = document.getElementById('inpDosisSeg');
     if (inpDosMin) inpDosMin.value = Math.floor(dosSegs / 60);

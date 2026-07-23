@@ -8,8 +8,8 @@ WIFI_CONFIG_FILE = "wifi_config.json"
 
 DEFAULT_CONFIG = {
     "config_version": 1,
-    "tespera_seg": 1800,       # Tiempo de espera por defecto (30 minutos)
-    "tdosis_seg": 300,         # Tiempo de dosificación por defecto (5 minutos)
+    "tespera_seg": 90,         # Tiempo de espera por defecto de fábrica (90 segundos / 1m 30s)
+    "tdosis_seg": 90,          # Tiempo de dosificación por defecto de fábrica (90 segundos / 1m 30s)
     "ajuste_baja": 50,         # % de ajuste en temporada baja (50%)
     "temporada_alta_inicio": "10-30",  # Inicio temporada alta (MM-DD)
     "temporada_alta_fin": "03-30"      # Fin temporada alta (MM-DD)
