@@ -1,4 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, GoogleAuthProvider, signInWithPopup, updateProfile } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js" === undefined ? null : "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, GoogleAuthProvider, signInWithPopup, updateProfile } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, collection, addDoc, deleteDoc, getDocs, query, where, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
@@ -30,6 +31,7 @@ var globalWifiSSID = "";
 var lastConfigData = null;
 var lastProgramasData = null;
 var unsavedChanges = false;
+var unsavedProgramasChanges = false;
 var isTechRemoteActive = false;
 
 var globalSoporteWsp = "5491136932456";
@@ -158,8 +160,68 @@ function customAlert(message, title = "Información") {
     return customConfirm(message, title);
 }
 
+function promptUnsavedProgramasModal() {
+    return new Promise((resolve) => {
+        const modal = document.getElementById('customModal');
+        const titleEl = document.getElementById('modalTitle');
+        const msgEl = document.getElementById('modalMessage');
+        const btnConfirm = document.getElementById('btnModalConfirm');
+        const btnCancel = document.getElementById('btnModalCancel');
+
+        if (!modal || !btnConfirm || !btnCancel) {
+            if (confirm("Tienes cambios sin guardar en la programación. ¿Deseas guardarlos?")) {
+                resolve('save');
+            } else {
+                resolve('discard');
+            }
+            return;
+        }
+
+        titleEl.innerText = "Cambios sin guardar";
+        msgEl.innerText = "Tienes modificaciones sin guardar en los cronogramas. ¿Deseas guardar los cambios antes de salir?";
+        
+        const footer = btnConfirm.parentElement;
+        const oldContent = footer.innerHTML;
+
+        footer.innerHTML = `
+            <button class="btn outline" id="btnOptDiscard" style="width: auto; padding: 0.4rem 0.8rem; font-size: 0.85rem;">Descartar</button>
+            <button class="btn outline" id="btnOptCancel" style="width: auto; padding: 0.4rem 0.8rem; font-size: 0.85rem; color: var(--danger); border-color: var(--danger);">Cancelar</button>
+            <button class="btn" id="btnOptSave" style="width: auto; padding: 0.4rem 0.8rem; font-size: 0.85rem;">Guardar</button>
+        `;
+
+        modal.style.display = 'flex';
+
+        const cleanup = (choice) => {
+            modal.style.display = 'none';
+            footer.innerHTML = oldContent;
+            resolve(choice);
+        };
+
+        document.getElementById('btnOptSave').onclick = () => cleanup('save');
+        document.getElementById('btnOptDiscard').onclick = () => cleanup('discard');
+        document.getElementById('btnOptCancel').onclick = () => cleanup('cancel');
+    });
+}
+
 // === GESTIÓN DE PESTAÑAS (SPA) ===
-function switchTab(btn, target) {
+async function switchTab(btn, target) {
+    const currentActiveContainer = document.querySelector('.container.active');
+    const isLeavingProgramacion = currentActiveContainer && currentActiveContainer.id === 'tab-programacion' && target !== 'programacion';
+
+    if (unsavedProgramasChanges && isLeavingProgramacion) {
+        const choice = await promptUnsavedProgramasModal();
+        if (choice === 'cancel') {
+            return;
+        } else if (choice === 'save') {
+            const btnSave = document.getElementById('btnGuardarCronograma');
+            if (btnSave) btnSave.click();
+            unsavedProgramasChanges = false;
+        } else if (choice === 'discard') {
+            unsavedProgramasChanges = false;
+            if (lastProgramasData) updateProgramasUI(lastProgramasData);
+        }
+    }
+
     if (unsavedChanges) {
         if (!confirm("Tienes cambios sin guardar en la configuración. ¿Deseas salir de todas formas?")) {
             return;
@@ -744,6 +806,29 @@ function updateUI(raw_data) {
     actualizarPanelTemporada();
     updateSubtexto();
 
+    // Actualización dinámica del borde del Panel de Estado según los requisitos del usuario
+    const panelEstado = document.querySelector('.panel-estado');
+    if (panelEstado) {
+        panelEstado.classList.remove('bg-green-soft', 'bg-blue-soft', 'bg-red-soft', 'bg-yellow-soft');
+        if (globalEstadoDosificador === "PAUSA") {
+            // Al pausar: color ROJO
+            panelEstado.classList.add('bg-red-soft');
+        } else if (globalEstadoDosificador === "DOSIS") {
+            // Al dosificar: color AMARILLO
+            panelEstado.classList.add('bg-yellow-soft');
+        } else if (globalEstadoDosificador === "FILTRO" || globalEstadoDosificador === "FILTRO_PRE" || globalEstadoDosificador === "FILTRO_POST" || globalEstadoDosificador === "FILTRO_MANUAL") {
+            // Al filtrar: color AZUL
+            panelEstado.classList.add('bg-blue-soft');
+        } else if (globalDosisAnuladas > 0) {
+            // Al anular dosis (en IDLE): color AMARILLO (el mismo que en pausar anteriormente)
+            panelEstado.classList.add('bg-yellow-soft');
+        } else {
+            // Reposo normal: color VERDE
+            panelEstado.classList.add('bg-green-soft');
+        }
+    }
+
+    // Icono y Texto de Estado Principal
     const lblEstado = document.getElementById('lblEstado');
     const iconEstado = document.getElementById('iconEstado');
 
@@ -755,7 +840,7 @@ function updateUI(raw_data) {
             iconEstado.classList.remove('anim-clock');
         } else if (globalEstadoDosificador === "PAUSA") {
             iconEstado.innerText = "pause_circle";
-            iconEstado.style.color = "var(--warning)";
+            iconEstado.style.color = "var(--danger)";
             iconEstado.classList.remove('anim-clock');
         } else {
             iconEstado.innerText = "play_circle";
@@ -764,6 +849,7 @@ function updateUI(raw_data) {
         }
     }
 
+    // Tarjeta Bomba
     const isBombaOn = (globalEstadoDosificador === "FILTRO" || globalEstadoDosificador === "DOSIS" || globalEstadoDosificador === "FILTRO_PRE" || globalEstadoDosificador === "FILTRO_POST" || globalEstadoDosificador === "FILTRO_MANUAL");
     const panelBomba = document.getElementById('panelBomba');
     const lblBomba = document.getElementById('lblBomba');
@@ -786,6 +872,7 @@ function updateUI(raw_data) {
         }
     }
 
+    // Tarjeta Refuerzo
     const isRefuerzoOn = (globalRefuerzo === 1 || globalRefuerzo === true);
     const panelRefuerzo = document.getElementById('panelRefuerzo');
     const lblRefuerzo = document.getElementById('lblRefuerzo');
@@ -802,6 +889,7 @@ function updateUI(raw_data) {
         }
     }
 
+    // Tarjeta Dosis Manual
     const isDosisManualOn = (globalModoCiclo === "MANUAL" && (globalEstadoDosificador === "FILTRO_PRE" || globalEstadoDosificador === "DOSIS" || globalEstadoDosificador === "FILTRO_POST"));
     const panelDosisManual = document.getElementById('panelDosisManual');
     const lblDosisManual = document.getElementById('lblDosisManual');
@@ -812,6 +900,7 @@ function updateUI(raw_data) {
         else panelDosisManual.classList.remove('active-on');
     }
 
+    // Tarjeta Pausa (Al pausar: ROJO)
     const isPausaOn = (globalEstadoDosificador === "PAUSA");
     const panelPausa = document.getElementById('panelPausa');
     const lblPausa = document.getElementById('lblPausa');
@@ -820,10 +909,11 @@ function updateUI(raw_data) {
     if (lblPausa) lblPausa.innerText = isPausaOn ? "ON" : "OFF";
     if (panelPausa) {
         if (isPausaOn) {
-            panelPausa.classList.add('active-warning');
-            if (iconPausa) iconPausa.style.color = "var(--warning)";
-        } else {
             panelPausa.classList.remove('active-warning');
+            panelPausa.classList.add('active-danger');
+            if (iconPausa) iconPausa.style.color = "var(--danger)";
+        } else {
+            panelPausa.classList.remove('active-danger', 'active-warning');
             if (iconPausa) iconPausa.style.color = "var(--text-muted)";
         }
     }
@@ -979,6 +1069,11 @@ function setCronogramaInputsDisabled(disabled) {
     });
 }
 
+function markProgramasChanged() {
+    unsavedProgramasChanges = true;
+    actualizarPanelTemporada();
+}
+
 function agregarFilaCronograma(inicio = "21:00", duracion = 60, dosifica = true, dias = "0123456") {
     const container = document.getElementById('cronogramaContainer');
     if (!container) return;
@@ -1009,12 +1104,12 @@ function agregarFilaCronograma(inicio = "21:00", duracion = 60, dosifica = true,
     
     topRow.querySelector('.btn-del').onclick = () => {
         div.remove();
-        actualizarPanelTemporada();
+        markProgramasChanged();
     };
 
     topRow.querySelectorAll('input').forEach(inp => {
         inp.addEventListener('input', () => {
-            actualizarPanelTemporada();
+            markProgramasChanged();
         });
     });
 
@@ -1028,7 +1123,7 @@ function agregarFilaCronograma(inicio = "21:00", duracion = 60, dosifica = true,
         btn.innerText = l;
         btn.onclick = () => {
             btn.classList.toggle('active');
-            setTimeout(actualizarPanelTemporada, 50);
+            markProgramasChanged();
         };
         diasRow.appendChild(btn);
     });
@@ -1061,6 +1156,7 @@ function updateProgramasUI(data) {
     if (list.children.length === 0) {
         agregarFilaCronograma("21:00", 60, true, "0123456");
     }
+    unsavedProgramasChanges = false;
 }
 
 const btnAgregarHorario = document.getElementById('btnAgregarHorario');
@@ -1072,6 +1168,7 @@ if (btnAgregarHorario) {
             return;
         }
         agregarFilaCronograma("09:00", 60, false, "0123456");
+        markProgramasChanged();
     };
 }
 
@@ -1084,6 +1181,7 @@ if (btnProgAuto) {
             agregarFilaCronograma("09:00", 60, false, "0123456");
             agregarFilaCronograma("14:00", 60, false, "0123456");
             agregarFilaCronograma("21:00", 60, true, "0123456");
+            markProgramasChanged();
             showToast("Programa automático cargado. Recuerda Guardar.");
         }
     };
@@ -1109,6 +1207,7 @@ if (btnGuardarCronograma) {
             }
         }
 
+        unsavedProgramasChanges = false;
         setCronogramaInputsDisabled(true);
         showToast("Guardando cronograma en el equipo...");
 
@@ -1282,15 +1381,17 @@ if (btnCopyMac) {
 const btnRecomendar = document.getElementById('btnRecomendar');
 if (btnRecomendar) {
     btnRecomendar.onclick = () => {
+        const targetUrl = 'https://www.dosimat.com.ar';
         if (navigator.share) {
             navigator.share({
                 title: 'Dosimat IoT',
-                text: 'Te recomiendo la PWA de Dosimat IoT para control inteligente de piscinas.',
-                url: window.location.href
+                text: 'Te recomiendo Dosimat para el control inteligente de tu piscina.',
+                url: targetUrl
+            }).catch(() => {
+                window.open(targetUrl, '_blank');
             });
         } else {
-            navigator.clipboard.writeText(window.location.href);
-            showToast("Enlace de la app copiado.");
+            window.open(targetUrl, '_blank');
         }
     };
 }
@@ -1330,6 +1431,7 @@ if (btnGuardarContactosSoporte) {
             globalSoporteMail = mail;
             showToast("Contactos de soporte guardados correctamente.");
         } catch (e) {
+            console.error("Error guardando contactos:", e);
             showToast("Error al guardar contactos: " + e.message, true);
         }
     };
@@ -1513,4 +1615,4 @@ window.connectRemoteDevice = connectRemoteDevice;
 window.deleteRemoteDevice = deleteRemoteDevice;
 window.deleteTecnico = deleteTecnico;
 
-console.log("Dosimat PWA v2 (Con soporte ACK de Cronogramas y Contactos Dinámicos) inicializada.");
+console.log("Dosimat PWA v2 (Con guardia de navegación en Programar y Colores Dinámicos) inicializada.");

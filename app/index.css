@@ -329,6 +329,10 @@ input:checked + .slider:before {
     border-left-color: var(--danger);
 }
 
+.panel-estado.bg-yellow-soft {
+    border-left-color: var(--warning);
+}
+
 .estado-header {
     display: flex;
     justify-content: center;
