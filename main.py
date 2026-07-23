@@ -19,7 +19,18 @@ import network_manager
 import led_manager
 import sys_log
 
+system_wdt = None
+
+def feed_wdt():
+    global system_wdt
+    if system_wdt:
+        try:
+            system_wdt.feed()
+        except:
+            pass
+
 async def main():
+    global system_wdt
     print("[MAIN] Inicializando tareas del sistema...")
     
     # 1. Registrar eventos en el log
@@ -39,21 +50,22 @@ async def main():
     # 5. Tarea periódica para actualizar el patrón de destello del LED
     asyncio.create_task(tarea_actualizar_leds_periodica())
     
-    # 6. Inicializar Watchdog Timer de hardware (WDT) para mitigar bloqueos severos
+    # 6. Inicializar Watchdog Timer de hardware (WDT)
     try:
-        wdt = machine.WDT(timeout=30000)  # 30 segundos de margen
-        print("[MAIN] Watchdog Timer inicializado (30s).")
-    except Exception as e:
-        print("[MAIN] Watchdog Timer no soportado o error al iniciar:", e)
-        wdt = None
+        system_wdt = machine.WDT(0, 60000)
+        print("[MAIN] Watchdog Timer inicializado (60s).")
+    except Exception:
+        try:
+            system_wdt = machine.WDT(timeout=60000)
+            print("[MAIN] Watchdog Timer inicializado (60s).")
+        except Exception as e:
+            print("[MAIN] WDT no disponible:", e)
+            system_wdt = None
         
     # Bucle de vida principal (alimentando WDT)
     while True:
-        if wdt:
-            wdt.feed()
-        
-        # Opcional: Reportar uso de memoria RAM cada hora
-        await asyncio.sleep(2)
+        feed_wdt()
+        await asyncio.sleep(1)
 
 async def tarea_actualizar_leds_periodica():
     """Monitorea el estado funcional y de red para actualizar el patrón de LED de forma reactiva"""

@@ -462,8 +462,8 @@ async def dispenser_loop():
                 ultima_dosis_ts = time.time()
                 refuerzo_activo = False
                 config_ref["refuerzo_activo"] = False
-                await config_manager.guardar_configuracion(config_ref)
                 estado_dosimat = "FILTRO_POST"
+                await enviar_telemetria()
                 
         # ----------------------------------------------------
         # 3.5. ESTADO: FILTRO_POST (Limpieza de tuberías / Fin de ciclo)

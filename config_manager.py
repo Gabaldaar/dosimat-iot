@@ -49,8 +49,21 @@ async def _guardar_interno(data):
     """Escribe de manera atómica usando un archivo temporal para prevenir corrupción"""
     tmp_file = CONFIG_FILE + ".tmp"
     try:
+        await asyncio.sleep_ms(10)
+        try:
+            import main
+            if hasattr(main, "feed_wdt"): main.feed_wdt()
+        except Exception: pass
+
         with open(tmp_file, "w") as f:
             json.dump(data, f)
+            
+        await asyncio.sleep_ms(10)
+        try:
+            import main
+            if hasattr(main, "feed_wdt"): main.feed_wdt()
+        except Exception: pass
+
         try:
             os.remove(CONFIG_FILE)
         except OSError:
@@ -63,6 +76,8 @@ async def _guardar_interno(data):
             os.remove(tmp_file)
         except OSError:
             pass
+    finally:
+        await asyncio.sleep_ms(10)
 
 async def cargar_wifi_config():
     try:
