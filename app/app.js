@@ -883,7 +883,7 @@ function connectNube() {
                 }
             }
 
-            if (data.tipo === "ACK_CONFIG") {
+            if (data.tipo === "ACK_CONFIG" || data.tipo === "ACK_CFG") {
                 showToast("🎉 Parámetros confirmados por el dosificador.");
             }
 
@@ -1431,6 +1431,7 @@ function updateProgramasUI(data) {
         agregarFilaCronograma("21:00", 60, true, "0123456");
     }
     unsavedProgramasChanges = false;
+    if (typeof updateSubtexto === 'function') updateSubtexto();
 }
 
 const btnAgregarHorario = document.getElementById('btnAgregarHorario');
@@ -1495,25 +1496,16 @@ if (btnGuardarCronograma) {
 
         if (modoConexion === "BLE") {
             try {
-                await sendCommand({ comando: "cron_start", total: cron.length }, true);
-                await new Promise(r => setTimeout(r, 300));
-                for (let i = 0; i < cron.length; i++) {
-                    await sendCommand({
-                        comando: "cron_add",
-                        idx: i,
-                        on: cron[i].on,
-                        duracion: cron[i].duracion,
-                        dosifica: cron[i].dosifica,
-                        dias: cron[i].dias
-                    }, true);
-                    await new Promise(r => setTimeout(r, 300));
-                }
-                await sendCommand({ comando: "cron_commit" });
+                await sendCommand({ comando: "config_cronograma", cronograma: cron });
             } catch (e) {
                 console.error("Error BLE cron:", e);
             }
         } else {
-            sendCommand({ comando: "SET_PROGRAMAS", ...objPayload });
+            sendCommand({ comando: "config_cronograma", cronograma: cron });
+            if (currentMac) {
+                const progRef = doc(db, "equipos", currentMac, "programas", "actual");
+                setDoc(progRef, objPayload).catch(e => console.warn("Error guardando en Firestore:", e));
+            }
         }
     };
 }
@@ -1561,6 +1553,8 @@ function updateConfigUI(data) {
         if (iMes) iMes.value = parts[0];
         if (iDia) iDia.value = parts[1];
     }
+    
+    if (typeof updateSubtexto === 'function') updateSubtexto();
 }
 
 const btnGuardarConfig = document.getElementById('btnGuardarConfig');
@@ -1590,6 +1584,19 @@ if (btnGuardarConfig) {
             temporada_alta_inicio: tempInicio,
             temporada_alta_fin: tempFin
         };
+
+        if (modoConexion === "NUBE" && currentMac) {
+            const cfgRef = doc(db, "equipos", currentMac, "config", "actual");
+            const firestorePayload = {
+                config_version: Date.now(),
+                tespera_seg: tespera_seg,
+                tdosis_seg: tdosis_seg,
+                ajuste_baja: ajuste,
+                temporada_alta_inicio: tempInicio,
+                temporada_alta_fin: tempFin
+            };
+            setDoc(cfgRef, firestorePayload).catch(e => console.warn("Error guardando en Firestore:", e));
+        }
 
         sendCommand(payload);
         showToast("Parámetros de tiempos guardados.");

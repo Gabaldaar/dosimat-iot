@@ -226,9 +226,13 @@ async def procesar_comando(cmd_dict):
                 parts_h = [int(x) for x in hora_str.split(":")]
                 import machine
                 rtc = machine.RTC()
-                t_tuple = (parts_f[0], parts_f[1], parts_f[2], 0, parts_h[0], parts_h[1], 0, 0)
+                t_epoch = time.mktime((parts_f[0], parts_f[1], parts_f[2], parts_h[0], parts_h[1], 0, 0, 0))
+                t_correct = time.localtime(t_epoch)
+                correct_wday = t_correct[6]
+                
+                t_tuple = (parts_f[0], parts_f[1], parts_f[2], correct_wday, parts_h[0], parts_h[1], 0, 0)
                 rtc.datetime(t_tuple)
-                if rtc_hw: rtc_hw.save_time((parts_f[0], parts_f[1], parts_f[2], 0, parts_h[0], parts_h[1], 0))
+                if rtc_hw: rtc_hw.save_time((parts_f[0], parts_f[1], parts_f[2], correct_wday, parts_h[0], parts_h[1], 0))
                 await tx_queue.put({"tipo": "ACK_RTC", "status": "OK", "_destino": origen})
             except Exception: pass
 
@@ -352,8 +356,9 @@ async def cron_scheduler_task():
                                 if incluye_dosis:
                                     estado_dosimat = "FILTRO_PRE"
                                     # Descontamos el tiempo de espera del total de filtrado
-                                    t_espera = config_ref.get("tespera_seg", 1800)
-                                    tfiltro_restante = max(0, (int(prog.get("duracion", 60)) * 60) - t_espera)
+                                    t_espera = int(config_ref.get("tespera_seg", 1800))
+                                    dur_seg = int(prog.get("duracion", 60)) * 60
+                                    tfiltro_restante = max(0, dur_seg - t_espera)
                                 else:
                                     # Si no hay dosis, va directo a FILTRO_POST para solo filtrar
                                     estado_dosimat = "FILTRO_POST"
@@ -400,7 +405,7 @@ async def dispenser_loop():
             if fase_actual_interrumpida == "FILTRO_PRE" and tiempo_acumulado_fase > 0:
                 tiempo_restante = tiempo_acumulado_fase
             else:
-                tiempo_restante = config_ref.get("tespera_seg", 1800)
+                tiempo_restante = int(config_ref.get("tespera_seg", 1800))
                 
             fase_actual_interrumpida = None
             tiempo_acumulado_fase = 0
