@@ -572,8 +572,16 @@ if (btnSignOut) {
 }
 
 async function checkUserRole(user) {
-    if (!user) return;
-    const email = (user.email || "").toLowerCase();
+    const navTecnicos = document.getElementById('navTecnicos');
+    const cardGestion = document.getElementById('cardGestionTecnicos');
+    const cardConfigSoporte = document.getElementById('cardConfigSoporte');
+
+    if (navTecnicos) navTecnicos.style.display = "none";
+    if (cardGestion) cardGestion.style.display = "none";
+    if (cardConfigSoporte) cardConfigSoporte.style.display = "none";
+
+    if (!user || !user.email) return;
+    const email = user.email.toLowerCase().trim();
     
     let isSuper = (email === "gab.aldazabal@gmail.com" || email === "gabrielsew61@gmail.com");
     let isTecnico = isSuper;
@@ -581,21 +589,24 @@ async function checkUserRole(user) {
     if (!isSuper) {
         try {
             const tecDoc = await getDoc(doc(db, "administradores", email));
-            if (tecDoc.exists()) isTecnico = true;
-        } catch (e) {}
+            if (tecDoc.exists() && tecDoc.data() && (tecDoc.data().rol === "tecnico" || tecDoc.data().rol === "admin")) {
+                isTecnico = true;
+            } else {
+                isTecnico = false;
+            }
+        } catch (e) {
+            isTecnico = false;
+        }
     }
 
-    const navTecnicos = document.getElementById('navTecnicos');
     if (navTecnicos) {
         navTecnicos.style.display = (isSuper || isTecnico) ? "flex" : "none";
     }
 
-    const cardGestion = document.getElementById('cardGestionTecnicos');
     if (cardGestion) {
         cardGestion.style.display = isSuper ? "block" : "none";
     }
 
-    const cardConfigSoporte = document.getElementById('cardConfigSoporte');
     if (cardConfigSoporte) {
         cardConfigSoporte.style.display = (isSuper || isTecnico) ? "block" : "none";
     }
@@ -603,6 +614,11 @@ async function checkUserRole(user) {
     if (isSuper || isTecnico) {
         loadAdminGlobal();
         loadTecnicosUI();
+    } else {
+        const activeTab = document.querySelector('.container.active');
+        if (activeTab && activeTab.id === 'tab-tecnicos') {
+            switchTab(document.querySelector('nav [data-target="dashboard"]'), 'dashboard');
+        }
     }
 }
 
@@ -682,14 +698,25 @@ function setConexionModo(modo, ssid = "") {
     }
 }
 
+function formatLogDate(ts) {
+    const d = ts ? new Date(ts) : new Date();
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const aa = String(d.getFullYear()).slice(-2);
+    const hh = String(d.getHours()).padStart(2, '0');
+    const min = String(d.getMinutes()).padStart(2, '0');
+    const ss = String(d.getSeconds()).padStart(2, '0');
+    return `${dd}/${mm}/${aa} - ${hh}:${min}:${ss}`;
+}
+
 function appendLogToTerminal(logText) {
     const term = document.getElementById('logsTerminal');
     if (!term) return;
     if (term.innerText.includes("Esperando eventos...")) {
         term.innerText = "";
     }
-    const timestamp = new Date().toLocaleTimeString('es-AR', { hour12: false });
-    term.innerText = `${timestamp} - ${logText}\n` + term.innerText;
+    const prefix = formatLogDate(Date.now());
+    term.innerText = `${prefix} - ${logText}\n` + term.innerText;
 }
 
 function renderLogsList(logs) {
@@ -697,10 +724,16 @@ function renderLogsList(logs) {
     if (!term) return;
     if (!logs || !Array.isArray(logs)) return;
     let linesArr = logs.map(item => {
-        if (typeof item === 'string') return item;
-        const ts = item.ts ? new Date(item.ts * 1000).toLocaleTimeString('es-AR', { hour12: false }) : (item.timestamp ? new Date(item.timestamp).toLocaleTimeString('es-AR', { hour12: false }) : "");
+        if (typeof item === 'string') {
+            if (item.includes(" - ")) return item;
+            return `${formatLogDate(Date.now())} - ${item}`;
+        }
+        const ts = item.ts ? item.ts * 1000 : (item.timestamp || Date.now());
         const msg = item.msg || item.mensaje || item.tipo || JSON.stringify(item);
-        return ts ? `${ts} - ${msg}` : msg;
+        if (msg.includes(" - ") && msg.split(" - ").length >= 2 && msg.includes("/")) {
+            return msg;
+        }
+        return `${formatLogDate(ts)} - ${msg}`;
     });
     term.innerText = linesArr.slice(0, 20).join('\n');
 }
@@ -718,9 +751,13 @@ function listenLogsCollection() {
             let logsArr = [];
             snap.forEach(docSnap => {
                 const data = docSnap.data();
-                const ts = data.timestamp ? new Date(data.timestamp).toLocaleTimeString('es-AR', { hour12: false }) : "";
+                const ts = data.timestamp || Date.now();
                 const msg = data.mensaje || data.msg || data.log || JSON.stringify(data);
-                logsArr.push(`${ts} - ${msg}`);
+                if (msg.includes(" - ") && msg.split(" - ").length >= 2 && msg.includes("/")) {
+                    logsArr.push(msg);
+                } else {
+                    logsArr.push(`${formatLogDate(ts)} - ${msg}`);
+                }
             });
             term.innerText = logsArr.slice(0, 20).join('\n');
         }, (err) => {
@@ -769,6 +806,11 @@ function connectNube() {
                     setCronogramaInputsDisabled(false);
                     showToast("🎉 Cronograma guardado y confirmado por el dosificador.");
                 }
+                return;
+            }
+
+            if (data.tipo === "ACK_CONFIG") {
+                showToast("🎉 Parámetros confirmados por el dosificador.");
                 return;
             }
 
@@ -900,6 +942,7 @@ function updateUI(raw_data) {
     if (data.estado !== undefined) globalEstadoDosificador = data.estado;
     if (data.est !== undefined) globalEstadoDosificador = data.est;
     if (data.modo !== undefined) globalModoCiclo = data.modo;
+    if (data.m !== undefined) globalModoCiclo = data.m;
     if (data.refuerzo !== undefined) globalRefuerzo = data.refuerzo;
     if (data.ref !== undefined) globalRefuerzo = data.ref;
     if (data.anuladas !== undefined) globalDosisAnuladas = data.anuladas;
@@ -1020,15 +1063,18 @@ function updateUI(raw_data) {
         }
     }
 
-    // Tarjeta Dosis Manual (Permanece activada y apretada desde su activación hasta terminar la fase de Dosificando)
-    const isDosisManualOn = (globalModoCiclo === "MANUAL" && (globalEstadoDosificador === "FILTRO_PRE" || globalEstadoDosificador === "DOSIS"));
+    // Tarjeta Dosis Manual (Activa desde FILTRO_PRE hasta finalizar DOSIS)
+    const isDosisManualOn = (globalModoCiclo === "MANUAL" && (globalEstadoDosificador === "FILTRO_PRE" || globalEstadoDosificador === "DOSIS" || globalEstadoDosificador === "FILTRO_POST"));
     const panelDosisManual = document.getElementById('panelDosisManual');
     const lblDosisManual = document.getElementById('lblDosisManual');
 
     if (lblDosisManual) lblDosisManual.innerText = isDosisManualOn ? "Activa" : "Iniciar";
     if (panelDosisManual) {
-        if (isDosisManualOn) panelDosisManual.classList.add('active-on');
-        else panelDosisManual.classList.remove('active-on');
+        if (isDosisManualOn) {
+            panelDosisManual.classList.add('active-warning');
+        } else {
+            panelDosisManual.classList.remove('active-warning', 'active-on');
+        }
     }
 
     // Tarjeta Pausa
@@ -1767,4 +1813,4 @@ window.connectRemoteDevice = connectRemoteDevice;
 window.deleteRemoteDevice = deleteRemoteDevice;
 window.deleteTecnico = deleteTecnico;
 
-console.log("Dosimat PWA v2 (Con hélice mode_fan, subtextos y ACK SET_PROGRAMAS) inicializada.");
+console.log("Dosimat PWA v2 (Con animaciones CSS, SET_CONFIG, SET_PROGRAMAS y fecha DD/MM/AA) inicializada.");

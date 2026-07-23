@@ -19,6 +19,15 @@ async def log_event(event_dict, wifi_activo=None):
     Si wifi_activo es True, añade la entrada al archivo Flash con control de rotación atómica.
     """
     event_dict["ts"] = time.time()
+    try:
+        t = time.localtime()
+        date_prefix = f"{t[2]:02d}/{t[1]:02d}/{str(t[0])[-2:]} - {t[3]:02d}:{t[4]:02d}:{t[5]:02d}"
+        if "msg" in event_dict:
+            msg_body = event_dict["msg"]
+            if not ("/" in msg_body[:5] and "-" in msg_body[:15]):
+                event_dict["msg"] = f"{date_prefix} - {msg_body}"
+    except Exception:
+        pass
     
     if wifi_activo is None:
         try:

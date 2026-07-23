@@ -233,13 +233,47 @@ async def procesar_comando(cmd_dict):
                 await tx_queue.put({"tipo": "ACK_RTC", "status": "OK", "_destino": origen})
             except Exception: pass
 
+    elif cmd in ("SET_CONFIG", "config_params"):
+        tespera_seg = cmd_dict.get("tespera_seg")
+        tdosis_seg = cmd_dict.get("tdosis_seg")
+        ajuste_baja = cmd_dict.get("ajuste_baja")
+        temp_ini = cmd_dict.get("temporada_alta_inicio")
+        temp_fin = cmd_dict.get("temporada_alta_fin")
+        
+        cfg_to_save = {}
+        if tespera_seg is not None: cfg_to_save["tespera_seg"] = int(tespera_seg)
+        if tdosis_seg is not None: cfg_to_save["tdosis_seg"] = int(tdosis_seg)
+        if ajuste_baja is not None: cfg_to_save["ajuste_baja"] = int(ajuste_baja)
+        if temp_ini: cfg_to_save["temporada_alta_inicio"] = temp_ini
+        if temp_fin: cfg_to_save["temporada_alta_fin"] = temp_fin
+
+        await config_manager.guardar_configuracion(cfg_to_save)
+        config_ref.update(cfg_to_save)
+        await tx_queue.put({"tipo": "ACK_CONFIG", "status": "OK", "_destino": origen})
+        await enviar_telemetria()
+
     elif cmd in ("SET_PROGRAMAS", "config_cronograma"):
-        cron = cmd_dict.get("cronograma", [])
-        if not cron and "PR1_inicio" in cmd_dict:
-            cron = cmd_dict
-        await config_manager.guardar_configuracion({"cronograma": cron})
-        config_ref["cronograma"] = cron
+        cron_list = []
+        if "cronograma" in cmd_dict and isinstance(cmd_dict["cronograma"], list):
+            cron_list = cmd_dict["cronograma"]
+        else:
+            for i in range(1, 11):
+                ini = cmd_dict.get(f"PR{i}_inicio")
+                dur = cmd_dict.get(f"PR{i}_duracion_min", 0)
+                dos = cmd_dict.get(f"PR{i}_dosifica", False)
+                dias = cmd_dict.get(f"PR{i}_dias", [0,1,2,3,4,5,6])
+                if ini and ini != "00:00" and int(dur) > 0:
+                    dias_str = "".join(str(d) for d in dias) if isinstance(dias, list) else str(dias)
+                    cron_list.append({
+                        "on": ini,
+                        "duracion": int(dur),
+                        "dosifica": bool(dos),
+                        "dias": dias_str
+                    })
+        await config_manager.guardar_configuracion({"cronograma": cron_list, "raw_programas": cmd_dict})
+        config_ref["cronograma"] = cron_list
         await tx_queue.put({"tipo": "ACK_CRON", "status": "OK", "_destino": origen})
+        await enviar_telemetria()
 
     elif cmd == "GET_LOGS":
         try:
