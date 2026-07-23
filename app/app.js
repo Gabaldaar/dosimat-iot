@@ -939,8 +939,10 @@ function updateUI(raw_data) {
     if (!raw_data) return;
     const data = raw_data.tipo === "TELEMETRIA" ? raw_data.data : raw_data;
 
-    if (data.estado !== undefined) globalEstadoDosificador = data.estado;
-    if (data.est !== undefined) globalEstadoDosificador = data.est;
+    if (data.fase_real !== undefined) globalEstadoDosificador = data.fase_real;
+    else if (data.estado !== undefined) globalEstadoDosificador = data.estado;
+    else if (data.est !== undefined) globalEstadoDosificador = (data.est === "FILTRO" && globalEstadoDosificador.startsWith("FILTRO")) ? globalEstadoDosificador : data.est;
+    
     if (data.modo !== undefined) globalModoCiclo = data.modo;
     if (data.m !== undefined) globalModoCiclo = data.m;
     if (data.refuerzo !== undefined) globalRefuerzo = data.refuerzo;
@@ -1063,8 +1065,8 @@ function updateUI(raw_data) {
         }
     }
 
-    // Tarjeta Dosis Manual (Activa desde FILTRO_PRE hasta finalizar DOSIS)
-    const isDosisManualOn = (globalModoCiclo === "MANUAL" && (globalEstadoDosificador === "FILTRO_PRE" || globalEstadoDosificador === "DOSIS" || globalEstadoDosificador === "FILTRO_POST"));
+    // Tarjeta Dosis Manual (Activa desde que inicia el ciclo manual hasta volver a IDLE)
+    const isDosisManualOn = (globalModoCiclo === "MANUAL" && globalEstadoDosificador !== "IDLE" && globalEstadoDosificador !== "PAUSA" && globalEstadoDosificador !== "RESET");
     const panelDosisManual = document.getElementById('panelDosisManual');
     const lblDosisManual = document.getElementById('lblDosisManual');
     const iconDosisManual = document.getElementById('iconDosisManual');
@@ -1205,10 +1207,16 @@ if (pRefuerzo) {
 const pDosisManual = document.getElementById('panelDosisManual');
 if (pDosisManual) {
     pDosisManual.onclick = () => {
-        const isDosisManualOn = (globalModoCiclo === "MANUAL" && (globalEstadoDosificador === "FILTRO_PRE" || globalEstadoDosificador === "DOSIS" || globalEstadoDosificador === "FILTRO_POST"));
+        const isDosisManualOn = (globalModoCiclo === "MANUAL" && globalEstadoDosificador !== "IDLE" && globalEstadoDosificador !== "PAUSA" && globalEstadoDosificador !== "RESET");
         if (isDosisManualOn) {
+            globalModoCiclo = "AUTO";
+            globalEstadoDosificador = "IDLE";
+            updateUI({ estado: "IDLE", modo: "AUTO" });
             sendCommand({ comando: "CANCEL_CYCLE" });
         } else {
+            globalModoCiclo = "MANUAL";
+            globalEstadoDosificador = "FILTRO_PRE";
+            updateUI({ estado: "FILTRO_PRE", modo: "MANUAL" });
             sendCommand({ comando: "START_CYCLE", refuerzo: false });
         }
     };
