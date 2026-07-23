@@ -1,0 +1,311 @@
+const functions = require("firebase-functions");
+const admin = require("firebase-admin");
+const mqtt = require("mqtt");
+
+admin.initializeApp();
+const db = admin.firestore();
+
+// Configuración del Broker MQTT
+const MQTT_BROKER_URL = "mqtt://broker.hivemq.com:1883";
+
+/**
+ * Función auxiliar para verificar roles y permisos del usuario en Firestore.
+ * Valida si el usuario es Propietario del equipo, Técnico o Super Admin.
+ */
+async function checkUserPermission(chipId, auth) {
+    if (!auth || !auth.uid) return { role: null, allowed: false };
+    const uid = auth.uid;
+    const email = auth.token ? auth.token.email : null;
+
+    if (email === "gab.aldazabal@gmail.com") {
+        return { role: "super_admin", allowed: true };
+    }
+
+    if (email) {
+        const tecnicoSnap = await db.doc(`administradores/${email}`).get();
+        if (tecnicoSnap.exists && tecnicoSnap.data().rol === "tecnico") {
+            return { role: "tecnico", allowed: true };
+        }
+    }
+
+    // 1. Verificar si es Super Admin
+    const superAdminSnap = await db.doc("roles/super_admin").get();
+    if (superAdminSnap.exists && superAdminSnap.data()[uid] === true) {
+        return { role: "super_admin", allowed: true };
+    }
+
+    // 2. Verificar si es Propietario del equipo
+    const propietarioSnap = await db.doc(`equipos/${chipId}/propietarios/${uid}`).get();
+    const isOwner = propietarioSnap.exists && propietarioSnap.data().activo === true;
+
+    if (isOwner) {
+        return { role: "owner", allowed: true };
+    }
+
+    return { role: null, allowed: false };
+}
+
+/**
+ * Función auxiliar para enviar un comando al Broker MQTT
+ */
+function publishToMqtt(chipId, payload) {
+    return new Promise((resolve, reject) => {
+        const client = mqtt.connect(MQTT_BROKER_URL);
+        client.on("connect", () => {
+            const topic = `dosimat/${chipId}/cmd`;
+            client.publish(topic, JSON.stringify(payload), { qos: 1 }, (err) => {
+                client.end();
+                if (err) {
+                    console.error(`Error publicando en MQTT para ${chipId}:`, err);
+                    reject(err);
+                } else {
+                    console.log(`Mensaje publicado en ${topic}:`, payload);
+                    resolve();
+                }
+            });
+        });
+        client.on("error", (err) => {
+            client.end();
+            reject(err);
+        });
+    });
+}
+
+/**
+ * 1. Webhook HTTP para recibir Telemetría y Logs desde el Broker MQTT.
+ */
+exports.mqttWebhook = functions.https.onRequest(async (req, res) => {
+    const { topic, payload } = req.body;
+    if (!topic || !payload) {
+        return res.status(400).send("Falta topic o payload en el cuerpo de la solicitud.");
+    }
+
+    console.log(`Webhook MQTT recibido - Topic: ${topic}`);
+
+    try {
+        const topicParts = topic.split("/");
+        const chipId = topicParts[1];
+        const subTopic = topicParts[2];
+        const rawData = typeof payload === "string" ? JSON.parse(payload) : payload;
+
+        const data = (rawData.tipo === "TELEMETRIA" || rawData.tipo === "LOG_ENTRY") ? rawData.data : rawData;
+
+        if (subTopic === "telemetry") {
+            await db.doc(`equipos/${chipId}/estado/actual`).set({
+                estado: data.est || "IDLE",
+                temperatura_rtc: data.temp_rtc !== undefined ? data.temp_rtc : (data.temp || 0.0),
+                refuerzo: data.ref === 1,
+                pausado: data.est === "PAUSA",
+                tr: data.tr !== undefined ? data.tr : 0,
+                config_version: data.v !== undefined ? data.v : 1,
+                ultima_sincronizacion: admin.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
+
+            console.log(`Estado de telemetría de ${chipId} escrito en Firestore.`);
+            return res.status(200).send("Telemetría procesada exitosamente.");
+
+        } else if (subTopic === "sys_log") {
+            if (rawData.tipo === "LOGS_END" || data.tipo === "LOGS_END") {
+                return res.status(200).send("Ignorado.");
+            }
+            const logId = data.ts ? `log_${data.ts}` : `log_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+            const tsJS = data.ts ? (data.ts < 100000 ? Date.now() : (data.ts + 946684800) * 1000) : Date.now();
+            await db.doc(`equipos/${chipId}/logs/${logId}`).set({
+                ...data,
+                fecha: data.fecha || new Date(tsJS).toLocaleString('es-AR', { timeZone: 'UTC' }),
+                timestamp: admin.firestore.FieldValue.serverTimestamp(),
+                origen: "MQTT"
+            });
+
+            console.log(`Log de ${chipId} guardado en Firestore con ID ${logId}.`);
+            return res.status(200).send("Log procesado exitosamente.");
+        }
+
+        return res.status(400).send("Topic secundario no soportado.");
+    } catch (error) {
+        console.error("Error procesando Webhook MQTT:", error);
+        return res.status(500).send("Error interno de procesamiento: " + error.message);
+    }
+});
+
+/**
+ * 2. Trigger de Firestore: Escucha cambios en 'config/actual' y los envía por MQTT al ESP32.
+ */
+exports.onConfigWrite = functions.firestore.document("equipos/{chipId}/config/actual").onWrite(async (change, context) => {
+    const chipId = context.params.chipId;
+    const nextData = change.after.data();
+    
+    const uid = context.auth ? context.auth.uid : null;
+    if (context.auth) {
+        const permissions = await checkUserPermission(chipId, context.auth);
+        if (!permissions.allowed) {
+            console.warn(`Usuario no autorizado ${uid} intentó modificar configuración de ${chipId}`);
+            return;
+        }
+    }
+
+    if (!nextData) return;
+
+    console.log(`Detectada nueva configuración en Firestore para ${chipId}. Enviando al ESP32...`);
+    const payload = {
+        comando: "UPDATE_CONFIG",
+        config: {
+            config_version: nextData.config_version || 1,
+            tespera_seg: nextData.tespera_seg || 3600,
+            tdosis_seg: nextData.tdosis_seg || 300,
+            ajuste_baja: nextData.ajuste_baja || 10,
+            temporada_alta_inicio: nextData.temporada_alta_inicio || "11-01",
+            temporada_alta_fin: nextData.temporada_alta_fin || "03-31"
+        }
+    };
+
+    await publishToMqtt(chipId, payload);
+});
+
+/**
+ * 3. Trigger de Firestore: Escucha cambios en 'programas/actual' y los envía por MQTT al ESP32.
+ */
+exports.onProgramasWrite = functions.firestore.document("equipos/{chipId}/programas/actual").onWrite(async (change, context) => {
+    const chipId = context.params.chipId;
+    const nextData = change.after.data();
+
+    const uid = context.auth ? context.auth.uid : null;
+    if (context.auth) {
+        const permissions = await checkUserPermission(chipId, context.auth);
+        if (!permissions.allowed) {
+            console.warn(`Usuario no autorizado ${uid} intentó modificar programas de ${chipId}`);
+            return;
+        }
+    }
+
+    if (!nextData) return;
+
+    console.log(`Detectado cambio en programas de ${chipId}. Transmitiendo horarios al equipo...`);
+    
+    const cronograma = [];
+    for (let i = 1; i <= 10; i++) {
+        const inicio = nextData[`PR${i}_inicio`];
+        const duracion = nextData[`PR${i}_duracion_min`];
+        const dosifica = nextData[`PR${i}_dosifica`];
+        const dias = nextData[`PR${i}_dias`];
+
+        if (inicio && duracion) {
+            cronograma.push({
+                on: inicio.replace(":", ""),
+                duracion: parseFloat(duracion),
+                dosis: dosifica ? 1 : 0,
+                dias: Array.isArray(dias) ? dias.join("") : (dias || "0123456")
+            });
+        }
+    }
+
+    const payload = {
+        comando: "config_cronograma",
+        cronograma: cronograma
+    };
+
+    await publishToMqtt(chipId, payload);
+});
+
+/**
+ * 4. Trigger de Firestore: Escucha comandos de estado y los envía por MQTT al ESP32.
+ */
+exports.onEstadoWrite = functions.firestore.document("equipos/{chipId}/estado/actual").onWrite(async (change, context) => {
+    const chipId = context.params.chipId;
+    const nextData = change.after.data();
+    const prevData = change.before.data();
+
+    const uid = context.auth ? context.auth.uid : null;
+    if (context.auth) {
+        const permissions = await checkUserPermission(chipId, context.auth);
+        if (!permissions.allowed) {
+            console.warn(`Usuario no autorizado ${uid} intentó enviar comando a ${chipId}`);
+            return;
+        }
+        
+        if (permissions.role === "tecnico" && nextData.comando_solicitado === "FACTORY_RESET") {
+            console.warn(`Técnico ${uid} intentó hacer reset de fábrica en ${chipId}. Bloqueado.`);
+            return;
+        }
+    }
+
+    if (!nextData || !nextData.comando_solicitado) return;
+    
+    // Si el timestamp es el mismo (o ambos no lo tienen y el comando es igual), salimos
+    if (prevData && prevData._ts === nextData._ts && prevData.comando_solicitado === nextData.comando_solicitado) return;
+
+    console.log(`Detectado comando solicitado '${nextData.comando_solicitado}' para ${chipId}.`);
+    
+    let payload = null;
+    switch (nextData.comando_solicitado) {
+        case "START_CYCLE":
+            payload = { comando: "START_CYCLE", refuerzo: !!nextData.refuerzo_solicitado };
+            break;
+        case "PAUSE_CYCLE":
+            payload = { comando: "PAUSE_CYCLE" };
+            break;
+        case "RESUME_CYCLE":
+            payload = { comando: "RESUME_CYCLE" };
+            break;
+        case "CANCEL_CYCLE":
+            payload = { comando: "CANCEL_CYCLE" };
+            break;
+        case "RUN_ANTI":
+            payload = { comando: "RUN_ANTI" };
+            break;
+        case "FACTORY_RESET":
+            payload = { comando: "FACTORY_RESET" };
+            break;
+        case "START_PUMP":
+            payload = { comando: "START_PUMP" };
+            break;
+        case "SET_REFUERZO":
+            payload = { comando: "SET_REFUERZO", refuerzo: !!nextData.refuerzo_solicitado };
+            break;
+        case "SET_ANULADAS":
+            payload = { comando: "SET_ANULADAS", valor: nextData.anuladas_solicitadas !== undefined ? nextData.anuladas_solicitadas : 0 };
+            break;
+        case "GET_STATE":
+            payload = { comando: "GET_STATE" };
+            break;
+        case "GET_LOGS":
+            payload = { comando: "GET_LOGS" };
+            break;
+        case "CLEAR_LOGS":
+            payload = { comando: "CLEAR_LOGS" };
+            // También borrar los logs de Firestore
+            try {
+                const logsSnapshot = await db.collection(`equipos/${chipId}/logs`).get();
+                const batch = db.batch();
+                logsSnapshot.docs.forEach((doc) => {
+                    batch.delete(doc.ref);
+                });
+                await batch.commit();
+                console.log(`Logs de ${chipId} borrados en Firestore.`);
+            } catch (e) {
+                console.error("Error borrando logs en Firestore", e);
+            }
+            break;
+        case "GET_CONFIG":
+            payload = { comando: "GET_CONFIG" };
+            break;
+        case "sync_rtc":
+            payload = { comando: "sync_rtc", fecha: nextData.fecha, hora: nextData.hora };
+            break;
+        case "config_wifi":
+            payload = { comando: "config_wifi", ssid: nextData.ssid, pwd: nextData.pwd };
+            break;
+        default:
+            console.log(`Comando no reconocido: ${nextData.comando_solicitado}`);
+            return;
+    }
+
+    if (payload) {
+        await publishToMqtt(chipId, payload);
+        
+        await db.doc(`equipos/${chipId}/estado/actual`).update({
+            comando_solicitado: admin.firestore.FieldValue.delete(),
+            refuerzo_solicitado: admin.firestore.FieldValue.delete()
+        });
+    }
+});

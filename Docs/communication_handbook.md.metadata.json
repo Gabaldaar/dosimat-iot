@@ -1,0 +1,5 @@
+{
+  "summary":  "Detailed documentation of the hybrid communication architecture (WiFi/MQTT/Firestore and BLE Nordic UART) between the PWA and the ESP32.",
+  "updatedAt":  "2026-07-19T11:28:14.556543500Z",
+  "userFacing":  true
+}
