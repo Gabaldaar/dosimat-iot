@@ -271,7 +271,14 @@ async def procesar_comando(cmd_dict):
             for i, ev in enumerate(cron_list):
                 idx = i + 1
                 if idx > 10: break
-                raw_programas[f"PR{idx}_inicio"] = ev.get("on", "00:00")
+                
+                on_val = str(ev.get("on", "00:00"))
+                if len(on_val) == 4 and ":" not in on_val:
+                    on_val = f"{on_val[:2]}:{on_val[2:]}"
+                elif len(on_val) == 3 and ":" not in on_val:
+                    on_val = f"0{on_val[0]}:{on_val[1:]}"
+                    
+                raw_programas[f"PR{idx}_inicio"] = on_val
                 raw_programas[f"PR{idx}_duracion_min"] = ev.get("duracion", 0)
                 raw_programas[f"PR{idx}_dosifica"] = ev.get("dosifica", False) or ev.get("dosis", 0) == 1
                 dias_val = ev.get("dias", "0123456")
