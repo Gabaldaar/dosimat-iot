@@ -795,12 +795,15 @@ function formatLogDate(ts) {
     else if (ts && typeof ts.seconds === 'number') ts = ts.seconds * 1000;
     if (!ts || isNaN(ts)) ts = Date.now();
     
+    let isEsp32Epoch = false;
+    
     // ESP32 returns seconds since 2000 (epoch 946684800 in JS Unix). 
     // Si ts es menor a 1500000000, asumimos que es el epoch del ESP32 o Unix en segundos.
     if (ts < 2000000000) {
-        // Si el timestamp es muy pequeño, asumimos que es desde 2000
+        // Si el timestamp es muy pequeño, asumimos que es desde 2000 y ya está en hora local del equipo
         if (ts < 1000000000) {
             ts = (ts + 946684800) * 1000;
+            isEsp32Epoch = true;
         } else {
             // Es unix en segundos
             ts = ts * 1000;
@@ -810,14 +813,26 @@ function formatLogDate(ts) {
     let d = new Date(ts);
     if (isNaN(d.getTime()) || d.getFullYear() < 2000) {
         d = new Date();
+        isEsp32Epoch = false;
     }
     
-    const dd = String(d.getDate()).padStart(2, '0');
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const aa = String(d.getFullYear()).slice(-2);
-    const hh = String(d.getHours()).padStart(2, '0');
-    const min = String(d.getMinutes()).padStart(2, '0');
-    const ss = String(d.getSeconds()).padStart(2, '0');
+    let dd, mm, aa, hh, min, ss;
+    if (isEsp32Epoch) {
+        dd = String(d.getUTCDate()).padStart(2, '0');
+        mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+        aa = String(d.getUTCFullYear()).slice(-2);
+        hh = String(d.getUTCHours()).padStart(2, '0');
+        min = String(d.getUTCMinutes()).padStart(2, '0');
+        ss = String(d.getUTCSeconds()).padStart(2, '0');
+    } else {
+        dd = String(d.getDate()).padStart(2, '0');
+        mm = String(d.getMonth() + 1).padStart(2, '0');
+        aa = String(d.getFullYear()).slice(-2);
+        hh = String(d.getHours()).padStart(2, '0');
+        min = String(d.getMinutes()).padStart(2, '0');
+        ss = String(d.getSeconds()).padStart(2, '0');
+    }
+    
     return `${dd}/${mm}/${aa} - ${hh}:${min}:${ss}`;
 }
 
