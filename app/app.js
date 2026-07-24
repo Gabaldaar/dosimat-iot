@@ -159,7 +159,27 @@ function initHelpButtons() {
     });
 }
 
-document.addEventListener('DOMContentLoaded', initHelpButtons);
+document.addEventListener('DOMContentLoaded', () => {
+    const btnToggleTheme = document.getElementById('btnToggleTheme');
+    if (btnToggleTheme) {
+        if (localStorage.getItem('theme') === 'dark') {
+            document.body.classList.add('dark-mode');
+            btnToggleTheme.innerHTML = '<span class="material-symbols-outlined">light_mode</span>';
+        }
+        btnToggleTheme.addEventListener('click', () => {
+            document.body.classList.toggle('dark-mode');
+            if (document.body.classList.contains('dark-mode')) {
+                localStorage.setItem('theme', 'dark');
+                btnToggleTheme.innerHTML = '<span class="material-symbols-outlined">light_mode</span>';
+            } else {
+                localStorage.setItem('theme', 'light');
+                btnToggleTheme.innerHTML = '<span class="material-symbols-outlined">dark_mode</span>';
+            }
+        });
+    }
+    
+    initHelpButtons();
+});
 
 // === LISTENERS DE CONTACTOS DE SOPORTE GLOBAL ===
 function listenSupportContacts() {
@@ -536,7 +556,7 @@ function actualizarPanelTemporada() {
     
     const esAlta = esTemporadaAlta();
     if (lblTitulo) {
-        lblTitulo.innerText = esAlta ? "Temp. Alta" : "Temp. Baja";
+        lblTitulo.innerText = esAlta ? "ALTA" : "BAJA";
         lblTitulo.style.color = esAlta ? "var(--warning)" : "var(--accent)";
     }
     if (iconTemp) {
