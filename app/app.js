@@ -544,8 +544,25 @@ function actualizarPanelTemporada() {
         iconTemp.style.color = esAlta ? "var(--warning)" : "var(--accent)";
     }
     if (lblFechas && lastConfigData) {
-        const ini = lastConfigData.temporada_alta_inicio || "--/--";
-        const fin = lastConfigData.temporada_alta_fin || "--/--";
+        let ini = lastConfigData.temporada_alta_inicio || "12-01";
+        let fin = lastConfigData.temporada_alta_fin || "03-31";
+        
+        if (!esAlta) {
+            const shiftDateStr = (md, offsetDays) => {
+                if (!md || !md.includes("-")) return md;
+                const parts = md.split("-");
+                const d = new Date(2024, parseInt(parts[0]) - 1, parseInt(parts[1]));
+                d.setDate(d.getDate() + offsetDays);
+                const mm = String(d.getMonth() + 1).padStart(2, '0');
+                const dd = String(d.getDate()).padStart(2, '0');
+                return `${mm}-${dd}`;
+            };
+            const bajaIni = shiftDateStr(fin, 1);
+            const bajaFin = shiftDateStr(ini, -1);
+            ini = bajaIni;
+            fin = bajaFin;
+        }
+
         const fmt = (str) => {
             if (!str || !str.includes("-")) return str;
             const p = str.split("-");
