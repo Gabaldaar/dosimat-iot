@@ -2565,9 +2565,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-const btnVinculacionBle = document.getElementById('btnVinculacionBle');
-if (btnVinculacionBle) {
-    btnVinculacionBle.onclick = () => {
+const btnShowConnectBLE = document.getElementById('btnShowConnectBLE');
+if (btnShowConnectBLE) {
+    btnShowConnectBLE.onclick = () => {
         setConexionModo("BLE");
         const auth = document.getElementById("authOverlay");
         if (auth) auth.style.display = "none";
