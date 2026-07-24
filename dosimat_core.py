@@ -144,7 +144,6 @@ async def procesar_comando(cmd_dict):
             ciclo_suspendido = False
             fase_actual_interrumpida = None
             abort_event.set()
-            await sys_log.log_event({"msg": "Dosis Manual solicitada"})
             await enviar_telemetria()
             
     elif cmd == "START_PUMP":
@@ -207,7 +206,6 @@ async def procesar_comando(cmd_dict):
             set_relays(False, False)
             led_manager.actualizar_patron(estado_dosimat, False, False, refuerzo_activo)
             abort_event.set()
-            await sys_log.log_event({"msg": "Ciclo cancelado por usuario"})
             await enviar_telemetria()
             
     elif cmd == "RUN_ANTI":

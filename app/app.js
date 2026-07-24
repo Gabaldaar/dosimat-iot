@@ -785,14 +785,24 @@ function setConexionModo(modo, ssid = "") {
     }
 }
 
-function formatLogDate(tsVal) {
-    let ts = tsVal;
+function formatLogDate(ts) {
     if (typeof ts === 'string') {
         if (ts.includes("-") && ts.includes("/")) return ts;
         ts = Number(ts) || Date.now();
     }
     if (!ts || isNaN(ts)) ts = Date.now();
-    if (ts < 10000000000) ts = ts * 1000;
+    
+    // ESP32 returns seconds since 2000 (epoch 946684800 in JS Unix). 
+    // Si ts es menor a 1500000000, asumimos que es el epoch del ESP32 o Unix en segundos.
+    if (ts < 2000000000) {
+        // Si el timestamp es muy pequeño, asumimos que es desde 2000
+        if (ts < 1000000000) {
+            ts = (ts + 946684800) * 1000;
+        } else {
+            // Es unix en segundos
+            ts = ts * 1000;
+        }
+    }
     
     let d = new Date(ts);
     if (isNaN(d.getTime()) || d.getFullYear() < 2000) {
