@@ -268,6 +268,14 @@ async def procesar_comando(cmd_dict):
         raw_programas = {}
         if "cronograma" in cmd_dict and isinstance(cmd_dict["cronograma"], list):
             cron_list = cmd_dict["cronograma"]
+            for i, ev in enumerate(cron_list):
+                idx = i + 1
+                if idx > 10: break
+                raw_programas[f"PR{idx}_inicio"] = ev.get("on", "00:00")
+                raw_programas[f"PR{idx}_duracion_min"] = ev.get("duracion", 0)
+                raw_programas[f"PR{idx}_dosifica"] = ev.get("dosifica", False) or ev.get("dosis", 0) == 1
+                dias_val = ev.get("dias", "0123456")
+                raw_programas[f"PR{idx}_dias"] = list(str(dias_val)) if isinstance(dias_val, (str, int)) else dias_val
         else:
             raw_programas = cmd_dict.copy()
             for i in range(1, 11):
