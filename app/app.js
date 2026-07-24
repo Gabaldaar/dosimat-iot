@@ -213,9 +213,6 @@ function listenSupportContacts() {
     });
 }
 
-document.addEventListener('DOMContentLoaded', listenSupportContacts);
-listenSupportContacts();
-
 // === POPULAR DROPDOWNS DE FECHAS DE TEMPORADA ===
 function initSeasonDropdowns() {
     const vDia = document.getElementById('selectFVeranoDia');
@@ -786,6 +783,8 @@ onAuthStateChanged(auth, async (user) => {
             nombre: user.displayName || user.email,
             ultima_conexion: new Date()
         }, { merge: true }).catch(e => console.error("Error setting user doc:", e));
+        
+        listenSupportContacts();
 
         try {
             const userDoc = await getDoc(doc(db, "usuarios", user.uid));
@@ -802,14 +801,19 @@ onAuthStateChanged(auth, async (user) => {
                 }
             }
             if (!macToConnect) {
-                macToConnect = "841FE8694040";
+                // Si no tiene equipo, no conectar automáticamente.
+                currentMac = null;
+                const status = document.getElementById('connectStatus');
+                if (status) status.innerText = "No tienes equipos vinculados. Vincula tu equipo por Bluetooth.";
+                const lblMac = document.getElementById('lblMac');
+                if (lblMac) lblMac.innerText = "-";
+            } else {
+                currentMac = macToConnect;
+                connectNube();
             }
-            currentMac = macToConnect;
-            connectNube();
         } catch (e) {
             console.error("Error buscando equipos de usuario:", e);
-            currentMac = "841FE8694040";
-            connectNube();
+            currentMac = null;
         }
     } else {
         if (authOverlay) authOverlay.style.display = 'flex';
@@ -827,7 +831,7 @@ onAuthStateChanged(auth, async (user) => {
 });
 
 // === CONEXIÓN NUBE Y MQTT ===
-function setConexionModo(modo, ssid = "") {
+function setConexionModo(modo, ssid = "", msg = "Offline") {
     modoConexion = modo;
     if (ssid) globalWifiSSID = ssid;
 
@@ -842,7 +846,7 @@ function setConexionModo(modo, ssid = "") {
         badge.innerHTML = `<span class="material-symbols-outlined" style="font-size: 1rem; vertical-align: middle;">bluetooth</span> <span>BLE</span>`;
         badge.className = "conn-badge conn-ble";
     } else {
-        badge.innerHTML = `<span class="material-symbols-outlined" style="font-size: 1rem; vertical-align: middle;">wifi_off</span> <span>Offline</span>`;
+        badge.innerHTML = `<span class="material-symbols-outlined" style="font-size: 1rem; vertical-align: middle;">wifi_off</span> <span>${msg}</span>`;
         badge.className = "conn-badge conn-offline";
     }
 }
@@ -1038,12 +1042,11 @@ function connectNube() {
         timeout: 4,
         useSSL: isHttps,
         onSuccess: () => {
-            console.log("MQTT Conectado a HiveMQ");
+            console.log("MQTT Conectado a HiveMQ (Esperando datos del equipo...)");
             mqttClient.subscribe(`dosimat/${currentMac}/telemetry`);
             mqttClient.subscribe(`dosimat/${currentMac}/config`);
             mqttClient.subscribe(`dosimat/${currentMac}/programas`);
             mqttClient.subscribe(`dosimat/${currentMac}/logs`);
-            if (modoConexion !== "BLE") setConexionModo("NUBE", globalWifiSSID);
             sendCommand({ comando: "GET_STATE" }, true);
         },
         onFailure: (err) => {
@@ -1059,7 +1062,22 @@ function connectNube() {
     const docRef = doc(db, "equipos", currentMac, "estado", "actual");
     unsubscribeFirestore = onSnapshot(docRef, (docSnap) => {
         if (docSnap.exists()) {
-            updateUI(docSnap.data());
+            const data = docSnap.data();
+            updateUI(data);
+            
+            if (modoConexion !== "BLE") {
+                if (data.ultima_sincronizacion) {
+                    const now = Date.now();
+                    const syncTime = data.ultima_sincronizacion.toMillis ? data.ultima_sincronizacion.toMillis() : data.ultima_sincronizacion;
+                    if (now - syncTime > 180000) { // 3 minutos sin reportar
+                        setConexionModo("OFFLINE", "", "Equipo Offline (Datos de caché)");
+                    } else {
+                        setConexionModo("NUBE", data.wifi_ssid || "");
+                    }
+                } else {
+                    setConexionModo("OFFLINE", "", "Equipo Offline");
+                }
+            }
         }
     }, (err) => {
         console.warn("Firestore snapshot estado:", err.message);
@@ -1098,6 +1116,15 @@ function connectNube() {
 async function sendCommand(obj, silent = false) {
     if (!currentMac) {
         if (!silent && typeof customAlert === "function") customAlert("No hay un equipo seleccionado.");
+        return;
+    }
+
+    if (modoConexion === "BLE" && typeof rxCharacteristic !== "undefined" && rxCharacteristic) {
+        if (typeof bleTxQueue !== "undefined") {
+            bleTxQueue.push(obj);
+            if (!isBleTxActive) _processBleQueue();
+        }
+        if (!silent && typeof showToast === "function") showToast(`Comando enviado por BLE: ${obj.comando}`);
         return;
     }
 
@@ -2139,6 +2166,17 @@ async function deleteRemoteDevice(mac) {
             await deleteDoc(doc(db, "equipos", mac, "estado", "actual"));
             await deleteDoc(doc(db, "equipos", mac, "config", "actual"));
             await deleteDoc(doc(db, "equipos", mac, "programas", "actual"));
+            
+            try {
+                const logsSnap = await getDocs(collection(db, "equipos", mac, "logs"));
+                for (const d of logsSnap.docs) { await deleteDoc(d.ref); }
+            } catch(e) {}
+            
+            try {
+                const propSnap = await getDocs(collection(db, "equipos", mac, "propietarios"));
+                for (const d of propSnap.docs) { await deleteDoc(d.ref); }
+            } catch(e) {}
+            
             await deleteDoc(doc(db, "equipos", mac));
 
             showToast(`Equipo ${mac} dado de baja exitosamente.`);
@@ -2154,3 +2192,300 @@ window.deleteRemoteDevice = deleteRemoteDevice;
 window.deleteTecnico = deleteTecnico;
 
 console.log("Dosimat PWA v2 (Con LED virtual, timestamps seguros y refuerzo instantáneo) inicializada.");
+
+// ==========================================
+// RESTAURACIÓN LOGICA BLE Y VINCULACIÓN
+// ==========================================
+
+const SERVICE_UUID = "6E400001-B5A3-F393-E0A9-E50E24DCCA9E".toLowerCase();
+const RX_UUID = "6E400002-B5A3-F393-E0A9-E50E24DCCA9E".toLowerCase();
+const TX_UUID = "6E400003-B5A3-F393-E0A9-E50E24DCCA9E".toLowerCase();
+
+let bleDevice = null;
+let bleServer = null;
+let rxCharacteristic = null;
+let txCharacteristic = null;
+let rxBuffer = "";
+let bleTxQueue = [];
+let isBleTxActive = false;
+let logsSyncTriggered = false;
+let bleLogsTemp = [];
+
+async function onDisconnected() {
+    console.log("Servidor GATT BLE desconectado.");
+    rxCharacteristic = null;
+    txCharacteristic = null;
+    logsSyncTriggered = false;
+    
+    if (currentMac) {
+        setConexionModo("NUBE");
+    } else {
+        setConexionModo("OFFLINE");
+    }
+}
+
+async function vincularEquipo(chipId) {
+    if (!currentUser) return false;
+    
+    // Verificación de seguridad: ¿Está asignado a otra persona?
+    try {
+        const q = query(collection(db, "usuarios"), where("equipos", "array-contains", chipId));
+        const snaps = await getDocs(q);
+        let alreadyOwned = false;
+        snaps.forEach(s => {
+            if (s.id !== currentUser.uid) {
+                alreadyOwned = true;
+            }
+        });
+        
+        if (alreadyOwned) {
+            const navTecnicos = document.querySelector('nav [data-target="tecnicos"]');
+            if (typeof checkUserRole === "function" && navTecnicos && navTecnicos.style.display !== "none") {
+                showToast("Equipo de otro usuario (Acceso Técnico)");
+                return true; // Techs can link
+            } else {
+                customAlert("Este equipo ya se encuentra registrado por otro usuario. Si consideras que es un error, solicita un reseteo de fábrica al soporte técnico.");
+                return false;
+            }
+        }
+        
+        // Proceder con la vinculación
+        const refProp = doc(db, "equipos", chipId, "propietarios", currentUser.uid);
+        await setDoc(refProp, { activo: true }, { merge: true });
+        
+        const refAsign = doc(db, "usuarios", currentUser.uid, "equipos_asignados", chipId);
+        await setDoc(refAsign, { activo: true }, { merge: true });
+        
+        const refUser = doc(db, "usuarios", currentUser.uid);
+        const userDoc = await getDoc(refUser);
+        let eqList = [];
+        if (userDoc.exists() && userDoc.data().equipos) eqList = userDoc.data().equipos;
+        if (!eqList.includes(chipId)) eqList.push(chipId);
+        await setDoc(refUser, { id_equipo: chipId, equipos: eqList }, { merge: true });
+        
+        return true;
+    } catch(e) {
+        console.error("Error validando/vinculando:", e);
+        return false;
+    }
+}
+
+async function handleNotifications(event) {
+    const value = event.target.value;
+    const decoder = new TextDecoder('utf-8');
+    const chunk = decoder.decode(value);
+    
+    rxBuffer += chunk;
+    
+    let boundary = rxBuffer.indexOf('\\n');
+    while (boundary !== -1) {
+        const line = rxBuffer.substring(0, boundary).trim();
+        rxBuffer = rxBuffer.substring(boundary + 1);
+        
+        if (line) {
+            try {
+                const data = JSON.parse(line);
+                
+                // 1. Sincronización automática de Logs Offline
+                if (data.tipo === "LOG_ENTRY" && data.data) {
+                    bleLogsTemp.push(data.data);
+                    boundary = rxBuffer.indexOf('\\n');
+                    continue;
+                }
+                
+                if (data.tipo === "LOGS_END") {
+                    if (bleLogsTemp.length > 0 && currentMac) {
+                        try {
+                            const logsCol = collection(db, "equipos", currentMac, "logs");
+                            for (const logItem of bleLogsTemp) {
+                                const logId = `log_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+                                await setDoc(doc(logsCol, logId), {
+                                    fecha: logItem.fecha || new Date(logItem.ts * 1000).toLocaleString(),
+                                    segundos: parseFloat(logItem.segundos || logItem.duracion || 0),
+                                    tipo: logItem.tipo || "evento",
+                                    refuerzo: !!logItem.refuerzo,
+                                    timestamp: logItem.ts * 1000
+                                });
+                            }
+                            showToast(`Sincronizados ${bleLogsTemp.length} logs locales`);
+                        } catch (err) {
+                            console.error("Fallo al subir logs BLE:", err);
+                        }
+                    }
+                    bleLogsTemp = [];
+                    await sendCommand({comando: "CLEAR_LOGS"}, true);
+                    boundary = rxBuffer.indexOf('\\n');
+                    continue;
+                }
+                
+                if (data.tipo === "ACK_CLEAR_LOGS") {
+                    showToast("Historial local de logs limpiado en placa.");
+                    boundary = rxBuffer.indexOf('\\n');
+                    continue;
+                }
+
+                if (data.tipo === "CONFIG") {
+                    if (typeof updateConfigUI === "function") updateConfigUI(data.data);
+                    boundary = rxBuffer.indexOf('\\n');
+                    continue;
+                }
+
+                // 2. Parser de telemetría compacta
+                const innerData = data.tipo === "TELEMETRIA" ? data.data : data;
+                const chipId = innerData.id_equipo || data.id_equipo;
+
+                // 3. Vinculación y registro automático libre
+                if (chipId && currentUser) {
+                    const oldMac = currentMac;
+                    
+                    if (oldMac !== chipId) {
+                        const canLink = await vincularEquipo(chipId);
+                        if (!canLink) {
+                            if (bleDevice && bleDevice.gatt.connected) bleDevice.gatt.disconnect();
+                            return; // Rechazado por seguridad
+                        }
+                        currentMac = chipId;
+                        document.getElementById('lblMac').innerText = currentMac;
+                        connectNube();
+                    }
+
+                    // Solicitar descarga de logs offline una sola vez
+                    if (!logsSyncTriggered) {
+                        logsSyncTriggered = true;
+                        bleLogsTemp = [];
+                        setTimeout(() => {
+                            sendCommand({comando: "GET_LOGS"}, true);
+                            sendCommand({comando: "GET_CONFIG"}, true);
+                        }, 1500);
+                    }
+                }
+                
+                if (typeof updateUI === "function") updateUI(data);
+
+            } catch (e) {
+                console.error("Fallo decodificación BLE:", e);
+            }
+        }
+        boundary = rxBuffer.indexOf('\\n');
+    }
+}
+
+async function _processBleQueue() {
+    if (bleTxQueue.length === 0) {
+        isBleTxActive = false;
+        return;
+    }
+    isBleTxActive = true;
+    const obj = bleTxQueue.shift();
+    const rawStr = JSON.stringify(obj) + "\\n";
+    const encoder = new TextEncoder();
+    const rawBytes = encoder.encode(rawStr);
+    
+    try {
+        const chunkSize = 20;
+        for (let i = 0; i < rawBytes.length; i += chunkSize) {
+            const subArray = rawBytes.subarray(i, i + chunkSize);
+            await rxCharacteristic.writeValueWithoutResponse(subArray);
+            await new Promise(r => setTimeout(r, 45));
+        }
+        console.log("Comando enviado por BLE:", obj.comando);
+    } catch (e) {
+        console.error("Fallo envío BLE:", e);
+        showToast("No se pudo enviar orden por Bluetooth", true);
+    }
+    setTimeout(_processBleQueue, 100);
+}
+
+function syncRtcBLE() {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    const h = String(now.getHours()).padStart(2, '0');
+    const min = String(now.getMinutes()).padStart(2, '0');
+    sendCommand({
+        comando: "sync_rtc",
+        fecha: `${y}-${m}-${d}`,
+        hora: `${h}:${min}`
+    }, true);
+}
+
+// BINDINGS DE LOS BOTONES
+document.addEventListener('DOMContentLoaded', () => {
+    const btnConnectBLE = document.getElementById('btnConnectBLE');
+    if (btnConnectBLE) {
+        btnConnectBLE.onclick = async () => {
+            if (!navigator.bluetooth) {
+                customAlert("Tu navegador no soporta Bluetooth Web o la página no es segura. Usa Chrome en Android y asegúrate de acceder mediante HTTPS.");
+                return;
+            }
+            const status = document.getElementById('connectStatus');
+            status.innerText = "Escaneando dispositivos DOSIMAT...";
+            try {
+                bleDevice = await navigator.bluetooth.requestDevice({
+                    filters: [{ namePrefix: "Dosimat" }],
+                    optionalServices: [SERVICE_UUID]
+                });
+
+                bleDevice.addEventListener('gattserverdisconnected', onDisconnected);
+                status.innerText = "Conectando al servidor GATT...";
+                bleServer = await bleDevice.gatt.connect();
+
+                status.innerText = "Buscando UART Service...";
+                const service = await bleServer.getPrimaryService(SERVICE_UUID);
+
+                status.innerText = "Configurando características...";
+                rxCharacteristic = await service.getCharacteristic(RX_UUID);
+                txCharacteristic = await service.getCharacteristic(TX_UUID);
+
+                await txCharacteristic.startNotifications();
+                txCharacteristic.addEventListener('characteristicvaluechanged', handleNotifications);
+
+                status.innerText = "¡Conexión BLE establecida!";
+                setConexionModo("BLE");
+                setTimeout(() => {
+                    const overlay = document.getElementById('connectOverlay');
+                    if (overlay) overlay.style.display = 'none';
+                }, 800);
+
+                // RTC sync inicial
+                syncRtcBLE();
+
+            } catch (e) {
+                status.innerText = `Error BLE: ${e.message}`;
+                console.error(e);
+            }
+        };
+    }
+
+    const btnCancelBLE = document.getElementById('btnCancelBLE');
+    if (btnCancelBLE) {
+        btnCancelBLE.onclick = () => {
+            const overlay = document.getElementById('connectOverlay');
+            if (overlay) overlay.style.display = 'none';
+        };
+    }
+
+    const btnConnectManual = document.getElementById('btnConnectManual');
+    if (btnConnectManual) {
+        btnConnectManual.onclick = async () => {
+            const txtManualMac = document.getElementById('txtManualMac');
+            if (!txtManualMac) return;
+            const mac = txtManualMac.value.trim().toUpperCase();
+            if (!mac) {
+                customAlert("Ingresa un ID válido.");
+                return;
+            }
+            const canLink = await vincularEquipo(mac);
+            if (canLink) {
+                currentMac = mac;
+                document.getElementById('lblMac').innerText = currentMac;
+                connectNube();
+                const overlay = document.getElementById('connectOverlay');
+                if (overlay) overlay.style.display = 'none';
+                showToast("Equipo vinculado exitosamente.");
+            }
+        };
+    }
+});
+
