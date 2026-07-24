@@ -123,25 +123,33 @@ const HELP_TOPICS = {
         title: "Información del Equipo",
         text: "Muestra el identificador único (MAC) de tu equipo Dosimat IoT y la hora sincronizada del reloj en tiempo real."
     },
-    "dashboard": {
-        title: "Panel Principal",
-        text: "Monitorea el estado actual del dosificador, bombas activas, temperatura del agua y te permite iniciar dosis manuales o pausar el equipo."
+    "panel-estado": {
+        title: "Panel Principal y LED",
+        text: "Monitorea el estado actual del dosificador, bombas activas y temperatura del agua. Permite iniciar dosis manuales, activar refuerzo y pausar el equipo.\n\n" +
+              "PATRONES DEL LED FÍSICO:\n" +
+              "• Destello breve c/ 4s: En espera de WiFi\n" +
+              "• Destello breve c/ 2s: En espera de Bluetooth\n" +
+              "• Doble destello c/ 4s: Inactivo pero con Refuerzo programado\n" +
+              "• Parpadeo lento (1s): Dosificando cloro normal\n" +
+              "• Encendido casi fijo (apaga breve): Dosificando Refuerzo\n" +
+              "• Parpadeo intermedio (0.5s): Solo bomba (Filtrando sin cloro)\n" +
+              "• Parpadeo rápido (0.2s): Mantenimiento / Pausa"
     },
-    "programacion": {
+    "cronograma-filtrado": {
         title: "Programación de Cronogramas",
         text: "Configura hasta 10 horarios diarios de filtrado y dosificación de cloro, seleccionando inicio, duración y días específicos."
     },
-    "configuracion": {
+    "tiempos-dosificador": {
         title: "Ajustes de Parámetros",
-        text: "Modifica los tiempos de espera del motor, tiempos de dosis de cloro y porcentajes de ajuste para la temporada baja."
+        text: "Modifica los tiempos de espera del motor (antes de inyectar cloro), tiempos de dosis base y porcentajes de ajuste automático para la temporada baja."
     },
-    "historial": {
-        title: "Logs del Sistema",
-        text: "Muestra el registro cronológico de eventos, fases ejecutadas, inicios de bomba y alertas del dosificador."
+    "vinculo-ble": {
+        title: "Vínculo Bluetooth",
+        text: "Permite conectar el celular directamente al dosificador mediante Bluetooth (BLE) sin necesidad de internet, ideal para la configuración inicial o zonas sin WiFi."
     },
-    "tecnicos": {
-        title: "Portal Técnico",
-        text: "Sección exclusiva de administración para conectarse remotamente a equipos por MAC y gestionar cuentas de técnicos."
+    "wifi-local": {
+        title: "Configuración WiFi",
+        text: "Asigna la red WiFi local (SSID y Contraseña) a la que se conectará el dosificador para poder ser controlado de forma remota desde cualquier lugar."
     }
 };
 
@@ -1224,7 +1232,7 @@ function updateUI(raw_data) {
     const lblDosisManual = document.getElementById('lblDosisManual');
     const iconDosisManual = document.getElementById('iconDosisManual');
 
-    if (lblDosisManual) lblDosisManual.innerText = isDosisManualOn ? "Activa" : "Iniciar";
+    if (lblDosisManual) lblDosisManual.innerText = isDosisManualOn ? "Activa" : "INICIAR";
     if (iconDosisManual) {
         if (isDosisManualOn) {
             iconDosisManual.style.color = "var(--warning)";
