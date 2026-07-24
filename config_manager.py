@@ -62,6 +62,11 @@ async def _guardar_interno(data):
 
         with open(CONFIG_FILE, "w") as f:
             json.dump(data, f)
+            f.flush()
+        try:
+            os.sync()
+        except AttributeError:
+            pass
             
         print("[CONFIG] Guardado completado en Flash.")
     except Exception as e:
