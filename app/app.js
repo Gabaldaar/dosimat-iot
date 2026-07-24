@@ -790,6 +790,9 @@ function formatLogDate(ts) {
         if (ts.includes("-") && ts.includes("/")) return ts;
         ts = Number(ts) || Date.now();
     }
+    
+    if (ts && typeof ts.toMillis === 'function') ts = ts.toMillis();
+    else if (ts && typeof ts.seconds === 'number') ts = ts.seconds * 1000;
     if (!ts || isNaN(ts)) ts = Date.now();
     
     // ESP32 returns seconds since 2000 (epoch 946684800 in JS Unix). 
@@ -862,7 +865,11 @@ function listenLogsCollection() {
             let logsArr = [];
             snap.forEach(docSnap => {
                 const data = docSnap.data();
-                const ts = data.timestamp || Date.now();
+                
+                let ts = data.ts || data.timestamp || Date.now();
+                if (ts && typeof ts.toMillis === 'function') ts = ts.toMillis();
+                else if (ts && typeof ts.seconds === 'number') ts = ts.seconds * 1000;
+                
                 const msg = data.mensaje || data.msg || data.log || JSON.stringify(data);
                 if (msg.includes(" - ") && msg.split(" - ").length >= 2 && msg.includes("/")) {
                     logsArr.push(msg);

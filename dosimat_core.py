@@ -368,6 +368,8 @@ async def cron_scheduler_task():
                                 incluye_dosis = prog.get("dosifica", prog.get("dosis", True))
                                 if dosis_anuladas > 0 and incluye_dosis:
                                     dosis_anuladas -= 1
+                                    config_ref["dosis_anuladas"] = dosis_anuladas
+                                    await config_manager.guardar_configuracion(config_ref)
                                     incluye_dosis = False
                                     print(f"[CORE] Dosis automatica anulada. Restan: {dosis_anuladas}")
                                     await sys_log.log_event({"msg": "Dosis Salteada a Pedido"})
