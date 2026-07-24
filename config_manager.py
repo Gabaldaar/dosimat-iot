@@ -55,10 +55,7 @@ async def _guardar_interno(data):
     """Escribe la configuración de forma directa y segura en la Flash"""
     try:
         await asyncio.sleep_ms(10)
-        try:
-            import main
-            if hasattr(main, "feed_wdt"): main.feed_wdt()
-        except Exception: pass
+
 
         with open(CONFIG_FILE, "w") as f:
             json.dump(data, f)

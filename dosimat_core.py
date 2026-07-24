@@ -180,6 +180,8 @@ async def procesar_comando(cmd_dict):
                 
             fase_actual_interrumpida = estado_dosimat
             estado_dosimat = "PAUSA"
+            config_ref["estado_pausa"] = True
+            await config_manager.guardar_configuracion(config_ref)
             set_relays(False, False)
             led_manager.actualizar_patron(estado_dosimat, False, False, refuerzo_activo)
             abort_event.set()
@@ -189,6 +191,8 @@ async def procesar_comando(cmd_dict):
     elif cmd == "RESUME_CYCLE":
         if estado_dosimat == "PAUSA":
             ciclo_suspendido = False
+            config_ref["estado_pausa"] = False
+            await config_manager.guardar_configuracion(config_ref)
             abort_event.set()
             await sys_log.log_event({"msg": "Fin de Pausa/Mantenimiento"})
             await enviar_telemetria()
@@ -198,6 +202,8 @@ async def procesar_comando(cmd_dict):
             ciclo_suspendido = False
             fase_actual_interrumpida = None
             estado_dosimat = "IDLE"
+            config_ref["estado_pausa"] = False
+            await config_manager.guardar_configuracion(config_ref)
             set_relays(False, False)
             led_manager.actualizar_patron(estado_dosimat, False, False, refuerzo_activo)
             abort_event.set()
@@ -382,6 +388,7 @@ async def dispenser_loop():
     config_ref = await config_manager.cargar_configuracion()
     refuerzo_activo = config_ref.get("refuerzo_activo", False)
     dosis_anuladas = config_ref.get("dosis_anuladas", 0)
+    estado_dosimat = "PAUSA" if config_ref.get("estado_pausa", False) else "IDLE"
     set_relays(bomba_on=False, valvula_on=False)
     
     asyncio.create_task(cron_scheduler_task())
