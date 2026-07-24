@@ -397,7 +397,6 @@ async def dispenser_loop():
     global ciclo_suspendido, fase_actual_interrumpida, tiempo_acumulado_fase
     global config_ref, modo_ciclo, tfiltro_restante, ultima_dosis_ts
     
-    init_hardware()
     config_ref = await config_manager.cargar_configuracion()
     refuerzo_activo = config_ref.get("refuerzo_activo", False)
     dosis_anuladas = config_ref.get("dosis_anuladas", 0)

@@ -33,7 +33,10 @@ async def main():
     global system_wdt
     print("[MAIN] Inicializando tareas del sistema...")
     
-    # 1. Registrar eventos en el log
+    # 1. Inicializar hardware (Relés, RTC, I2C)
+    dosimat_core.init_hardware()
+    
+    # 2. Registrar eventos en el log
     await sys_log.log_event({"msg": "Reinicio del equipo"}, wifi_activo=False)
     
     # 2. Iniciar tareas del LED indicador de forma inmediata

@@ -1065,7 +1065,7 @@ function updateUI(raw_data) {
     let temp = data.temp !== undefined ? data.temp : (data.temperatura !== undefined ? data.temperatura : (data.temp_rtc !== undefined ? data.temp_rtc : null));
     const lblTemp = document.getElementById('lblTemp');
     if (lblTemp) {
-        lblTemp.innerText = temp !== null ? `${temp}°C` : "--°C";
+        lblTemp.innerText = temp !== null ? `${Number(temp).toFixed(1)}°C` : "--°C";
     }
 
     let rtcStr = data.rtc || data.rtc_time || data.hora_rtc || data.hora || data.time;
