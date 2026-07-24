@@ -153,7 +153,6 @@ async def procesar_comando(cmd_dict):
             ciclo_suspendido = False
             fase_actual_interrumpida = None
             abort_event.set()
-            await sys_log.log_event({"msg": "Bomba de filtrado encendida manualmente"})
             await enviar_telemetria()
             
     elif cmd == "SET_REFUERZO":
@@ -162,6 +161,11 @@ async def procesar_comando(cmd_dict):
         config_ref["refuerzo_activo"] = val
         await config_manager.guardar_configuracion(config_ref)
         await enviar_telemetria()
+        
+    elif cmd == "SET_VALVE_MANUAL":
+        val = bool(cmd_dict.get("estado", False))
+        if valvula:
+            valvula.value(1 if val else 0)
         
     elif cmd == "SET_ANULADAS":
         val = cmd_dict.get("valor", cmd_dict.get("anuladas", 0))

@@ -44,13 +44,13 @@ var unsubscribeSoporte = null;
 var unsubscribeLogs = null;
 
 const LED_PATRONES = {
-    'En_espera_wifi':       [[1, 200], [0, 4000]],
-    'En_espera_ble':        [[1, 200], [0, 2000]],
-    'inactivo_refuerzo':    [[1, 200], [0, 200], [1, 200], [0, 4000]],
-    'dosificando':          [[1, 1000], [0, 1000]],
+    'En_espera_wifi': [[1, 200], [0, 4000]],
+    'En_espera_ble': [[1, 200], [0, 2000]],
+    'inactivo_refuerzo': [[1, 200], [0, 200], [1, 200], [0, 4000]],
+    'dosificando': [[1, 1000], [0, 1000]],
     'dosificando_refuerzo': [[1, 4000], [0, 200]],
-    'solo_bomba':           [[1, 500], [0, 500]],
-    'mantenimiento':        [[1, 200], [0, 200]]
+    'solo_bomba': [[1, 500], [0, 500]],
+    'mantenimiento': [[1, 200], [0, 200]]
 };
 
 var ledTimerId = null;
@@ -63,9 +63,9 @@ function actualizarLedVirtual() {
 
     const state = globalEstadoDosificador;
     const refuerzo_activo = (globalRefuerzo === 1 || globalRefuerzo === true);
-    
+
     let patronSel = 'En_espera_ble';
-    
+
     if (state === "PAUSA" || state === "ANTI" || state === "RESET") {
         patronSel = 'mantenimiento';
     } else if (state.startsWith("FILTRO")) {
@@ -81,14 +81,14 @@ function actualizarLedVirtual() {
     }
 
     if (currentLedPattern === patronSel && ledTimerId !== null) {
-        return; 
+        return;
     }
 
     if (ledTimerId) {
         clearTimeout(ledTimerId);
         ledTimerId = null;
     }
-    
+
     currentLedPattern = patronSel;
     const pattern = LED_PATRONES[patronSel] || LED_PATRONES['En_espera_ble'];
     ledStepIndex = 0;
@@ -109,7 +109,7 @@ function actualizarLedVirtual() {
         ledStepIndex = (ledStepIndex + 1) % pattern.length;
         ledTimerId = setTimeout(runLedStep, dur);
     }
-    
+
     runLedStep();
 }
 
@@ -121,27 +121,31 @@ const HELP_TOPICS = {
     },
     "info-equipo": {
         title: "Información del Equipo",
-        text: "Muestra el identificador único (MAC) de tu equipo Dosimat IoT y la hora sincronizada del reloj en tiempo real."
+        text: "Muestra el identificador único (MAC) de tu equipo Dosimat IoT y la hora sincronizada del reloj en tiempo real. Este identificador puede ser solicitado por el servicio técnico para un chequeo remoto del equipo."
     },
     "panel-estado": {
         title: "Panel Principal y LED",
-        text: "Monitorea el estado actual del dosificador, bombas activas y temperatura del agua. Permite iniciar dosis manuales, activar refuerzo y pausar el equipo.\n\n" +
-              "PATRONES DEL LED FÍSICO:\n" +
-              "• Destello breve c/ 4s: En espera de WiFi\n" +
-              "• Destello breve c/ 2s: En espera de Bluetooth\n" +
-              "• Doble destello c/ 4s: Inactivo pero con Refuerzo programado\n" +
-              "• Parpadeo lento (1s): Dosificando cloro normal\n" +
-              "• Encendido casi fijo (apaga breve): Dosificando Refuerzo\n" +
-              "• Parpadeo intermedio (0.5s): Solo bomba (Filtrando sin cloro)\n" +
-              "• Parpadeo rápido (0.2s): Mantenimiento / Pausa"
+        text: "Monitorea el estado actual del dosificador, bomba activa y temperatura. Permite iniciar dosis manuales, activar refuerzo y pausar el equipo.\n\n" +
+            "PATRONES DEL LED:\n" +
+            "• Destello breve c/ 4s: En espera del próximo evento\n" +
+            "• Destello breve c/ 2s: En espera de Bluetooth\n" +
+            "• Doble destello c/ 4s: En Espera con Refuerzo programado\n" +
+            "• Parpadeo lento (1s): Dosificando cloro \n" +
+            "• Encendido casi fijo (apaga breve): Dosificando con Refuerzo\n" +
+            "• Parpadeo intermedio (0.5s): Solo bomba (Filtrando sin cloro)\n" +
+            "• Parpadeo rápido (0.2s): Mantenimiento / Pausa"
     },
     "cronograma-filtrado": {
         title: "Programación de Cronogramas",
-        text: "Configura hasta 10 horarios diarios de filtrado y dosificación de cloro, seleccionando inicio, duración y días específicos."
+        text: "Configura hasta 10 horarios de Filtrado/Dosificación independientes. Permite seleccionar Horario, Días de la semana en que se repetirá el ciclo y si en ese horario debe dosificar cloro o no. Se recomienda establecer las dosis en horarios nocturnos. Programa Automático: establece 3 horarios estándar de filtrado, uno de ellos con dosificación."
     },
     "tiempos-dosificador": {
         title: "Ajustes de Parámetros",
-        text: "Modifica los tiempos de espera del motor (antes de inyectar cloro), tiempos de dosis base y porcentajes de ajuste automático para la temporada baja."
+        text: "Modifica los tiempos del Dosificador de cloro.\n\n" +
+            "• Tiempo de Espera: filtrado previo a la dosificación, para estabilizar el caudal de agua.\n" +
+            "• Duración de Dosis: tiempo durante el cual se dosificará cloro. Se verá afectado por el Refuerzo y el Ajuste estacional.\n" +
+            "• Ajuste por Temporada: especifica qué porcentaje de la dosis, definida en Duración, se colocará durante la temporada baja .\n" +
+            "• Inicio/Fin de Temporada Alta: define el intervalo de fechas en las que se aplicará la dosis sin ajuste estacional."
     },
     "vinculo-ble": {
         title: "Vínculo Bluetooth",
@@ -185,7 +189,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
-    
+
     initHelpButtons();
 });
 
@@ -279,7 +283,7 @@ function customConfirm(message, title = "Confirmar acción") {
         const modal = document.getElementById('customModal');
         const btnConfirm = document.getElementById('btnModalConfirm');
         const btnCancel = document.getElementById('btnModalCancel');
-        
+
         if (!modal || !btnConfirm || !btnCancel) {
             resolve(confirm(`${title}\n\n${message}`));
             return;
@@ -325,7 +329,7 @@ function promptUnsavedProgramasModal() {
 
         titleEl.innerText = "Cambios sin guardar";
         msgEl.innerText = "Tienes modificaciones sin guardar en los cronogramas. ¿Deseas guardar los cambios antes de salir?";
-        
+
         const footer = btnConfirm.parentElement;
         const oldContent = footer.innerHTML;
 
@@ -376,7 +380,7 @@ async function switchTab(btn, target) {
     }
     document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.container').forEach(c => c.classList.remove('active'));
-    
+
     if (btn && btn.classList) btn.classList.add('active');
     else if (typeof btn === 'string') {
         const btnElem = document.querySelector(`nav [data-target="${btn}"]`);
@@ -462,7 +466,7 @@ function esTemporadaAlta() {
     if (!lastConfigData) return true;
     const inicio = lastConfigData.temporada_alta_inicio || "12-01";
     const fin = lastConfigData.temporada_alta_fin || "03-31";
-    
+
     const now = new Date();
     const mm = String(now.getMonth() + 1).padStart(2, '0');
     const dd = String(now.getDate()).padStart(2, '0');
@@ -495,7 +499,7 @@ function calcularProximoEvento() {
             if (item.dias && item.dias.includes(cronoDayStr)) {
                 let timeStr = item.on;
                 if (!timeStr.includes(":") && timeStr.length === 4) {
-                    timeStr = `${timeStr.substring(0,2)}:${timeStr.substring(2,4)}`;
+                    timeStr = `${timeStr.substring(0, 2)}:${timeStr.substring(2, 4)}`;
                 }
                 const parts = timeStr.split(":");
                 const itemMins = parseInt(parts[0]) * 60 + parseInt(parts[1]);
@@ -561,7 +565,7 @@ function actualizarPanelTemporada() {
     const iconTemp = document.getElementById('iconTemporada');
     const lblTitulo = document.getElementById('lblTemporadaTitulo');
     const lblFechas = document.getElementById('lblTemporadaFechas');
-    
+
     const esAlta = esTemporadaAlta();
     if (lblTitulo) {
         lblTitulo.innerText = esAlta ? "ALTA" : "BAJA";
@@ -574,7 +578,7 @@ function actualizarPanelTemporada() {
     if (lblFechas && lastConfigData) {
         let ini = lastConfigData.temporada_alta_inicio || "12-01";
         let fin = lastConfigData.temporada_alta_fin || "03-31";
-        
+
         if (!esAlta) {
             const shiftDateStr = (md, offsetDays) => {
                 if (!md || !md.includes("-")) return md;
@@ -675,14 +679,26 @@ if (btnGoogleAuth) {
 const btnSignOut = document.getElementById('btnSignOut') || document.getElementById('btnLogout');
 if (btnSignOut) {
     btnSignOut.onclick = async () => {
-        if (unsubscribeFirestore) { unsubscribeFirestore(); unsubscribeFirestore = null; }
-        if (unsubscribeConfig) { unsubscribeConfig(); unsubscribeConfig = null; }
-        if (unsubscribeProgramas) { unsubscribeProgramas(); unsubscribeProgramas = null; }
-        if (unsubscribeLogs) { unsubscribeLogs(); unsubscribeLogs = null; }
-        if (mqttClient) { try { mqttClient.disconnect(); } catch (e) {} mqttClient = null; }
+        if (await customConfirm("¿Estás seguro que deseas cerrar sesión?", "Cerrar sesión")) {
+            if (window.techValveOpen) {
+                sendCommand({ comando: "SET_VALVE_MANUAL", estado: false });
+                window.techValveOpen = false;
+                const btnTV = document.getElementById('btnTechValve');
+                if (btnTV) {
+                    btnTV.innerText = "ABRIR";
+                    btnTV.style.backgroundColor = "transparent";
+                    btnTV.style.color = "var(--text-main)";
+                }
+            }
+            if (unsubscribeFirestore) { unsubscribeFirestore(); unsubscribeFirestore = null; }
+            if (unsubscribeConfig) { unsubscribeConfig(); unsubscribeConfig = null; }
+            if (unsubscribeProgramas) { unsubscribeProgramas(); unsubscribeProgramas = null; }
+            if (unsubscribeLogs) { unsubscribeLogs(); unsubscribeLogs = null; }
+            if (mqttClient) { try { mqttClient.disconnect(); } catch (e) { } mqttClient = null; }
 
-        await signOut(auth);
-        showToast("Sesión cerrada.");
+            await signOut(auth);
+            showToast("Sesión cerrada.");
+        }
     };
 }
 
@@ -697,8 +713,8 @@ async function checkUserRole(user) {
 
     if (!user || !user.email) return;
     const email = user.email.toLowerCase().trim();
-    
-    let isSuper = (email === "gab.aldazabal@gmail.com" || email === "gabrielsew61@gmail.com");
+
+    let isSuper = (email === "gab.aldazabal@gmail.com" || email === "gab.aldazabal@gmail.com.ar" || email === "gabrielsew61@gmail.com");
     let isTecnico = isSuper;
 
     if (!isSuper) {
@@ -724,6 +740,16 @@ async function checkUserRole(user) {
 
     if (cardConfigSoporte) {
         cardConfigSoporte.style.display = (isSuper || isTecnico) ? "block" : "none";
+    }
+
+    const btnLimpiarHistorial = document.getElementById('btnLimpiarHistorial');
+    if (btnLimpiarHistorial) {
+        btnLimpiarHistorial.style.display = (isSuper || isTecnico) ? "inline-block" : "none";
+    }
+
+    const techValveControl = document.getElementById('techValveControl');
+    if (techValveControl) {
+        techValveControl.style.display = (isSuper || isTecnico) ? "flex" : "none";
     }
 
     if (isSuper || isTecnico) {
@@ -753,6 +779,14 @@ onAuthStateChanged(auth, async (user) => {
 
         checkUserRole(user);
 
+        // Ensure root document exists so it can be queried by getDocs(collection(db, "usuarios"))
+        const uDocRef = doc(db, "usuarios", user.uid);
+        setDoc(uDocRef, {
+            email: user.email,
+            nombre: user.displayName || user.email,
+            ultima_conexion: new Date()
+        }, { merge: true }).catch(e => console.error("Error setting user doc:", e));
+
         try {
             const userDoc = await getDoc(doc(db, "usuarios", user.uid));
             let macToConnect = null;
@@ -781,13 +815,13 @@ onAuthStateChanged(auth, async (user) => {
         if (authOverlay) authOverlay.style.display = 'flex';
         if (userBar) userBar.style.display = 'none';
         if (lblUserName) lblUserName.style.display = 'none';
-        
+
         if (unsubscribeFirestore) { unsubscribeFirestore(); unsubscribeFirestore = null; }
         if (unsubscribeConfig) { unsubscribeConfig(); unsubscribeConfig = null; }
         if (unsubscribeProgramas) { unsubscribeProgramas(); unsubscribeProgramas = null; }
         if (unsubscribeLogs) { unsubscribeLogs(); unsubscribeLogs = null; }
-        if (mqttClient) { try { mqttClient.disconnect(); } catch (e) {} mqttClient = null; }
-        
+        if (mqttClient) { try { mqttClient.disconnect(); } catch (e) { } mqttClient = null; }
+
         setConexionModo("OFFLINE");
     }
 });
@@ -796,10 +830,10 @@ onAuthStateChanged(auth, async (user) => {
 function setConexionModo(modo, ssid = "") {
     modoConexion = modo;
     if (ssid) globalWifiSSID = ssid;
-    
+
     const badge = document.getElementById('lblConnState') || document.getElementById('badgeConexion');
     if (!badge) return;
-    
+
     if (modo === "NUBE") {
         const nombreRed = globalWifiSSID || "Conectado";
         badge.innerHTML = `<span class="material-symbols-outlined" style="font-size: 1rem; vertical-align: middle;">wifi</span> <span>${nombreRed}</span>`;
@@ -818,13 +852,13 @@ function formatLogDate(ts) {
         if (ts.includes("-") && ts.includes("/")) return ts;
         ts = Number(ts) || Date.now();
     }
-    
+
     if (ts && typeof ts.toMillis === 'function') ts = ts.toMillis();
     else if (ts && typeof ts.seconds === 'number') ts = ts.seconds * 1000;
     if (!ts || isNaN(ts)) ts = Date.now();
-    
+
     let isEsp32Epoch = false;
-    
+
     // ESP32 returns seconds since 2000 (epoch 946684800 in JS Unix). 
     // Si ts es menor a 1500000000, asumimos que es el epoch del ESP32 o Unix en segundos.
     if (ts < 2000000000) {
@@ -837,13 +871,13 @@ function formatLogDate(ts) {
             ts = ts * 1000;
         }
     }
-    
+
     let d = new Date(ts);
     if (isNaN(d.getTime()) || d.getFullYear() < 2000) {
         d = new Date();
         isEsp32Epoch = false;
     }
-    
+
     let dd, mm, aa, hh, min, ss;
     if (isEsp32Epoch) {
         dd = String(d.getUTCDate()).padStart(2, '0');
@@ -860,7 +894,7 @@ function formatLogDate(ts) {
         min = String(d.getMinutes()).padStart(2, '0');
         ss = String(d.getSeconds()).padStart(2, '0');
     }
-    
+
     return `${dd}/${mm}/${aa} - ${hh}:${min}:${ss}`;
 }
 
@@ -898,7 +932,7 @@ function renderLogsList(logs) {
 function listenLogsCollection() {
     if (!currentMac) return;
     if (unsubscribeLogs) unsubscribeLogs();
-    
+
     try {
         const q = query(collection(db, "equipos", currentMac, "logs"), orderBy("timestamp", "desc"), limit(20));
         unsubscribeLogs = onSnapshot(q, (snap) => {
@@ -908,11 +942,11 @@ function listenLogsCollection() {
             let logsArr = [];
             snap.forEach(docSnap => {
                 const data = docSnap.data();
-                
+
                 let ts = data.ts || data.timestamp || Date.now();
                 if (ts && typeof ts.toMillis === 'function') ts = ts.toMillis();
                 else if (ts && typeof ts.seconds === 'number') ts = ts.seconds * 1000;
-                
+
                 const msg = data.mensaje || data.msg || data.log || JSON.stringify(data);
                 if (msg.includes(" - ") && msg.split(" - ").length >= 2 && msg.includes("/")) {
                     logsArr.push(msg);
@@ -937,7 +971,7 @@ function connectNube() {
     if (lblMac) lblMac.innerText = currentMac;
 
     if (mqttClient) {
-        try { mqttClient.disconnect(); } catch (e) {}
+        try { mqttClient.disconnect(); } catch (e) { }
     }
 
     const clientId = "dosimat_pwa_" + Math.random().toString(16).substr(2, 8);
@@ -1281,22 +1315,22 @@ function updateSubtexto() {
 
     const tr = currentDosisSec;
     const isManual = globalModoCiclo === "MANUAL";
-    
+
     if (globalEstadoDosificador === "IDLE") {
         const prox = calcularProximoEvento();
         let html = "";
         if (prox) {
-            const iconTempHTML = prox.esTemporadaAlta 
+            const iconTempHTML = prox.esTemporadaAlta
                 ? `<span class="material-symbols-outlined" style="font-size: 1.1rem; color: var(--warning); vertical-align: middle;" title="Temporada Alta">wb_sunny</span>`
                 : `<span class="material-symbols-outlined" style="font-size: 1.1rem; color: var(--accent); vertical-align: middle;" title="Temporada Baja">ac_unit</span>`;
-            
+
             const iconRefuerzoHTML = prox.refuerzoActivo
                 ? ` - <span class="material-symbols-outlined" style="font-size: 1.1rem; color: var(--warning); vertical-align: middle;" title="Refuerzo Activo">bolt</span>`
                 : "";
 
             const line1 = `${prox.tipo} - ${prox.diaTexto}`;
             let line2 = `<span class="material-symbols-outlined" style="font-size: 1rem; vertical-align: middle; color: var(--text-muted);">schedule</span> - ${prox.duracionTexto}`;
-            
+
             if (prox.esDosis) {
                 line2 += ` - ${iconTempHTML}${iconRefuerzoHTML}`;
             }
@@ -1338,7 +1372,7 @@ setInterval(() => {
         if (currentDosisSec === 0) {
             globalEstadoDosificador = "IDLE";
             updateSubtexto();
-            updateUI({estado: "IDLE", tr: 0});
+            updateUI({ estado: "IDLE", tr: 0 });
         }
     }
 }, 1000);
@@ -1441,10 +1475,10 @@ function agregarFilaCronograma(inicio = "21:00", duracion = 60, dosifica = true,
 
     const div = document.createElement('div');
     div.className = 'crono-row';
-    
+
     const topRow = document.createElement('div');
     topRow.className = 'crono-fields-grid';
-    
+
     topRow.innerHTML = `
         <div class="crono-field">
             <label>Hora Inicio</label>
@@ -1462,7 +1496,7 @@ function agregarFilaCronograma(inicio = "21:00", duracion = 60, dosifica = true,
         </div>
         <button class="btn-del" title="Eliminar horario">X</button>
     `;
-    
+
     topRow.querySelector('.btn-del').onclick = () => {
         div.remove();
         markProgramasChanged();
@@ -1476,7 +1510,7 @@ function agregarFilaCronograma(inicio = "21:00", duracion = 60, dosifica = true,
 
     const diasRow = document.createElement('div');
     diasRow.className = 'day-container';
-    const letras = ['L','M','X','J','V','S','D'];
+    const letras = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
     letras.forEach((l, index) => {
         const btn = document.createElement('div');
         btn.className = 'day-btn';
@@ -1556,7 +1590,7 @@ if (btnGuardarCronograma) {
         const objPayload = {};
         for (let i = 1; i <= 10; i++) {
             if (i <= cron.length) {
-                const item = cron[i-1];
+                const item = cron[i - 1];
                 objPayload[`PR${i}_inicio`] = item.on;
                 objPayload[`PR${i}_duracion_min`] = item.duracion;
                 objPayload[`PR${i}_dosifica`] = item.dosifica;
@@ -1640,7 +1674,7 @@ function updateConfigUI(data) {
         if (iMes) iMes.value = parts[0];
         if (iDia) iDia.value = parts[1];
     }
-    
+
     if (typeof updateSubtexto === 'function') updateSubtexto();
 }
 
@@ -1731,10 +1765,40 @@ if (btnPedirHistorial) {
 
 const btnLimpiarHistorial = document.getElementById('btnLimpiarHistorial');
 if (btnLimpiarHistorial) {
-    btnLimpiarHistorial.onclick = () => {
-        const term = document.getElementById('logsTerminal');
-        if (term) term.innerText = "Historial limpiado.";
-        showToast("Historial limpiado.");
+    btnLimpiarHistorial.onclick = async () => {
+        if (await customConfirm("¿Estás seguro de borrar todo el historial? Esto no se puede deshacer.", "Limpiar Historial")) {
+            sendCommand({ comando: "CLEAR_LOGS" });
+            try {
+                const logsRef = collection(db, "equipos", currentMac, "logs");
+                const snapshot = await getDocs(logsRef);
+                for (const docSnap of snapshot.docs) {
+                    await deleteDoc(docSnap.ref);
+                }
+                const term = document.getElementById('logsTerminal');
+                if (term) term.innerHTML = "Historial limpiado.";
+                showToast("Historial borrado.");
+            } catch (e) {
+                console.error("Error borrando logs:", e);
+            }
+        }
+    };
+}
+
+window.techValveOpen = false;
+const btnTechValve = document.getElementById('btnTechValve');
+if (btnTechValve) {
+    btnTechValve.onclick = () => {
+        window.techValveOpen = !window.techValveOpen;
+        sendCommand({ comando: "SET_VALVE_MANUAL", estado: window.techValveOpen });
+        if (window.techValveOpen) {
+            btnTechValve.innerText = "CERRAR";
+            btnTechValve.style.backgroundColor = "var(--danger)";
+            btnTechValve.style.color = "white";
+        } else {
+            btnTechValve.innerText = "ABRIR";
+            btnTechValve.style.backgroundColor = "transparent";
+            btnTechValve.style.color = "var(--text-main)";
+        }
     };
 }
 
@@ -1813,7 +1877,7 @@ if (btnGuardarContactosSoporte) {
                 email: mail,
                 updatedAt: Date.now()
             }, { merge: true });
-            
+
             globalSoporteWsp = wsp;
             globalSoporteMail = mail;
             showToast("Contactos de soporte guardados correctamente.");
@@ -1830,11 +1894,50 @@ async function loadAdminGlobal() {
     if (!listElem) return;
 
     try {
+        const userSnap = await getDocs(collection(db, "usuarios"));
+        const macToUser = {};
+        for (const userDoc of userSnap.docs) {
+            const udata = userDoc.data();
+            const eqSnap = await getDocs(collection(db, "usuarios", userDoc.id, "equipos_asignados"));
+            eqSnap.forEach(eqDoc => {
+                macToUser[eqDoc.id] = {
+                    nombre: udata.nombre || udata.displayName || 'Sin nombre',
+                    email: udata.email || 'Sin email'
+                };
+            });
+        }
+
+        // Recuperar root collection equipos por si hay equipos no asignados o para obtener alias si existen
         const snap = await getDocs(collection(db, "equipos"));
-        const equipos = [];
+        const rootEquipos = {};
         snap.forEach(docSnap => {
-            equipos.push({ mac: docSnap.id, ...docSnap.data() });
+            rootEquipos[docSnap.id] = docSnap.data();
         });
+
+        const equipos = [];
+        // Agregar todos los equipos asignados a usuarios
+        for (const mac of Object.keys(macToUser)) {
+            const data = rootEquipos[mac] || {};
+            equipos.push({
+                mac: mac,
+                alias: data.alias || 'Sin alias',
+                ownerName: macToUser[mac].nombre,
+                ownerEmail: macToUser[mac].email
+            });
+            delete rootEquipos[mac]; // Ya procesado
+        }
+        
+        // Agregar equipos que están en la base raíz pero no tienen dueño asignado
+        for (const mac of Object.keys(rootEquipos)) {
+            const data = rootEquipos[mac];
+            equipos.push({
+                mac: mac,
+                alias: data.alias || 'Sin alias',
+                ownerName: 'No asignado',
+                ownerEmail: 'N/A'
+            });
+        }
+        
         renderDevicesTable(equipos);
     } catch (e) {
         console.error("Error cargando equipos globales:", e);
@@ -1865,9 +1968,10 @@ function renderDevicesTable(equipos) {
         item.innerHTML = `
             <div>
                 <div style="font-weight: bold; color: var(--text-main);">${eq.mac}</div>
-                <div style="font-size: 0.8rem; color: var(--text-muted);">${eq.alias || 'Sin alias'}</div>
+                <div style="font-size: 0.85rem; color: var(--text-muted);">${eq.ownerName}</div>
+                <div style="font-size: 0.75rem; color: var(--text-muted);">${eq.ownerEmail}</div>
             </div>
-            <div style="display: flex; gap: 0.5rem;">
+            <div style="display: flex; flex-direction: column; gap: 0.4rem;">
                 <button class="btn outline" style="width: auto; padding: 0.3rem 0.6rem; font-size: 0.8rem;" onclick="connectRemoteDevice('${eq.mac}')">Conectar</button>
                 <button class="btn danger" style="width: auto; padding: 0.3rem 0.6rem; font-size: 0.8rem; background: var(--danger);" onclick="deleteRemoteDevice('${eq.mac}')">Dar de Baja</button>
             </div>
@@ -1879,7 +1983,7 @@ function renderDevicesTable(equipos) {
 function connectRemoteDevice(mac) {
     currentMac = mac;
     isTechRemoteActive = true;
-    
+
     const headerTech = document.getElementById('headerTechMode');
     const headerMac = document.getElementById('headerTechMac');
     const btnDisconnect = document.getElementById('btnDisconnectTech');
@@ -1896,13 +2000,23 @@ function connectRemoteDevice(mac) {
 const btnDisconnectTech = document.getElementById('btnDisconnectTech');
 if (btnDisconnectTech) {
     btnDisconnectTech.onclick = () => {
+        if (window.techValveOpen) {
+            sendCommand({ comando: "SET_VALVE_MANUAL", estado: false });
+            window.techValveOpen = false;
+            const btnTV = document.getElementById('btnTechValve');
+            if (btnTV) {
+                btnTV.innerText = "ABRIR";
+                btnTV.style.backgroundColor = "transparent";
+                btnTV.style.color = "var(--text-main)";
+            }
+        }
         isTechRemoteActive = false;
         const headerTech = document.getElementById('headerTechMode');
         if (headerTech) headerTech.style.display = 'none';
-        
+
         showToast("Conexión remota finalizada.");
         if (currentUser) {
-            onAuthStateChanged(auth, () => {});
+            onAuthStateChanged(auth, () => { });
         }
     };
 }
@@ -1987,10 +2101,47 @@ async function deleteTecnico(email) {
 }
 
 async function deleteRemoteDevice(mac) {
-    if (await customConfirm(`¿Deseas dar de baja el equipo ${mac}?`, "Baja de Equipo")) {
+    if (await customConfirm(`¿Deseas dar de baja el equipo ${mac}? Esto lo restablecerá a valores de fábrica y borrará sus datos.`, "Baja de Equipo")) {
         try {
+            // 1. Enviar comando de factory reset (intentamos conectarnos por MQTT si no estamos)
+            if (mqttClient && mqttClient.isConnected() && isTechRemoteActive && currentMac === mac) {
+                sendCommand({ comando: "FACTORY_RESET" });
+            } else {
+                const clientId = "temp_admin_" + Date.now();
+                const tempClient = new Paho.MQTT.Client("broker.hivemq.com", 8000, clientId);
+                tempClient.connect({
+                    onSuccess: () => {
+                        const msg = new Paho.MQTT.Message(JSON.stringify({ comando: "FACTORY_RESET" }));
+                        msg.destinationName = `dosimat/${mac}/cmd`;
+                        tempClient.send(msg);
+                        setTimeout(() => tempClient.disconnect(), 1000);
+                    },
+                    onFailure: () => console.log("No se pudo conectar MQTT temporal para Factory Reset")
+                });
+            }
+
+            // 2. Eliminar referencias de dueños
+            const userSnap = await getDocs(collection(db, "usuarios"));
+            for (const userDoc of userSnap.docs) {
+                const eqRef = doc(db, "usuarios", userDoc.id, "equipos_asignados", mac);
+                const eqDoc = await getDoc(eqRef);
+                if (eqDoc.exists()) {
+                    await deleteDoc(eqRef);
+                }
+                const udata = userDoc.data();
+                if (udata.equipos && udata.equipos.includes(mac)) {
+                    const newEquipos = udata.equipos.filter(e => e !== mac);
+                    await updateDoc(doc(db, "usuarios", userDoc.id), { equipos: newEquipos });
+                }
+            }
+
+            // 3. Eliminar subcolecciones conocidas y root doc
+            await deleteDoc(doc(db, "equipos", mac, "estado", "actual"));
+            await deleteDoc(doc(db, "equipos", mac, "config", "actual"));
+            await deleteDoc(doc(db, "equipos", mac, "programas", "actual"));
             await deleteDoc(doc(db, "equipos", mac));
-            showToast(`Equipo ${mac} dado de baja.`);
+
+            showToast(`Equipo ${mac} dado de baja exitosamente.`);
             loadAdminGlobal();
         } catch (e) {
             showToast("Error al dar de baja: " + e.message, true);

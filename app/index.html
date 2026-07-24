@@ -308,11 +308,16 @@
     <div id="tab-logs" class="container">
         <div class="card">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                <h2 style="margin: 0; border: none; padding: 0;">Logs del Sistema</h2>
+                <h2 style="margin: 0; border: none; padding: 0;">Historial de Eventos del sistema</h2>
                 <div style="display: flex; gap: 0.5rem;">
                     <button class="btn outline" id="btnLimpiarHistorial" style="width: auto; padding: 0.4rem 0.8rem; font-size: 0.85rem; display: none; color: var(--danger); border-color: var(--danger);">Limpiar</button>
                     <button class="btn outline" id="btnPedirHistorial" style="width: auto; padding: 0.4rem 0.8rem; font-size: 0.85rem;">Actualizar</button>
                 </div>
+            </div>
+            <!-- Botón de Control Manual de Válvula (Solo Admin/Tecnicos) -->
+            <div id="techValveControl" style="display: none; justify-content: space-between; align-items: center; margin-bottom: 1rem; padding: 0.8rem; border: 1px dashed var(--accent); border-radius: 8px;">
+                <span style="font-weight: bold; color: var(--accent);">Herramienta Técnica: Válvula de Cloro</span>
+                <button class="btn outline" id="btnTechValve" style="width: auto; font-size: 0.85rem; padding: 0.4rem 1rem;">ABRIR</button>
             </div>
             <div id="logsTerminal" class="logs-terminal">
                 Esperando eventos...
@@ -328,7 +333,7 @@
                 <span class="material-symbols-outlined btn-help" data-help="soporte-tecnico">help</span>
             </h2>
             <span class="material-symbols-outlined" style="font-size: 3.5rem; color: var(--accent); margin-top: 0.5rem;">support_agent</span>
-            <p style="color: var(--text-muted); margin: 1rem 0 1.5rem 0;">¿Tienes consultas sobre tu equipo o la PWA? Contáctanos de inmediato.</p>
+            <p style="color: var(--text-muted); margin: 1rem 0 1.5rem 0;">¿Tenés consultas sobre tu equipo o la Aplicación? Contactanos por estos medios.</p>
             
             <button class="btn" id="btnSoporteWsp" style="margin-bottom: 0.8rem; background-color: #25d366;">
                 WhatsApp de Soporte
@@ -412,7 +417,7 @@
         </div>
 
         <div class="card" style="text-align: center; padding: 1.5rem 1rem;">
-            <p style="color: var(--text-main); font-size: 1rem; font-weight: 600; margin-bottom: 1rem;">¿Te gusta Dosimat? ¡Cuéntale a tus amigos!</p>
+            <p style="color: var(--text-main); font-size: 1rem; font-weight: 600; margin-bottom: 1rem;">¿Te gusta Dosimat? ¡Recomendalo a tus amigos!</p>
             <button id="btnRecomendar" class="btn" style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; margin: 0 auto; width: fit-content; padding: 0.6rem 1.5rem; background-color: var(--accent); color: white; border-radius: 50px;">
                 <span class="material-symbols-outlined">share</span>
                 Recomendar Dosimat
