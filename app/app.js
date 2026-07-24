@@ -44,7 +44,7 @@ var unsavedChanges = false;
 var unsavedProgramasChanges = false;
 var isTechRemoteActive = false;
 
-var globalSoporteWsp = "5491136932456";
+var globalSoporteWsp = "5491153074195";
 var globalSoporteMail = "soporte@dosimat.com";
 
 var pendingCronogramaTimeoutId = null;
@@ -1102,18 +1102,21 @@ function connectNube() {
     });
 
     if (unsubscribeConfig) unsubscribeConfig();
-    const cfgRef = doc(db, "equipos", currentMac, "config", "actual");
-    unsubscribeConfig = onSnapshot(cfgRef, (docSnap) => {
-        if (docSnap.exists()) {
-            updateConfigUI(docSnap.data());
-        }
-    }, (err) => {
-        console.warn("Firestore snapshot config:", err.message);
-    });
+    if (modoConexion !== "BLE") {
+        const cfgRef = doc(db, "equipos", currentMac, "config", "actual");
+        unsubscribeConfig = onSnapshot(cfgRef, (docSnap) => {
+            if (docSnap.exists()) {
+                updateConfigUI(docSnap.data());
+            }
+        }, (err) => {
+            console.warn("Firestore snapshot config:", err.message);
+        });
+    }
 
     if (unsubscribeProgramas) unsubscribeProgramas();
-    const progRef = doc(db, "equipos", currentMac, "programas", "actual");
-    unsubscribeProgramas = onSnapshot(progRef, (docSnap) => {
+    if (modoConexion !== "BLE") {
+        const progRef = doc(db, "equipos", currentMac, "programas", "actual");
+        unsubscribeProgramas = onSnapshot(progRef, (docSnap) => {
         if (docSnap.exists()) {
             if (pendingCronogramaTimeoutId) {
                 clearTimeout(pendingCronogramaTimeoutId);
@@ -1126,6 +1129,7 @@ function connectNube() {
     }, (err) => {
         console.warn("Firestore snapshot programas:", err.message);
     });
+    }
 
     listenLogsCollection();
 }
@@ -1852,7 +1856,7 @@ if (btnTechValve) {
 const btnSoporteWsp = document.getElementById('btnSoporteWsp');
 if (btnSoporteWsp) {
     btnSoporteWsp.onclick = () => {
-        const wspNum = globalSoporteWsp || "5491136932456";
+        const wspNum = globalSoporteWsp || "5491153074195";
         window.open(`https://wa.me/${wspNum}?text=Hola,%20necesito%20soporte%20técnico%20con%20mi%20Dosimat%20IoT`, '_blank');
     };
 }
@@ -2565,7 +2569,10 @@ const btnVinculacionBle = document.getElementById('btnVinculacionBle');
 if (btnVinculacionBle) {
     btnVinculacionBle.onclick = () => {
         setConexionModo("BLE");
-        startBLEConnection();
+        const auth = document.getElementById("authOverlay");
+        if (auth) auth.style.display = "none";
+        const connect = document.getElementById("connectOverlay");
+        if (connect) connect.style.display = "flex";
     };
 }
 
