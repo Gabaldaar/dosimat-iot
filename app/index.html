@@ -48,6 +48,16 @@
                 Continuar con Google
             </button>
             
+            <div style="margin: 1.5rem 0; display: flex; align-items: center; justify-content: center; position: relative;">
+                <div style="border-top: 1px solid var(--card-border); width: 100%; position: absolute; z-index: 1;"></div>
+                <span style="background: var(--bg-main); padding: 0 0.8rem; color: var(--text-muted); font-size: 0.85rem; position: relative; z-index: 2;">O modo sin conexión</span>
+            </div>
+
+            <!-- Iniciar por Bluetooth sin cuenta -->
+            <button class="btn" onclick="document.getElementById('authOverlay').style.display='none'; document.getElementById('connectOverlay').style.display='flex';" style="background: var(--bg-main); color: var(--accent); border: 2px solid var(--accent); display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+                <span class="material-symbols-outlined" style="vertical-align: middle;">bluetooth</span> Configurar Local (Bluetooth)
+            </button>
+            
             <p style="text-align: center; margin-top: 1.2rem; font-size: 0.9rem;">
                 <span id="lblAuthSwitchText">¿No tienes cuenta?</span> 
                 <a href="#" id="lnkAuthSwitch" style="color: var(--accent); font-weight: bold; text-decoration: none;">Regístrate</a>
@@ -65,7 +75,7 @@
     <header>
         <div class="header-title" style="align-items: flex-start; margin-top: 5px;">
             <div style="display: flex; flex-direction: column;">
-                <h1 style="margin-bottom: 0;">Dosimat IoT</h1>
+                <h1 style="margin-bottom: 0;">Dosimat IoT <span style="font-size: 0.7rem; color: var(--accent); margin-left: 5px;">v6.64</span></h1>
                 <div id="lblUserName" style="font-size: 0.85rem; font-weight: 300; color: var(--text-muted); display: none;"></div>
             </div>
         </div>
@@ -91,17 +101,17 @@
             <span class="material-symbols-outlined" style="font-size: 3.5rem; color: var(--accent);">bluetooth</span>
             <h2 style="margin: 1rem 0;">Vincular Dosificador</h2>
             <p id="connectStatus" style="color: var(--text-muted); margin-bottom: 1.5rem;">Conéctate por Bluetooth para vincular y configurar tu equipo localmente.</p>
-            <button class="btn" id="btnConnectBLE">Buscar Dispositivo Bluetooth</button>
+            <button class="btn" id="btnConnectBLE" onclick="startBLEConnection()">Buscar Dispositivo Bluetooth</button>
             
             <div style="margin-top: 1.5rem; border-top: 1px solid var(--card-border); padding-top: 1.5rem;">
                 <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 0.8rem;">O ingresa el ID manualmente (Ej: 841FE8694040):</p>
                 <div style="display: flex; gap: 0.5rem; justify-content: center;">
                     <input type="text" id="txtManualMac" placeholder="ID del equipo" style="width: 60%; text-transform: uppercase;">
-                    <button class="btn" id="btnConnectManual" style="width: auto; padding: 0.5rem 1rem;">Vincular</button>
+                    <button class="btn" id="btnConnectManual" onclick="connectManualMac()" style="width: auto; padding: 0.5rem 1rem;">Vincular</button>
                 </div>
             </div>
 
-            <button class="btn outline" id="btnCancelBLE" style="margin-top: 1.5rem;">Ahora no</button>
+            <button class="btn outline" id="btnCancelBLE" onclick="cancelBLEConnection()" style="margin-top: 1.5rem;">Ahora no</button>
         </div>
     </div>
 
@@ -529,6 +539,6 @@
         </div>
     </div>
 
-    <script type="module" src="app.js?v=6.53"></script>
+    <script type="module" src="app.js?v=6.64"></script>
 </body>
 </html>

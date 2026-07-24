@@ -2,6 +2,17 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, GoogleAuthProvider, signInWithPopup, updateProfile } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, collection, addDoc, deleteDoc, getDocs, query, where, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
+window.onerror = function (msg, url, lineNo, columnNo, error) {
+    const errorMsg = `Error: ${msg}\nLínea: ${lineNo}\nArchivo: ${url}`;
+    console.error(errorMsg);
+    alert(errorMsg);
+    return false;
+};
+
+window.addEventListener("unhandledrejection", function (event) {
+    alert("Unhandled Promise Rejection: " + event.reason);
+});
+
 // === CONFIGURACIÓN Y INICIALIZACIÓN DE FIREBASE ===
 const firebaseConfig = {
     apiKey: "AIzaSyDrfjhqsAdkDbQFCXqzns6UF7JByccg5vw",
@@ -934,8 +945,15 @@ function renderLogsList(logs) {
 }
 
 function listenLogsCollection() {
+    if (unsubscribeLogs) {
+        unsubscribeLogs();
+        unsubscribeLogs = null;
+    }
     if (!currentMac) return;
-    if (unsubscribeLogs) unsubscribeLogs();
+    if (modoConexion === "BLE") {
+        // En BLE descargamos los logs directamente del equipo
+        return;
+    }
 
     try {
         const q = query(collection(db, "equipos", currentMac, "logs"), orderBy("timestamp", "desc"), limit(20));
@@ -1114,7 +1132,7 @@ function connectNube() {
 
 // === ENVÍO DE COMANDOS Y FORMATO DE TIEMPO ===
 async function sendCommand(obj, silent = false) {
-    if (!currentMac) {
+    if (!currentMac && modoConexion !== "BLE") {
         if (!silent && typeof customAlert === "function") customAlert("No hay un equipo seleccionado.");
         return;
     }
@@ -1125,7 +1143,7 @@ async function sendCommand(obj, silent = false) {
             if (!isBleTxActive) _processBleQueue();
         }
         if (!silent && typeof showToast === "function") showToast(`Comando enviado por BLE: ${obj.comando}`);
-        return;
+        return true;
     }
 
     if (modoConexion === "NUBE" && mqttClient && mqttClient.isConnected()) {
@@ -1556,6 +1574,7 @@ function agregarFilaCronograma(inicio = "21:00", duracion = 60, dosifica = true,
 }
 
 function updateProgramasUI(data) {
+    console.log("Recibido updateProgramasUI:", data);
     if (!data) return;
     lastProgramasData = data;
     const list = document.getElementById('cronogramaContainer');
@@ -2277,7 +2296,7 @@ async function handleNotifications(event) {
     
     rxBuffer += chunk;
     
-    let boundary = rxBuffer.indexOf('\\n');
+    let boundary = rxBuffer.indexOf('\n');
     while (boundary !== -1) {
         const line = rxBuffer.substring(0, boundary).trim();
         rxBuffer = rxBuffer.substring(boundary + 1);
@@ -2289,44 +2308,92 @@ async function handleNotifications(event) {
                 // 1. Sincronización automática de Logs Offline
                 if (data.tipo === "LOG_ENTRY" && data.data) {
                     bleLogsTemp.push(data.data);
-                    boundary = rxBuffer.indexOf('\\n');
+                    boundary = rxBuffer.indexOf('\n');
                     continue;
                 }
                 
                 if (data.tipo === "LOGS_END") {
+                    showToast("Historial descargado por BLE.");
+                    logsSyncTriggered = false; // Resetear para permitir nueva descarga
+                    
+                    // Procesar registros históricos si los hay
                     if (bleLogsTemp.length > 0 && currentMac) {
-                        try {
-                            const logsCol = collection(db, "equipos", currentMac, "logs");
-                            for (const logItem of bleLogsTemp) {
-                                const logId = `log_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
-                                await setDoc(doc(logsCol, logId), {
-                                    fecha: logItem.fecha || new Date(logItem.ts * 1000).toLocaleString(),
-                                    segundos: parseFloat(logItem.segundos || logItem.duracion || 0),
-                                    tipo: logItem.tipo || "evento",
-                                    refuerzo: !!logItem.refuerzo,
-                                    timestamp: logItem.ts * 1000
-                                });
+                        if (currentUser) {
+                            try {
+                                const logsCol = collection(db, "equipos", currentMac, "logs");
+                                for (const logItem of bleLogsTemp) {
+                                    const logId = `log_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+                                    await setDoc(doc(logsCol, logId), {
+                                        fecha: logItem.fecha || new Date(logItem.ts * 1000).toLocaleString(),
+                                        segundos: parseFloat(logItem.segundos || logItem.duracion || 0),
+                                        tipo: logItem.tipo || "evento",
+                                        refuerzo: !!logItem.refuerzo,
+                                        timestamp: logItem.ts * 1000
+                                    });
+                                }
+                                showToast(`Sincronizados ${bleLogsTemp.length} logs locales`);
+                            } catch (err) {
+                                console.error("Fallo al subir logs BLE:", err);
                             }
-                            showToast(`Sincronizados ${bleLogsTemp.length} logs locales`);
-                        } catch (err) {
-                            console.error("Fallo al subir logs BLE:", err);
+                        } else {
+                            // Mostrar logs locales si no hay Firestore
+                            const tbody = document.querySelector('#tablaHistorial tbody');
+                            if (tbody) {
+                                let html = "";
+                                for (const lg of bleLogsTemp) {
+                                    html += `<tr>
+                                        <td>${lg.fecha || new Date(lg.ts * 1000).toLocaleString()}</td>
+                                        <td>${lg.tipo || "evento"}</td>
+                                    </tr>`;
+                                }
+                                tbody.innerHTML = html;
+                            }
                         }
                     }
                     bleLogsTemp = [];
                     await sendCommand({comando: "CLEAR_LOGS"}, true);
-                    boundary = rxBuffer.indexOf('\\n');
+                    boundary = rxBuffer.indexOf('\n');
                     continue;
                 }
                 
                 if (data.tipo === "ACK_CLEAR_LOGS") {
                     showToast("Historial local de logs limpiado en placa.");
-                    boundary = rxBuffer.indexOf('\\n');
+                    boundary = rxBuffer.indexOf('\n');
                     continue;
                 }
 
                 if (data.tipo === "CONFIG") {
                     if (typeof updateConfigUI === "function") updateConfigUI(data.data);
-                    boundary = rxBuffer.indexOf('\\n');
+                    boundary = rxBuffer.indexOf('\n');
+                    continue;
+                }
+
+                if (data.tipo === "LOGS_LIST" && data.logs) {
+                    if (typeof renderLogsList === "function") renderLogsList(data.logs);
+                    boundary = rxBuffer.indexOf('\n');
+                    continue;
+                }
+
+                if (data.tipo === "PROGRAMAS") {
+                    if (typeof updateProgramasUI === "function") updateProgramasUI(data.data || data);
+                    boundary = rxBuffer.indexOf('\n');
+                    continue;
+                }
+
+                if (data.tipo === "ACK_CRON") {
+                    if (pendingCronogramaTimeoutId) {
+                        clearTimeout(pendingCronogramaTimeoutId);
+                        pendingCronogramaTimeoutId = null;
+                        setCronogramaInputsDisabled(false);
+                        showToast("✅ Cronograma guardado y confirmado por el dosificador.");
+                    }
+                    boundary = rxBuffer.indexOf('\n');
+                    continue;
+                }
+
+                if (data.tipo === "ACK_CONFIG" || data.tipo === "ACK_CFG") {
+                    showToast("✅ Parámetros confirmados por el dosificador.");
+                    boundary = rxBuffer.indexOf('\n');
                     continue;
                 }
 
@@ -2335,18 +2402,21 @@ async function handleNotifications(event) {
                 const chipId = innerData.id_equipo || data.id_equipo;
 
                 // 3. Vinculación y registro automático libre
-                if (chipId && currentUser) {
+                if (chipId) {
                     const oldMac = currentMac;
                     
                     if (oldMac !== chipId) {
-                        const canLink = await vincularEquipo(chipId);
-                        if (!canLink) {
-                            if (bleDevice && bleDevice.gatt.connected) bleDevice.gatt.disconnect();
-                            return; // Rechazado por seguridad
+                        if (currentUser) {
+                            const canLink = await vincularEquipo(chipId);
+                            if (!canLink) {
+                                if (bleDevice && bleDevice.gatt.connected) bleDevice.gatt.disconnect();
+                                return; // Rechazado por seguridad
+                            }
+                            connectNube();
                         }
                         currentMac = chipId;
-                        document.getElementById('lblMac').innerText = currentMac;
-                        connectNube();
+                        const lbl = document.getElementById('lblMac');
+                        if (lbl) lbl.innerText = currentMac;
                     }
 
                     // Solicitar descarga de logs offline una sola vez
@@ -2356,6 +2426,7 @@ async function handleNotifications(event) {
                         setTimeout(() => {
                             sendCommand({comando: "GET_LOGS"}, true);
                             sendCommand({comando: "GET_CONFIG"}, true);
+                            sendCommand({comando: "GET_PROGRAMAS"}, true);
                         }, 1500);
                     }
                 }
@@ -2366,7 +2437,7 @@ async function handleNotifications(event) {
                 console.error("Fallo decodificación BLE:", e);
             }
         }
-        boundary = rxBuffer.indexOf('\\n');
+        boundary = rxBuffer.indexOf('\n');
     }
 }
 
@@ -2377,7 +2448,7 @@ async function _processBleQueue() {
     }
     isBleTxActive = true;
     const obj = bleTxQueue.shift();
-    const rawStr = JSON.stringify(obj) + "\\n";
+    const rawStr = JSON.stringify(obj) + "\n";
     const encoder = new TextEncoder();
     const rawBytes = encoder.encode(rawStr);
     
@@ -2450,6 +2521,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // RTC sync inicial
                 syncRtcBLE();
+                sendCommand({comando: "GET_STATE"}, true);
 
             } catch (e) {
                 status.innerText = `Error BLE: ${e.message}`;
@@ -2488,4 +2560,13 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 });
+
+const btnVinculacionBle = document.getElementById('btnVinculacionBle');
+if (btnVinculacionBle) {
+    btnVinculacionBle.onclick = () => {
+        setConexionModo("BLE");
+        startBLEConnection();
+    };
+}
+
 

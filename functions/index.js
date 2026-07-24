@@ -101,6 +101,11 @@ exports.mqttWebhook = functions.https.onRequest(async (req, res) => {
                 ultima_sincronizacion: admin.firestore.FieldValue.serverTimestamp()
             }, { merge: true });
 
+            // Ensure root document exists so it can be queried by getDocs(collection(db, "equipos"))
+            await db.doc(`equipos/${chipId}`).set({
+                ultima_sincronizacion: admin.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
+
             console.log(`Estado de telemetría de ${chipId} escrito en Firestore.`);
             return res.status(200).send("Telemetría procesada exitosamente.");
 

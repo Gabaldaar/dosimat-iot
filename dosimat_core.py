@@ -314,6 +314,10 @@ async def procesar_comando(cmd_dict):
         except Exception as e:
             print("[LOGS] Error obteniendo logs:", e)
             
+    elif cmd == "GET_PROGRAMAS":
+        await tx_queue.put({"tipo": "PROGRAMAS", "data": config_ref.get("raw_programas", {}), "_destino": origen})
+        
+            
     elif cmd == "CLEAR_LOGS":
         try:
             await sys_log.limpiar_historial()
@@ -323,9 +327,13 @@ async def procesar_comando(cmd_dict):
     elif cmd == "FACTORY_RESET":
         try:
             import os
-            os.remove(config_manager.CONFIG_FILE)
-            os.remove(config_manager.WIFI_CONFIG_FILE)
-        except OSError: pass
+            try: os.remove(config_manager.CONFIG_FILE)
+            except OSError: pass
+            try: os.remove(config_manager.WIFI_CONFIG_FILE)
+            except OSError: pass
+            try: os.remove("programas.json")
+            except OSError: pass
+        except Exception: pass
         await sys_log.limpiar_historial()
         await tx_queue.put({"tipo": "ACK", "status": "RESETTING", "_destino": origen})
         await asyncio.sleep(1)
