@@ -37,6 +37,7 @@ var globalModoCiclo = "AUTO";
 var globalRefuerzo = 0;
 var globalDosisAnuladas = 0;
 var currentDosisSec = 0;
+var globalTemp = null;
 var globalWifiSSID = "";
 var lastConfigData = null;
 var lastProgramasData = null;
@@ -165,6 +166,13 @@ const HELP_TOPICS = {
     "wifi-local": {
         title: "Configuración WiFi",
         text: "Asigna la red WiFi local (SSID y Contraseña) a la que se conectará el dosificador para poder ser controlado de forma remota desde cualquier lugar."
+    },
+    "guia-conexion": {
+        title: "Guía de Conexión y Registro",
+        text: "Sigue estos 3 simples pasos para poner en marcha tu equipo:\n\n" +
+            "1️⃣ Conexión Bluetooth (BLE): Toca el botón azul 'Buscar Dispositivo Bluetooth' (o ingresa tu MAC) en la pantalla inicial y selecciona tu Dosimat en la lista para acceder localmente.\n\n" +
+            "2️⃣ Registro de Equipo: Al vincular tu equipo, se asociará automáticamente a tu cuenta de Google para que solo tú y tus técnicos autorizados puedan controlarlo.\n\n" +
+            "3️⃣ WiFi de tu casa: En la pestaña de Ajustes (Conectividad WiFi local), ingresa el Nombre (SSID) y Contraseña de tu WiFi domiciliario y presiona 'Registrar Red WiFi'. El equipo se reiniciará y se conectará solo a la Nube."
     }
 };
 
@@ -923,10 +931,72 @@ function appendLogToTerminal(logText) {
     term.innerText = prefix ? `${prefix} - ${logText}\n` + term.innerText : `${logText}\n` + term.innerText;
 }
 
+function calcularDosis15Dias(logs) {
+    const valDosisNormales = document.getElementById('valDosisNormales');
+    const valDosisRefuerzo = document.getElementById('valDosisRefuerzo');
+    if (!valDosisNormales || !valDosisRefuerzo) return;
+    if (!logs || !Array.isArray(logs)) return;
+
+    const limitMs = 15 * 24 * 60 * 60 * 1000; // 15 días
+    const now = Date.now();
+    let normCount = 0;
+    let refCount = 0;
+
+    logs.forEach(item => {
+        let ts = 0;
+        let msg = "";
+        let isRef = false;
+
+        if (typeof item === 'string') {
+            msg = item;
+            try {
+                const parts = item.split(" - ");
+                if (parts.length >= 2 && parts[0].includes("/")) {
+                    const dateParts = parts[0].split("/");
+                    const timeParts = parts[1].split(":");
+                    if (dateParts.length === 3 && timeParts.length === 3) {
+                        let year = parseInt(dateParts[2], 10);
+                        if (year < 100) year += 2000;
+                        const logDate = new Date(year, parseInt(dateParts[1], 10) - 1, parseInt(dateParts[0], 10), parseInt(timeParts[0], 10), parseInt(timeParts[1], 10), parseInt(timeParts[2], 10));
+                        ts = logDate.getTime();
+                    }
+                }
+            } catch(e) {}
+            if (!ts || isNaN(ts)) ts = now;
+        } else {
+            ts = item.ts || item.timestamp || 0;
+            if (ts && typeof ts.toMillis === 'function') ts = ts.toMillis();
+            else if (ts && typeof ts.seconds === 'number') ts = ts.seconds * 1000;
+            else if (ts && ts < 10000000000) ts = ts * 1000;
+            if (!ts || isNaN(ts)) ts = now;
+
+            msg = item.msg || item.mensaje || item.tipo || JSON.stringify(item);
+            if (item.refuerzo === true || item.refuerzo === 1) isRef = true;
+        }
+
+        if (now - ts <= limitMs) {
+            const msgLower = msg.toLowerCase();
+            const esDosis = (msgLower.includes("dosis automática") || msgLower.includes("dosis manual") || msgLower.includes("dosificando") || (msgLower.includes("dosis") && !msgLower.includes("salteada") && !msgLower.includes("pausada") && !msgLower.includes("anulada") && !msgLower.includes("suspendida") && !msgLower.includes("cancelada")));
+            
+            if (esDosis) {
+                if (isRef || msgLower.includes("refuerzo activo") || msgLower.includes("refuerzo: si") || msgLower.includes("con refuerzo")) {
+                    refCount++;
+                } else {
+                    normCount++;
+                }
+            }
+        }
+    });
+
+    valDosisNormales.innerText = normCount;
+    valDosisRefuerzo.innerText = refCount;
+}
+
 function renderLogsList(logs) {
     const term = document.getElementById('logsTerminal');
     if (!term) return;
     if (!logs || !Array.isArray(logs)) return;
+    calcularDosis15Dias(logs);
     let linesArr = logs.map(item => {
         if (typeof item === 'string') {
             if (item.includes(" - ") && item.includes("/")) return item;
@@ -951,19 +1021,20 @@ function listenLogsCollection() {
     }
     if (!currentMac) return;
     if (modoConexion === "BLE") {
-        // En BLE descargamos los logs directamente del equipo
         return;
     }
 
     try {
-        const q = query(collection(db, "equipos", currentMac, "logs"), orderBy("timestamp", "desc"), limit(20));
+        const q = query(collection(db, "equipos", currentMac, "logs"), orderBy("timestamp", "desc"), limit(100));
         unsubscribeLogs = onSnapshot(q, (snap) => {
             const term = document.getElementById('logsTerminal');
             if (!term) return;
             if (snap.empty) return;
             let logsArr = [];
+            let rawDocs = [];
             snap.forEach(docSnap => {
                 const data = docSnap.data();
+                rawDocs.push(data);
 
                 let ts = data.ts || data.timestamp || Date.now();
                 if (ts && typeof ts.toMillis === 'function') ts = ts.toMillis();
@@ -977,6 +1048,7 @@ function listenLogsCollection() {
                     logsArr.push(pfx ? `${pfx} - ${msg}` : msg);
                 }
             });
+            calcularDosis15Dias(rawDocs);
             term.innerText = logsArr.slice(0, 20).join('\n');
         }, (err) => {
             console.warn("Snapshot logs:", err.message);
@@ -1215,9 +1287,21 @@ function updateUI(raw_data) {
     currentDosisSec = tr;
 
     let temp = data.temp !== undefined ? data.temp : (data.temperatura !== undefined ? data.temperatura : (data.temp_rtc !== undefined ? data.temp_rtc : null));
+    if (temp !== null) globalTemp = Number(temp);
     const lblTemp = document.getElementById('lblTemp');
+    const iconTemp = document.getElementById('iconTemp');
     if (lblTemp) {
         lblTemp.innerText = temp !== null ? `${Number(temp).toFixed(1)}°C` : "--°C";
+        if (globalTemp !== null && globalTemp >= 27 && globalTemp <= 30) {
+            lblTemp.style.color = "var(--warning)";
+            if (iconTemp) iconTemp.style.color = "var(--warning)";
+        } else if (globalTemp !== null && globalTemp > 30) {
+            lblTemp.style.color = "var(--danger)";
+            if (iconTemp) iconTemp.style.color = "var(--danger)";
+        } else {
+            lblTemp.style.color = "var(--text-main)";
+            if (iconTemp) iconTemp.style.color = "var(--text-muted)";
+        }
     }
 
     let rtcStr = data.rtc || data.rtc_time || data.hora_rtc || data.hora || data.time;
@@ -1427,6 +1511,23 @@ function updateSubtexto() {
         lblEstadoSubtexto.innerText = "Ciclo suspendido temporalmente por mantenimiento.";
     } else if (globalEstadoDosificador === "RESET") {
         lblEstadoSubtexto.innerText = "Inicializando hardware...";
+    }
+
+    const isRefuerzoOn = (globalRefuerzo === 1 || globalRefuerzo === true || globalRefuerzo === "1");
+    if (globalTemp !== null && globalTemp >= 27 && globalEstadoDosificador !== "PAUSA" && globalDosisAnuladas === 0 && !isRefuerzoOn) {
+        const colorRec = globalTemp > 30 ? "var(--danger)" : "var(--warning)";
+        const iconRec = globalTemp > 30 ? "local_fire_department" : "wb_sunny";
+        const textoRec = globalTemp > 30 
+            ? "🔥 Temperatura crítica (>30°C). Se recomienda activar el Refuerzo."
+            : "☀️ Temperatura elevada (27-30°C). Se recomienda activar el Refuerzo.";
+        
+        const recHTML = `<div style="color: ${colorRec}; font-size: 0.82rem; margin-top: 6px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 4px; background: rgba(255,255,255,0.05); padding: 4px 8px; border-radius: 6px;"><span class="material-symbols-outlined" style="font-size: 1rem;">${iconRec}</span> ${textoRec}</div>`;
+        
+        if (globalEstadoDosificador === "IDLE") {
+            lblEstadoSubtexto.innerHTML += recHTML;
+        } else {
+            lblEstadoSubtexto.innerHTML = `<div>${lblEstadoSubtexto.innerText}</div>` + recHTML;
+        }
     }
 }
 

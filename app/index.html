@@ -132,6 +132,13 @@
 
     <!-- 1. Pantalla: Dashboard / Control -->
     <div id="tab-dashboard" class="container active">
+        <!-- Botón Guía Rápida de Conexión y Registro -->
+        <div style="margin-bottom: 0.6rem; display: flex; justify-content: flex-end;">
+            <button class="btn outline btn-help" data-help="guia-conexion" style="width: auto; padding: 0.35rem 0.75rem; font-size: 0.82rem; display: inline-flex; align-items: center; gap: 0.4rem; border-color: var(--accent); color: var(--accent); background: rgba(59, 130, 246, 0.05);">
+                <span class="material-symbols-outlined" style="font-size: 1.1rem;">help_outline</span> Guía Rápida de Conexión
+            </button>
+        </div>
+
         <!-- Tarjeta de Estado Principal -->
         <div class="card panel-estado" id="panelEstado" style="min-height: 110px; display: flex; flex-direction: column; justify-content: center; position: relative; padding: 0.85rem 1rem; margin-bottom: 0.5rem;">
             <span id="panelLed" class="panel-led off" style="position: absolute; top: 12px; left: 12px; margin: 0;"></span>
@@ -200,21 +207,21 @@
                 </div>
             </div>
         </div>
+
+        <!-- Próxima Dosis Resumen -->
+        <div class="card" style="padding: 0.9rem 1.1rem; margin-bottom: 0.6rem;">
+            <div style="font-weight: 600; font-size: 0.95rem; margin-bottom: 0.3rem;">⏰ Reloj del Equipo</div>
+            <div id="lblRTC" style="font-size: 1.2rem; font-weight: bold; color: var(--text-main);">--:--:--</div>
+        </div>
+
+        <!-- Botón Desconectar -->
+        <button class="btn outline" id="btnDisconnect" style="margin-top: 0.5rem; border-color: var(--danger); color: var(--danger);">
+            Desconectar del Equipo
+        </button>
     </div>
 
-    <!-- 2. Pantalla: Programación (Cronograma y Parámetros de Tiempos) -->
+    <!-- 2. Pantalla: Programación (Filtrado / Dosificación / Tiempos / Vacaciones) -->
     <div id="tab-programacion" class="container">
-        <!-- Parámetros de Tiempos del Dosificador -->
-        <div class="card">
-            <h2 style="display: flex; align-items: center; width: 100%;">
-                <span>Tiempos del Dosificador</span>
-                <span class="material-symbols-outlined btn-help" data-help="tiempos-dosificador">help</span>
-            </h2>
-            
-            <div class="form-group">
-                <label>Tiempo de Espera (Minutos y Segundos)</label>
-                <div class="time-inputs-wrapper">
-                    <input type="number" id="inpEsperaMin" min="0" max="599" value="1" placeholder="Min">
                     <span>m</span>
                     <input type="number" id="inpEsperaSeg" min="0" max="59" value="30" placeholder="Seg">
                     <span>s</span>
@@ -284,6 +291,13 @@
 
     <!-- 3. Pantalla: Configuración General (WiFi y Diagnósticos del Sistema) -->
     <div id="tab-configuracion" class="container">
+        <!-- Botón Guía Rápida de Conexión y Registro -->
+        <div style="margin-bottom: 0.8rem; display: flex; justify-content: flex-end;">
+            <button class="btn outline btn-help" data-help="guia-conexion" style="width: auto; padding: 0.35rem 0.75rem; font-size: 0.82rem; display: inline-flex; align-items: center; gap: 0.4rem; border-color: var(--accent); color: var(--accent); background: rgba(59, 130, 246, 0.05);">
+                <span class="material-symbols-outlined" style="font-size: 1.1rem;">help_outline</span> Guía Rápida de Conexión
+            </button>
+        </div>
+
         <!-- Tarjeta de Conexión BLE Local -->
         <div class="card">
             <h2 style="display: flex; align-items: center; width: 100%;">
@@ -324,6 +338,21 @@
                     <button class="btn outline" id="btnPedirHistorial" style="width: auto; padding: 0.4rem 0.8rem; font-size: 0.85rem;">Actualizar</button>
                 </div>
             </div>
+
+            <!-- Tarjetas de Métricas: Dosis Últimos 15 Días -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; margin-bottom: 1.2rem;">
+                <div style="background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 8px; padding: 0.8rem; text-align: center;">
+                    <div style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase;">Dosis Normales (15d)</div>
+                    <div id="valDosisNormales" style="font-size: 1.8rem; font-weight: 800; color: var(--accent); margin: 0.2rem 0;">0</div>
+                    <div style="font-size: 0.7rem; color: var(--text-muted);">Sin refuerzo</div>
+                </div>
+                <div style="background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 8px; padding: 0.8rem; text-align: center;">
+                    <div style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase;">Dosis Refuerzo (15d)</div>
+                    <div id="valDosisRefuerzo" style="font-size: 1.8rem; font-weight: 800; color: var(--warning); margin: 0.2rem 0;">0</div>
+                    <div style="font-size: 0.7rem; color: var(--text-muted);">Doble dosis</div>
+                </div>
+            </div>
+
             <!-- Botón de Control Manual de Válvula (Solo Admin/Tecnicos) -->
             <div id="techValveControl" style="display: none; justify-content: space-between; align-items: center; margin-bottom: 1rem; padding: 0.8rem; border: 1px dashed var(--accent); border-radius: 8px;">
                 <span style="font-weight: bold; color: var(--accent);">Herramienta Técnica: Válvula de Cloro</span>
@@ -539,6 +568,6 @@
         </div>
     </div>
 
-    <script type="module" src="app.js?v=6.69"></script>
+    <script type="module" src="app.js?v=6.70"></script>
 </body>
 </html>
