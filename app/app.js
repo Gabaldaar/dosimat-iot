@@ -949,8 +949,26 @@ function calcularDosis15Dias(logs) {
 
         if (typeof item === 'string') {
             msg = item;
+        } else {
+            ts = item.ts || item.timestamp || 0;
+            if (ts && typeof ts.toMillis === 'function') ts = ts.toMillis();
+            else if (ts && typeof ts.seconds === 'number') ts = ts.seconds * 1000;
+            
+            if (ts && typeof ts === 'number' && ts < 2000000000) {
+                if (ts < 1000000000 && ts > 0) {
+                    ts = (ts + 946684800) * 1000;
+                } else {
+                    ts = ts * 1000;
+                }
+            }
+
+            msg = item.msg || item.mensaje || item.tipo || JSON.stringify(item);
+            if (item.refuerzo === true || item.refuerzo === 1 || item.refuerzo === "1" || item.refuerzo === "true") isRef = true;
+        }
+
+        if (!ts || isNaN(ts) || ts === 0 || ts < 1000000000000) {
             try {
-                const parts = item.split(" - ");
+                const parts = msg.split(" - ");
                 if (parts.length >= 2 && parts[0].includes("/")) {
                     const dateParts = parts[0].split("/");
                     const timeParts = parts[1].split(":");
@@ -962,19 +980,10 @@ function calcularDosis15Dias(logs) {
                     }
                 }
             } catch(e) {}
-            if (!ts || isNaN(ts)) ts = now;
-        } else {
-            ts = item.ts || item.timestamp || 0;
-            if (ts && typeof ts.toMillis === 'function') ts = ts.toMillis();
-            else if (ts && typeof ts.seconds === 'number') ts = ts.seconds * 1000;
-            else if (ts && ts < 10000000000) ts = ts * 1000;
-            if (!ts || isNaN(ts)) ts = now;
-
-            msg = item.msg || item.mensaje || item.tipo || JSON.stringify(item);
-            if (item.refuerzo === true || item.refuerzo === 1) isRef = true;
         }
+        if (!ts || isNaN(ts) || ts === 0) ts = now;
 
-        if (now - ts <= limitMs) {
+        if (now - ts <= limitMs && now >= ts - 86400000) {
             const msgLower = msg.toLowerCase();
             const esDosis = (msgLower.includes("dosis automática") || msgLower.includes("dosis manual") || msgLower.includes("dosificando") || (msgLower.includes("dosis") && !msgLower.includes("salteada") && !msgLower.includes("pausada") && !msgLower.includes("anulada") && !msgLower.includes("suspendida") && !msgLower.includes("cancelada")));
             

@@ -75,7 +75,7 @@
     <header>
         <div class="header-title" style="align-items: flex-start; margin-top: 5px;">
             <div style="display: flex; flex-direction: column;">
-                <h1 style="margin-bottom: 0;">Dosimat IoT <span style="font-size: 0.7rem; color: var(--accent); margin-left: 5px;">v6.65</span></h1>
+                <h1 style="margin-bottom: 0;">Dosimat IoT <span style="font-size: 0.7rem; color: var(--accent); margin-left: 5px;">v6.71</span></h1>
                 <div id="lblUserName" style="font-size: 0.85rem; font-weight: 300; color: var(--text-muted); display: none;"></div>
             </div>
         </div>
@@ -222,6 +222,17 @@
 
     <!-- 2. Pantalla: Programación (Filtrado / Dosificación / Tiempos / Vacaciones) -->
     <div id="tab-programacion" class="container">
+        <!-- Parámetros de Tiempos del Dosificador -->
+        <div class="card">
+            <h2 style="display: flex; align-items: center; width: 100%;">
+                <span>Tiempos del Dosificador</span>
+                <span class="material-symbols-outlined btn-help" data-help="tiempos-dosificador">help</span>
+            </h2>
+            
+            <div class="form-group">
+                <label>Tiempo de Espera (Minutos y Segundos)</label>
+                <div class="time-inputs-wrapper">
+                    <input type="number" id="inpEsperaMin" min="0" max="599" value="1" placeholder="Min">
                     <span>m</span>
                     <input type="number" id="inpEsperaSeg" min="0" max="59" value="30" placeholder="Seg">
                     <span>s</span>
@@ -568,6 +579,6 @@
         </div>
     </div>
 
-    <script type="module" src="app.js?v=6.70"></script>
+    <script type="module" src="app.js?v=6.71"></script>
 </body>
 </html>
