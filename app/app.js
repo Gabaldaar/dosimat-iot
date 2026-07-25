@@ -722,7 +722,7 @@ async function checkUserRole(user) {
     if (!user || !user.email) return;
     const email = user.email.toLowerCase().trim();
 
-    let isSuper = (email === "gab.aldazabal@gmail.com" || email === "gab.aldazabal@gmail.com.ar" || email === "gabrielsew61@gmail.com");
+    let isSuper = (email === "gab.aldazabal@gmail.com" || email === "gab.aldazabal@gmail.com.ar");
     let isTecnico = isSuper;
 
     if (!isSuper) {
@@ -1061,11 +1061,30 @@ function connectNube() {
         useSSL: isHttps,
         onSuccess: () => {
             console.log("MQTT Conectado a HiveMQ (Esperando datos del equipo...)");
+            
+            // ¡CRÍTICO! Si no cambiamos esto, sendCommand NO envía nada a MQTT
+            modoConexion = "NUBE"; 
+            
+            const connectStatus = document.getElementById('connectStatus');
+            if (connectStatus) connectStatus.innerText = "Nube conectada (Esperando datos...)";
+            
             mqttClient.subscribe(`dosimat/${currentMac}/telemetry`);
             mqttClient.subscribe(`dosimat/${currentMac}/config`);
             mqttClient.subscribe(`dosimat/${currentMac}/programas`);
             mqttClient.subscribe(`dosimat/${currentMac}/logs`);
+            
             sendCommand({ comando: "GET_STATE" }, true);
+            
+            if (window.mqttRescuePoll) clearInterval(window.mqttRescuePoll);
+            window.mqttRescuePoll = setInterval(() => {
+                const statusStr = connectStatus ? connectStatus.innerText : "";
+                if (statusStr.includes("Esperando datos")) {
+                    console.log("Reintentando GET_STATE...");
+                    sendCommand({ comando: "GET_STATE" }, true);
+                } else {
+                    clearInterval(window.mqttRescuePoll);
+                }
+            }, 3000);
         },
         onFailure: (err) => {
             console.error("MQTT Failure:", err);
@@ -2293,10 +2312,11 @@ async function vincularEquipo(chipId) {
     }
 }
 
+let bleDecoder = new TextDecoder('utf-8');
+
 async function handleNotifications(event) {
     const value = event.target.value;
-    const decoder = new TextDecoder('utf-8');
-    const chunk = decoder.decode(value);
+    const chunk = bleDecoder.decode(value, { stream: true });
     
     rxBuffer += chunk;
     

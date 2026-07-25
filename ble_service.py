@@ -102,12 +102,13 @@ async def send_json_async(datos_dict):
     _ble_sending = True
     try:
         max_chunk = 20  # MTU conservador de 20 bytes
-        print(f"[BLE_TX] Enviando {len(json_str)} bytes en fragmentos de {max_chunk}...")
-        for i in range(0, len(json_str), max_chunk):
+        encoded_json = json_str.encode('utf-8')
+        print(f"[BLE_TX] Enviando {len(encoded_json)} bytes en fragmentos de {max_chunk}...")
+        for i in range(0, len(encoded_json), max_chunk):
             if _current_connection is None:
                 print("[BLE_TX] Desconexión durante transmisión.")
                 break
-            chunk = json_str[i:i + max_chunk].encode('utf-8')
+            chunk = encoded_json[i:i + max_chunk]
             try:
                 _uart_tx.notify(_current_connection, chunk)
             except asyncio.TimeoutError:
@@ -115,7 +116,7 @@ async def send_json_async(datos_dict):
             except Exception as e:
                 print("[BLE_TX] Error en notify:", e)
                 break
-            await asyncio.sleep_ms(40)  # Breve retardo para no saturar el buffer del host
+            await asyncio.sleep_ms(60)  # Breve retardo para no saturar el buffer del host
         print("[BLE_TX] Envío completado exitosamente.")
     except Exception as e:
         print("[BLE_TX] Error en envío BLE:", e)

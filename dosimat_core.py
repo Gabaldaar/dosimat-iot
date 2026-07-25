@@ -219,12 +219,17 @@ async def procesar_comando(cmd_dict):
             estado_dosimat = "ANTI"
             abort_event.set()
             
-    elif cmd == "config_wifi":
+    elif cmd in ("config_wifi", "SET_WIFI"):
         ssid = cmd_dict.get("ssid")
-        password = cmd_dict.get("pass")
+        password = cmd_dict.get("pass") or cmd_dict.get("pwd")
         if ssid:
             await config_manager.guardar_wifi_config(ssid, password)
             await tx_queue.put({"tipo": "ACK_WIFI", "ssid": ssid, "_destino": origen})
+            async def reboot_after_delay():
+                await asyncio.sleep(2)
+                import machine
+                machine.reset()
+            asyncio.create_task(reboot_after_delay())
 
     elif cmd == "sync_rtc":
         fecha_str = cmd_dict.get("fecha")

@@ -91,6 +91,10 @@ async def conectar_mqtt_async():
             except:
                 pass
         mqtt_loop_task = asyncio.create_task(loop_mqtt_escucha())
+        
+        # Enviar estado inicial para que la app lo reciba
+        asyncio.create_task(dosimat_core.enviar_telemetria())
+        
         return True
     except Exception as e:
         print("[MQTT] Error al establecer conexión MQTT:", e)
@@ -260,17 +264,22 @@ async def gestionar_interfaces_network():
             name = f"Dosimat_{dosimat_core.chip_id[-4:]}"
             await ble_service.start_ble_service(name=name)
             
-            # Esperar en ventana de emergencia
+            # Esperar en ventana de emergencia (con pausa si hay usuario conectado por BLE)
             print(f"[NET] Ventana de Fallback BLE activa por {ventana_fallback_ble_s} segundos...")
-            for _ in range(int(ventana_fallback_ble_s)):
-                # Si las credenciales cambian en medio de la espera o el estado cambia, interrumpir
+            segundos_esperados = 0
+            while segundos_esperados < int(ventana_fallback_ble_s):
                 if current_state != STATE_FALLBACK_BLE:
                     break
+                # Si hay un usuario conectado por BLE, reiniciar el contador para no cortar su sesión
+                if ble_service.is_ble_connected():
+                    segundos_esperados = 0
+                else:
+                    segundos_esperados += 1
                 await asyncio.sleep(1)
                 
-            # Finalizada la ventana, apagar BLE y volver a intentar WiFi
+            # Finalizada la ventana sin clientes activos, apagar BLE y volver a intentar WiFi
             if current_state == STATE_FALLBACK_BLE:
-                print("[NET] Ventana de fallback completada. Reintentando WiFi...")
+                print("[NET] Ventana de fallback completada (sin clientes BLE activos). Reintentando WiFi...")
                 await ble_service.stop_ble_service()
                 current_state = STATE_WIFI_CONNECTING
 
