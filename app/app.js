@@ -36,6 +36,7 @@ var globalEstadoDosificador = "IDLE";
 var globalModoCiclo = "AUTO";
 var globalRefuerzo = 0;
 var globalDosisAnuladas = 0;
+var globalTempComp = false;
 var currentDosisSec = 0;
 var globalTemp = null;
 var globalWifiSSID = "";
@@ -127,6 +128,13 @@ function actualizarLedVirtual() {
 
 // === DICCIONARIO DE AYUDA (BOTONES HELP) ===
 const HELP_TOPICS = {
+    "compensacion-temperatura": {
+        title: "Compensación de Temperatura",
+        text: "Al estar activa, anula las recomendaciones visuales de activar el refuerzo manual por calor.\n\n" +
+            "El equipo medirá la temperatura del módulo RTC y dosificará refuerzos automáticos (doble dosis) según corresponda:\n" +
+            "• Entre 29°C y 32°C: activa un refuerzo cada 4 días.\n" +
+            "• Mayor a 32°C: activa un refuerzo cada 3 días."
+    },
     "soporte-tecnico": {
         title: "Soporte Técnico",
         text: "Utiliza los botones para comunicarte directamente con el servicio de atención oficial de Dosimat vía WhatsApp o correo electrónico."
@@ -1291,6 +1299,13 @@ function updateUI(raw_data) {
     if (data.refuerzo !== undefined) globalRefuerzo = data.refuerzo;
     if (data.ref !== undefined) globalRefuerzo = data.ref;
     if (data.anuladas !== undefined) globalDosisAnuladas = data.anuladas;
+    if (data.temp_comp !== undefined) {
+        globalTempComp = data.temp_comp === 1 || data.temp_comp === true;
+    } else if (data.temp_comp_activa !== undefined) {
+        globalTempComp = data.temp_comp_activa === 1 || data.temp_comp_activa === true;
+    }
+    const tglTempComp = document.getElementById('tglTempComp');
+    if (tglTempComp) tglTempComp.checked = globalTempComp;
 
     let tr = data.tr !== undefined ? data.tr : 0;
     currentDosisSec = tr;
@@ -1523,7 +1538,7 @@ function updateSubtexto() {
     }
 
     const isRefuerzoOn = (globalRefuerzo === 1 || globalRefuerzo === true || globalRefuerzo === "1");
-    if (globalTemp !== null && globalTemp >= 27 && globalEstadoDosificador !== "PAUSA" && globalDosisAnuladas === 0 && !isRefuerzoOn) {
+    if (globalTemp !== null && globalTemp >= 27 && globalEstadoDosificador !== "PAUSA" && globalDosisAnuladas === 0 && !isRefuerzoOn && !globalTempComp) {
         const colorRec = globalTemp > 30 ? "var(--danger)" : "var(--warning)";
         const iconRec = globalTemp > 30 ? "local_fire_department" : "wb_sunny";
         const textoRec = globalTemp > 30 
@@ -1628,6 +1643,15 @@ if (btnRestar) {
             updateUI({});
             sendCommand({ comando: "SET_ANULADAS", anuladas: globalDosisAnuladas });
         }
+    };
+}
+
+const tglTempComp = document.getElementById('tglTempComp');
+if (tglTempComp) {
+    tglTempComp.onchange = () => {
+        globalTempComp = tglTempComp.checked;
+        sendCommand({ comando: "SET_TEMP_COMP", temp_comp: globalTempComp });
+        updateUI({});
     };
 }
 
@@ -1854,6 +1878,12 @@ function updateConfigUI(data) {
         if (iDia) iDia.value = parts[1];
     }
 
+    if (data.temp_comp_activa !== undefined) {
+        globalTempComp = data.temp_comp_activa === 1 || data.temp_comp_activa === true;
+        const tglTempComp = document.getElementById('tglTempComp');
+        if (tglTempComp) tglTempComp.checked = globalTempComp;
+    }
+
     if (typeof updateSubtexto === 'function') updateSubtexto();
 }
 
@@ -1893,7 +1923,8 @@ if (btnGuardarConfig) {
                 tdosis_seg: tdosis_seg,
                 ajuste_baja: ajuste,
                 temporada_alta_inicio: tempInicio,
-                temporada_alta_fin: tempFin
+                temporada_alta_fin: tempFin,
+                temp_comp_activa: globalTempComp
             };
             setDoc(cfgRef, firestorePayload).catch(e => console.warn("Error guardando en Firestore:", e));
         }

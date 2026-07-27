@@ -207,6 +207,26 @@
                 </div>
             </div>
         </div>
+
+        <!-- Tarjeta Full Width: Compensación Automática por Altas Temperaturas -->
+        <div class="card" id="panelTempComp" style="padding: 0.9rem 1.1rem; margin-top: 0.6rem; margin-bottom: 0.6rem;">
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;">
+                <div style="flex: 1;">
+                    <div style="font-weight: 600; font-size: 0.98rem; font-weight: 700; display: flex; align-items: center; gap: 0.4rem;">
+                        <span class="material-symbols-outlined" style="font-size: 1.1rem; color: var(--warning);">thermostat</span>
+                        <span>Compensación Temp. Alta</span>
+                        <span class="material-symbols-outlined btn-help" data-help="compensacion-temperatura" style="font-size: 1.1rem; cursor: pointer; color: var(--text-muted); margin-left: 0.2rem;">help</span>
+                    </div>
+                    <div style="font-size: 0.82rem; color: var(--text-muted); margin-top: 3px;">Ajuste automático de dosis por calor</div>
+                </div>
+                <div style="display: flex; gap: 0.4rem; align-items: center;">
+                    <label class="switch">
+                        <input type="checkbox" id="tglTempComp">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- 2. Pantalla: Programación (Filtrado / Dosificación / Tiempos / Vacaciones) -->

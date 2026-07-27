@@ -12,7 +12,9 @@ DEFAULT_CONFIG = {
     "tdosis_seg": 90,          # Tiempo de dosificación por defecto de fábrica (90 segundos / 1m 30s)
     "ajuste_baja": 50,         # % de ajuste en temporada baja (50%)
     "temporada_alta_inicio": "10-30",  # Inicio temporada alta (MM-DD)
-    "temporada_alta_fin": "03-30"      # Fin temporada alta (MM-DD)
+    "temporada_alta_fin": "03-30",     # Fin temporada alta (MM-DD)
+    "temp_comp_activa": False,         # Compensación automática por altas temperaturas activa
+    "ultimo_refuerzo_temp_ts": 0       # Timestamp del último refuerzo por temperatura
 }
 
 config_data = {}

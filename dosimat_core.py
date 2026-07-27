@@ -99,7 +99,8 @@ async def enviar_telemetria():
         "ref": 1 if refuerzo_activo else 0,
         "anuladas": dosis_anuladas,
         "v": config_ref.get("config_version", 1),
-        "temporada": "Alta" if es_temporada_alta() else "Baja"
+        "temporada": "Alta" if es_temporada_alta() else "Baja",
+        "temp_comp": 1 if config_ref.get("temp_comp_activa", False) else 0
     }
     try:
         if rtc_hw:
@@ -171,6 +172,12 @@ async def procesar_comando(cmd_dict):
         val = cmd_dict.get("valor", cmd_dict.get("anuladas", 0))
         dosis_anuladas = int(val)
         config_ref["dosis_anuladas"] = dosis_anuladas
+        await config_manager.guardar_configuracion(config_ref)
+        await enviar_telemetria()
+
+    elif cmd == "SET_TEMP_COMP":
+        val = bool(cmd_dict.get("temp_comp", False))
+        config_ref["temp_comp_activa"] = val
         await config_manager.guardar_configuracion(config_ref)
         await enviar_telemetria()
 
@@ -391,6 +398,33 @@ async def cron_scheduler_task():
                                     print(f"[CORE] Dosis automatica anulada. Restan: {dosis_anuladas}")
                                     await sys_log.log_event({"msg": "Dosis Salteada a Pedido"})
                                     await enviar_telemetria()
+
+                                # Compensación automática por altas temperaturas
+                                if incluye_dosis and config_ref.get("temp_comp_activa", False) and rtc_hw:
+                                    try:
+                                        temp = rtc_hw.get_temperature()
+                                        if temp is not None:
+                                            now_ts = time.time()
+                                            if now_ts > 700000000:
+                                                ultimo_ref = config_ref.get("ultimo_refuerzo_temp_ts", 0)
+                                                dias_int = 0
+                                                if temp > 32.0:
+                                                    dias_int = 3
+                                                elif temp >= 29.0:
+                                                    dias_int = 4
+                                                
+                                                if dias_int > 0:
+                                                    segundos_int = dias_int * 24 * 3600
+                                                    # Tolerancia de 5 minutos (300 segundos) para evitar descalces en la hora exacta del cron
+                                                    if ultimo_ref == 0 or (now_ts - ultimo_ref) >= (segundos_int - 300):
+                                                        refuerzo_activo = True
+                                                        config_ref["refuerzo_activo"] = True
+                                                        config_ref["ultimo_refuerzo_temp_ts"] = now_ts
+                                                        await config_manager.guardar_configuracion(config_ref)
+                                                        print(f"[CORE] Compensación temp: Refuerzo activado (Temp: {temp:.1f}°C, cada {dias_int} días)")
+                                                        await sys_log.log_event({"msg": f"Refuerzo Temp Auto - Temp: {temp:.1f}°C (c/{dias_int}d)"})
+                                    except Exception as ex:
+                                        print("[CORE] Error en compensación de temperatura:", ex)
 
                                 if incluye_dosis:
                                     estado_dosimat = "FILTRO_PRE"
