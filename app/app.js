@@ -2794,4 +2794,72 @@ window.addEventListener('appinstalled', () => {
     localStorage.setItem('pwa_dismissed_v2', 'true');
 });
 
+// ==========================================
+// REGISTRO DE SERVICE WORKER Y ACTUALIZACIONES
+// ==========================================
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('service-worker.js')
+            .then(reg => {
+                console.log('Service Worker registrado con éxito:', reg.scope);
+
+                // Comprobar si hay una actualización esperando ser activada
+                if (reg.waiting) {
+                    showUpdateBanner(reg);
+                }
+
+                // Escuchar por futuras actualizaciones en segundo plano
+                reg.addEventListener('updatefound', () => {
+                    const newWorker = reg.installing;
+                    newWorker.addEventListener('statechange', () => {
+                        if (newWorker.state === 'installed') {
+                            if (navigator.serviceWorker.controller) {
+                                // Hay una nueva versión lista
+                                showUpdateBanner(reg);
+                            }
+                        }
+                    });
+                });
+            })
+            .catch(err => {
+                console.error('Error al registrar el Service Worker:', err);
+            });
+    });
+
+    // Recargar la página automáticamente cuando el nuevo Service Worker toma el control
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (!refreshing) {
+            refreshing = true;
+            window.location.reload();
+        }
+    });
+}
+
+function showUpdateBanner(reg) {
+    const banner = document.getElementById('pwaUpdateBanner');
+    if (banner) {
+        banner.style.display = 'flex';
+
+        const btnAcceptUpdate = document.getElementById('btnAcceptUpdate');
+        if (btnAcceptUpdate) {
+            btnAcceptUpdate.onclick = () => {
+                banner.style.display = 'none';
+                if (reg.waiting) {
+                    reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+                } else {
+                    window.location.reload();
+                }
+            };
+        }
+
+        const btnCancelUpdate = document.getElementById('btnCancelUpdate');
+        if (btnCancelUpdate) {
+            btnCancelUpdate.onclick = () => {
+                banner.style.display = 'none';
+            };
+        }
+    }
+}
+
 
