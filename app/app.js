@@ -130,8 +130,7 @@ function actualizarLedVirtual() {
 const HELP_TOPICS = {
     "compensacion-temperatura": {
         title: "Compensación de Temperatura",
-        text: "Al estar activa, anula las recomendaciones visuales de activar el refuerzo manual por calor.\n\n" +
-            "El equipo medirá la temperatura del módulo RTC y dosificará refuerzos automáticos (doble dosis) según corresponda:\n" +
+        text: "El equipo medirá la temperatura de su sensor interno y dosificará refuerzos automáticos (doble dosis) según corresponda:\n" +
             "• Entre 29°C y 32°C: activa un refuerzo cada 4 días.\n" +
             "• Mayor a 32°C: activa un refuerzo cada 3 días."
     },
