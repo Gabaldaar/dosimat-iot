@@ -560,13 +560,14 @@ function calcularProximoEvento() {
     const tipo = esDosis ? "Dosis" : "Filtrado";
 
     let duracionTexto = "";
+    let esDobleDosis = false;
     if (esDosis) {
         let baseSec = (lastConfigData && lastConfigData.tdosis_seg) ? lastConfigData.tdosis_seg : 300;
         if (!esTemporadaAlta()) {
             const ajuste = (lastConfigData && lastConfigData.ajuste_baja !== undefined) ? parseInt(lastConfigData.ajuste_baja) : 10;
             baseSec = Math.floor(baseSec * (ajuste / 100));
         }
-        let esDobleDosis = (globalRefuerzo === 1 || globalRefuerzo === true || globalRefuerzo === "1");
+        esDobleDosis = (globalRefuerzo === 1 || globalRefuerzo === true || globalRefuerzo === "1");
         if (!esDobleDosis && globalTempComp && globalTemp !== null && globalTemp >= 29.0) {
             const intervalDays = globalTemp > 32.0 ? 3 : 4;
             const intervalSecs = intervalDays * 24 * 3600;
