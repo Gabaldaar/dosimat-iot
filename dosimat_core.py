@@ -101,7 +101,8 @@ async def enviar_telemetria():
         "v": config_ref.get("config_version", 1),
         "temporada": "Alta" if es_temporada_alta() else "Baja",
         "temp_comp": 1 if config_ref.get("temp_comp_activa", False) else 0,
-        "temp_offset": float(config_ref.get("temp_offset", 0.0))
+        "temp_offset": float(config_ref.get("temp_offset", 0.0)),
+        "ult_ref_ts": int(config_ref.get("ultimo_refuerzo_temp_ts", 0))
     }
     try:
         if rtc_hw:

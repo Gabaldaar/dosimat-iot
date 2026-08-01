@@ -38,6 +38,8 @@ var globalRefuerzo = 0;
 var globalDosisAnuladas = 0;
 var globalTempComp = false;
 var globalTempOffset = 0.0;
+var globalRawTemp = null;
+var globalUltRefTs = 0;
 var currentDosisSec = 0;
 var globalTemp = null;
 var globalWifiSSID = "";
@@ -1307,6 +1309,12 @@ function updateUI(raw_data) {
     const tglTempComp = document.getElementById('tglTempComp');
     if (tglTempComp) tglTempComp.checked = globalTempComp;
 
+    if (data.ult_ref_ts !== undefined) {
+        globalUltRefTs = parseInt(data.ult_ref_ts);
+    } else if (data.ultimo_refuerzo_temp_ts !== undefined) {
+        globalUltRefTs = parseInt(data.ultimo_refuerzo_temp_ts);
+    }
+
     if (data.temp_offset !== undefined) {
         globalTempOffset = parseFloat(data.temp_offset);
         const inpTempOffset = document.getElementById('inpTempOffset');
@@ -1323,7 +1331,11 @@ function updateUI(raw_data) {
     currentDosisSec = tr;
 
     let temp = data.temp !== undefined ? data.temp : (data.temperatura !== undefined ? data.temperatura : (data.temp_rtc !== undefined ? data.temp_rtc : null));
-    if (temp !== null) globalTemp = Number(temp);
+    if (temp !== null) {
+        globalTemp = Number(temp);
+        const activeOffset = data.temp_offset !== undefined ? Number(data.temp_offset) : globalTempOffset;
+        globalRawTemp = globalTemp - activeOffset;
+    }
     const lblTemp = document.getElementById('lblTemp');
     const iconTemp = document.getElementById('iconTemp');
     if (lblTemp) {
@@ -1497,6 +1509,40 @@ function updateUI(raw_data) {
     if (lblAnuladasControl) lblAnuladasControl.innerText = globalDosisAnuladas;
 }
 
+function obtenerMensajeRefuerzoTemp() {
+    if (!globalTempComp || globalTemp === null || globalTemp < 29.0) return null;
+
+    const intervalDays = globalTemp > 32.0 ? 3 : 4;
+    const intervalSecs = intervalDays * 24 * 3600;
+
+    const isRefuerzoOn = (globalRefuerzo === 1 || globalRefuerzo === true || globalRefuerzo === "1");
+    if (isRefuerzoOn) {
+        return {
+            tipo: "activo",
+            texto: `Refuerzo por Temp. Alta activo: Se aplicará doble dosis en el próximo ciclo.`
+        };
+    }
+
+    const nowEpoch = Math.floor(Date.now() / 1000);
+    const timeSinceLastBooster = nowEpoch - globalUltRefTs;
+    const timeRemaining = intervalSecs - timeSinceLastBooster;
+
+    if (timeRemaining <= 300 || globalUltRefTs === 0) {
+        return {
+            tipo: "inminente",
+            texto: `Refuerzo por Temp. Alta: Se aplicará doble dosis en el próximo ciclo.`
+        };
+    } else {
+        const nextTriggerDate = new Date((globalUltRefTs + intervalSecs) * 1000);
+        const dateOptions = { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false };
+        const dateStr = nextTriggerDate.toLocaleString('es-AR', dateOptions);
+        return {
+            tipo: "programado",
+            texto: `Refuerzo por Temp. Alta: Próxima doble dosis programada para después del ${dateStr}.`
+        };
+    }
+}
+
 function updateSubtexto() {
     const lblEstadoSubtexto = document.getElementById('lblEstadoSubtexto');
     if (!lblEstadoSubtexto) return;
@@ -1563,6 +1609,16 @@ function updateSubtexto() {
             lblEstadoSubtexto.innerHTML += recHTML;
         } else {
             lblEstadoSubtexto.innerHTML = `<div>${lblEstadoSubtexto.innerText}</div>` + recHTML;
+        }
+    }
+
+    const msgComp = obtenerMensajeRefuerzoTemp();
+    if (msgComp && globalEstadoDosificador !== "PAUSA" && globalDosisAnuladas === 0) {
+        const compHTML = `<div style="color: var(--warning); font-size: 0.82rem; margin-top: 6px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 4px; background: rgba(255,255,255,0.05); padding: 4px 8px; border-radius: 6px;"><span class="material-symbols-outlined" style="font-size: 1.1rem; color: var(--warning);">thermostat</span> ${msgComp.texto}</div>`;
+        if (globalEstadoDosificador === "IDLE") {
+            lblEstadoSubtexto.innerHTML += compHTML;
+        } else {
+            lblEstadoSubtexto.innerHTML = `<div>${lblEstadoSubtexto.innerText}</div>` + compHTML;
         }
     }
 }
@@ -1693,6 +1749,26 @@ if (inpTempOffset) {
         const val = parseFloat(inpTempOffset.value);
         const lbl = document.getElementById('lblTempValOffset');
         if (lbl) lbl.innerText = (val > 0 ? "+" : "") + val.toFixed(1) + "°C";
+
+        if (globalRawTemp !== null) {
+            globalTemp = globalRawTemp + val;
+            const lblTemp = document.getElementById('lblTemp');
+            const iconTemp = document.getElementById('iconTemp');
+            if (lblTemp) {
+                lblTemp.innerText = `${globalTemp.toFixed(1)}°C`;
+                if (globalTemp >= 27 && globalTemp <= 30) {
+                    lblTemp.style.color = "var(--warning)";
+                    if (iconTemp) iconTemp.style.color = "var(--warning)";
+                } else if (globalTemp > 30) {
+                    lblTemp.style.color = "var(--danger)";
+                    if (iconTemp) iconTemp.style.color = "var(--danger)";
+                } else {
+                    lblTemp.style.color = "var(--accent)";
+                    if (iconTemp) iconTemp.style.color = "var(--text-muted)";
+                }
+            }
+            updateSubtexto();
+        }
     };
 }
 
@@ -1935,6 +2011,12 @@ function updateConfigUI(data) {
     const containerTempOffset = document.getElementById('containerTempOffset');
     if (containerTempOffset) {
         containerTempOffset.style.display = globalTempComp ? 'block' : 'none';
+    }
+
+    if (data.ultimo_refuerzo_temp_ts !== undefined) {
+        globalUltRefTs = parseInt(data.ultimo_refuerzo_temp_ts);
+    } else if (data.ult_ref_ts !== undefined) {
+        globalUltRefTs = parseInt(data.ult_ref_ts);
     }
 
     if (typeof updateSubtexto === 'function') updateSubtexto();
