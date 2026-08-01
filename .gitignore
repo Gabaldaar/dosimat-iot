@@ -29,3 +29,5 @@ restore_*.py
 thorough_*.py
 update_*.py
 write_*.py
+
+Backups/

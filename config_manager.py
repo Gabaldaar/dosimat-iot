@@ -14,6 +14,7 @@ DEFAULT_CONFIG = {
     "temporada_alta_inicio": "10-30",  # Inicio temporada alta (MM-DD)
     "temporada_alta_fin": "03-30",     # Fin temporada alta (MM-DD)
     "temp_comp_activa": False,         # Compensación automática por altas temperaturas activa
+    "temp_offset": 0.0,                # Offset/calibración de temperatura en °C
     "ultimo_refuerzo_temp_ts": 0       # Timestamp del último refuerzo por temperatura
 }
 

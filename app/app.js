@@ -37,6 +37,7 @@ var globalModoCiclo = "AUTO";
 var globalRefuerzo = 0;
 var globalDosisAnuladas = 0;
 var globalTempComp = false;
+var globalTempOffset = 0.0;
 var currentDosisSec = 0;
 var globalTemp = null;
 var globalWifiSSID = "";
@@ -1306,6 +1307,18 @@ function updateUI(raw_data) {
     const tglTempComp = document.getElementById('tglTempComp');
     if (tglTempComp) tglTempComp.checked = globalTempComp;
 
+    if (data.temp_offset !== undefined) {
+        globalTempOffset = parseFloat(data.temp_offset);
+        const inpTempOffset = document.getElementById('inpTempOffset');
+        const lblTempValOffset = document.getElementById('lblTempValOffset');
+        if (inpTempOffset) inpTempOffset.value = globalTempOffset;
+        if (lblTempValOffset) lblTempValOffset.innerText = (globalTempOffset > 0 ? "+" : "") + globalTempOffset.toFixed(1) + "°C";
+    }
+    const containerTempOffset = document.getElementById('containerTempOffset');
+    if (containerTempOffset) {
+        containerTempOffset.style.display = globalTempComp ? 'block' : 'none';
+    }
+
     let tr = data.tr !== undefined ? data.tr : 0;
     currentDosisSec = tr;
 
@@ -1649,8 +1662,37 @@ const tglTempComp = document.getElementById('tglTempComp');
 if (tglTempComp) {
     tglTempComp.onchange = () => {
         globalTempComp = tglTempComp.checked;
-        sendCommand({ comando: "SET_TEMP_COMP", temp_comp: globalTempComp });
+        const containerTempOffset = document.getElementById('containerTempOffset');
+        if (containerTempOffset) {
+            containerTempOffset.style.display = globalTempComp ? 'block' : 'none';
+        }
+        sendCommand({ comando: "SET_TEMP_COMP", temp_comp: globalTempComp, temp_offset: globalTempOffset });
         updateUI({});
+    };
+}
+
+const inpTempOffset = document.getElementById('inpTempOffset');
+if (inpTempOffset) {
+    inpTempOffset.onchange = () => {
+        const val = parseFloat(inpTempOffset.value);
+        globalTempOffset = val;
+        const lbl = document.getElementById('lblTempValOffset');
+        if (lbl) lbl.innerText = (val > 0 ? "+" : "") + val.toFixed(1) + "°C";
+
+        sendCommand({ comando: "SET_TEMP_COMP", temp_comp: globalTempComp, temp_offset: globalTempOffset });
+        
+        if (modoConexion === "NUBE" && currentMac) {
+            const cfgRef = doc(db, "equipos", currentMac, "config", "actual");
+            updateDoc(cfgRef, {
+                temp_offset: globalTempOffset,
+                config_version: Date.now()
+            }).catch(e => console.warn("Error guardando temp_offset en Firestore:", e));
+        }
+    };
+    inpTempOffset.oninput = () => {
+        const val = parseFloat(inpTempOffset.value);
+        const lbl = document.getElementById('lblTempValOffset');
+        if (lbl) lbl.innerText = (val > 0 ? "+" : "") + val.toFixed(1) + "°C";
     };
 }
 
@@ -1883,6 +1925,18 @@ function updateConfigUI(data) {
         if (tglTempComp) tglTempComp.checked = globalTempComp;
     }
 
+    if (data.temp_offset !== undefined) {
+        globalTempOffset = parseFloat(data.temp_offset);
+        const inpTempOffset = document.getElementById('inpTempOffset');
+        const lblTempValOffset = document.getElementById('lblTempValOffset');
+        if (inpTempOffset) inpTempOffset.value = globalTempOffset;
+        if (lblTempValOffset) lblTempValOffset.innerText = (globalTempOffset > 0 ? "+" : "") + globalTempOffset.toFixed(1) + "°C";
+    }
+    const containerTempOffset = document.getElementById('containerTempOffset');
+    if (containerTempOffset) {
+        containerTempOffset.style.display = globalTempComp ? 'block' : 'none';
+    }
+
     if (typeof updateSubtexto === 'function') updateSubtexto();
 }
 
@@ -1911,7 +1965,8 @@ if (btnGuardarConfig) {
             tdosis_seg: tdosis_seg,
             ajuste_baja: ajuste,
             temporada_alta_inicio: tempInicio,
-            temporada_alta_fin: tempFin
+            temporada_alta_fin: tempFin,
+            temp_offset: globalTempOffset
         };
 
         if (modoConexion === "NUBE" && currentMac) {
@@ -1923,7 +1978,8 @@ if (btnGuardarConfig) {
                 ajuste_baja: ajuste,
                 temporada_alta_inicio: tempInicio,
                 temporada_alta_fin: tempFin,
-                temp_comp_activa: globalTempComp
+                temp_comp_activa: globalTempComp,
+                temp_offset: globalTempOffset
             };
             setDoc(cfgRef, firestorePayload).catch(e => console.warn("Error guardando en Firestore:", e));
         }

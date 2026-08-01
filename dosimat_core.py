@@ -100,7 +100,8 @@ async def enviar_telemetria():
         "anuladas": dosis_anuladas,
         "v": config_ref.get("config_version", 1),
         "temporada": "Alta" if es_temporada_alta() else "Baja",
-        "temp_comp": 1 if config_ref.get("temp_comp_activa", False) else 0
+        "temp_comp": 1 if config_ref.get("temp_comp_activa", False) else 0,
+        "temp_offset": float(config_ref.get("temp_offset", 0.0))
     }
     try:
         if rtc_hw:
@@ -109,7 +110,9 @@ async def enviar_telemetria():
                 payload["rtc_fecha"] = f"{t[0]}-{t[1]:02d}-{t[2]:02d}"
                 payload["rtc_hora"] = f"{t[4]:02d}:{t[5]:02d}"
             temp = rtc_hw.get_temperature()
-            if temp is not None: payload["temp"] = temp
+            if temp is not None:
+                offset = float(config_ref.get("temp_offset", 0.0))
+                payload["temp"] = temp + offset
     except Exception: pass
     await tx_queue.put({"tipo": "TELEMETRIA", "data": payload})
 
@@ -178,6 +181,9 @@ async def procesar_comando(cmd_dict):
     elif cmd == "SET_TEMP_COMP":
         val = bool(cmd_dict.get("temp_comp", False))
         config_ref["temp_comp_activa"] = val
+        temp_offset = cmd_dict.get("temp_offset")
+        if temp_offset is not None:
+            config_ref["temp_offset"] = float(temp_offset)
         await config_manager.guardar_configuracion(config_ref)
         await enviar_telemetria()
 
@@ -263,6 +269,7 @@ async def procesar_comando(cmd_dict):
         ajuste_baja = cmd_dict.get("ajuste_baja")
         temp_ini = cmd_dict.get("temporada_alta_inicio")
         temp_fin = cmd_dict.get("temporada_alta_fin")
+        temp_offset = cmd_dict.get("temp_offset")
         
         cfg_to_save = {}
         if tespera_seg is not None: cfg_to_save["tespera_seg"] = int(tespera_seg)
@@ -270,6 +277,7 @@ async def procesar_comando(cmd_dict):
         if ajuste_baja is not None: cfg_to_save["ajuste_baja"] = int(ajuste_baja)
         if temp_ini: cfg_to_save["temporada_alta_inicio"] = temp_ini
         if temp_fin: cfg_to_save["temporada_alta_fin"] = temp_fin
+        if temp_offset is not None: cfg_to_save["temp_offset"] = float(temp_offset)
 
         await config_manager.guardar_configuracion(cfg_to_save)
         config_ref.update(cfg_to_save)
@@ -404,13 +412,15 @@ async def cron_scheduler_task():
                                     try:
                                         temp = rtc_hw.get_temperature()
                                         if temp is not None:
+                                            offset = float(config_ref.get("temp_offset", 0.0))
+                                            temp_corregida = temp + offset
                                             now_ts = time.time()
                                             if now_ts > 700000000:
                                                 ultimo_ref = config_ref.get("ultimo_refuerzo_temp_ts", 0)
                                                 dias_int = 0
-                                                if temp > 32.0:
+                                                if temp_corregida > 32.0:
                                                     dias_int = 3
-                                                elif temp >= 29.0:
+                                                elif temp_corregida >= 29.0:
                                                     dias_int = 4
                                                 
                                                 if dias_int > 0:
@@ -421,8 +431,8 @@ async def cron_scheduler_task():
                                                         config_ref["refuerzo_activo"] = True
                                                         config_ref["ultimo_refuerzo_temp_ts"] = now_ts
                                                         await config_manager.guardar_configuracion(config_ref)
-                                                        print(f"[CORE] Compensación temp: Refuerzo activado (Temp: {temp:.1f}°C, cada {dias_int} días)")
-                                                        await sys_log.log_event({"msg": f"Refuerzo Temp Auto - Temp: {temp:.1f}°C (c/{dias_int}d)"})
+                                                        print(f"[CORE] Compensación temp: Refuerzo activado (Temp corregida: {temp_corregida:.1f}°C, cada {dias_int} días)")
+                                                        await sys_log.log_event({"msg": f"Refuerzo Temp Auto - Temp: {temp_corregida:.1f}°C (c/{dias_int}d)"})
                                     except Exception as ex:
                                         print("[CORE] Error en compensación de temperatura:", ex)
 

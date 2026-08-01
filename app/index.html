@@ -236,6 +236,22 @@
                     </label>
                 </div>
             </div>
+            
+            <!-- Contenedor del control deslizable de calibración -->
+            <div id="containerTempOffset" style="display: none; margin-top: 0.8rem; border-top: 1px solid var(--card-border, #eee); padding-top: 0.8rem;">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.3rem;">
+                    <span style="font-size: 0.85rem; font-weight: 600; color: var(--text-main);">Ajuste del Sensor (Calibración):</span>
+                    <span id="lblTempValOffset" style="font-size: 0.9rem; font-weight: bold; color: var(--warning);">0.0°C</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.8rem;">
+                    <span style="font-size: 0.75rem; color: var(--text-muted); min-width: 35px; text-align: right;">-5.0°C</span>
+                    <input type="range" id="inpTempOffset" min="-5.0" max="5.0" step="0.5" value="0.0" style="flex: 1; cursor: pointer; accent-color: var(--accent);">
+                    <span style="font-size: 0.75rem; color: var(--text-muted); min-width: 35px;">+5.0°C</span>
+                </div>
+                <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.3rem; line-height: 1.2;">
+                    Ajusta la lectura del sensor interno del equipo sumando o restando grados.
+                </div>
+            </div>
         </div>
     </div>
 
