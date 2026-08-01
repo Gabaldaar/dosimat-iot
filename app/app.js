@@ -566,7 +566,19 @@ function calcularProximoEvento() {
             const ajuste = (lastConfigData && lastConfigData.ajuste_baja !== undefined) ? parseInt(lastConfigData.ajuste_baja) : 10;
             baseSec = Math.floor(baseSec * (ajuste / 100));
         }
-        if (globalRefuerzo === 1) {
+        let esDobleDosis = (globalRefuerzo === 1 || globalRefuerzo === true || globalRefuerzo === "1");
+        if (!esDobleDosis && globalTempComp && globalTemp !== null && globalTemp >= 29.0) {
+            const intervalDays = globalTemp > 32.0 ? 3 : 4;
+            const intervalSecs = intervalDays * 24 * 3600;
+            const nowEpoch = Math.floor(Date.now() / 1000);
+            const timeSinceLastBooster = nowEpoch - globalUltRefTs;
+            const timeRemaining = intervalSecs - timeSinceLastBooster;
+            if (timeRemaining <= 300 || globalUltRefTs === 0) {
+                esDobleDosis = true;
+            }
+        }
+
+        if (esDobleDosis) {
             baseSec *= 2;
         }
         const m = Math.floor(baseSec / 60);
@@ -582,7 +594,7 @@ function calcularProximoEvento() {
         diaTexto: diaTexto,
         duracionTexto: duracionTexto,
         esDosis: esDosis,
-        refuerzoActivo: globalRefuerzo === 1,
+        refuerzoActivo: esDobleDosis,
         esTemporadaAlta: esTemporadaAlta()
     };
 }
