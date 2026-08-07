@@ -8,6 +8,7 @@ WIFI_CONFIG_FILE = "wifi_config.json"
 
 DEFAULT_CONFIG = {
     "config_version": 1,
+    "modelo": "CB",              # Modelo de hardware: "CB" (Con Bomba) o "SCB" (Sin Control de Bomba)
     "tespera_seg": 90,         # Tiempo de espera por defecto de fábrica (90 segundos / 1m 30s)
     "tdosis_seg": 90,          # Tiempo de dosificación por defecto de fábrica (90 segundos / 1m 30s)
     "ajuste_baja": 50,         # % de ajuste en temporada baja (50%)

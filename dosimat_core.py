@@ -53,11 +53,25 @@ chip_id = "".join(f"{b:02x}" for b in machine.unique_id()).upper()
 temp_cronograma = []
 rtc_hw = None
 
+adc_bomba = None
+UMBRAL_TENSION = 2.75
+ventana_scb = None # Rastreo de ventana programada activa en modelo SCB
+
 def init_hardware():
-    global valvula, bomba, estado_dosimat, rtc_hw
+    global valvula, bomba, estado_dosimat, rtc_hw, adc_bomba
     try:
         valvula = machine.Pin(VALVULA_PIN, machine.Pin.OUT, value=0)
         bomba = machine.Pin(BOMBA_PIN, machine.Pin.OUT, value=0)
+        
+        # Inicialización del sensor ADC en Pin 34 para detección de tensión de bomba
+        try:
+            adc_bomba = machine.ADC(machine.Pin(34))
+            adc_bomba.atten(machine.ADC.ATTN_11DB)
+            print("[CORE] Sensor ADC Bomba en Pin 34 listo.")
+        except Exception as ex_adc:
+            print("[CORE] ADC Pin 34 no disponible:", ex_adc)
+            adc_bomba = None
+
         try:
             i2c = machine.SoftI2C(scl=machine.Pin(22), sda=machine.Pin(21))
             if 0x68 in i2c.scan():
@@ -73,8 +87,29 @@ def init_hardware():
     except Exception as e:
         print("[CORE] Error al inicializar relés:", e)
 
+def detectar_bomba_adc():
+    if not adc_bomba:
+        return False
+    try:
+        lectura = adc_bomba.read()
+        voltaje = (lectura / 4095.0) * 3.3
+        return voltaje > UMBRAL_TENSION
+    except Exception:
+        return False
+
+def bomba_esta_encendida():
+    modelo = config_ref.get("modelo", "CB")
+    if modelo == "SCB":
+        return detectar_bomba_adc()
+    else:
+        return bomba.value() == 1 if bomba else False
+
 def set_relays(bomba_on, valvula_on):
-    if bomba: bomba.value(1 if bomba_on else 0)
+    modelo = config_ref.get("modelo", "CB")
+    if modelo == "SCB":
+        if bomba: bomba.value(0) # En SCB la bomba no se enciende por relé
+    else:
+        if bomba: bomba.value(1 if bomba_on else 0)
     if valvula: valvula.value(1 if valvula_on else 0)
 
 def es_temporada_alta():
@@ -91,6 +126,8 @@ def es_temporada_alta():
 async def enviar_telemetria():
     """Encola el estado actual abreviado para transmisión remota"""
     global estado_dosimat, tiempo_restante, refuerzo_activo, dosis_anuladas
+    modelo = config_ref.get("modelo", "CB")
+    b_on = bomba_esta_encendida()
     payload = {
         "est": "FILTRO" if estado_dosimat in ("FILTRO_PRE", "FILTRO_POST") else estado_dosimat,
         "fase_real": estado_dosimat,
@@ -99,6 +136,8 @@ async def enviar_telemetria():
         "ref": 1 if refuerzo_activo else 0,
         "anuladas": dosis_anuladas,
         "v": config_ref.get("config_version", 1),
+        "modelo": modelo,
+        "bomba_on": 1 if b_on else 0,
         "temporada": "Alta" if es_temporada_alta() else "Baja",
         "temp_comp": 1 if config_ref.get("temp_comp_activa", False) else 0,
         "temp_offset": float(config_ref.get("temp_offset", 0.0)),
@@ -143,6 +182,13 @@ async def procesar_comando(cmd_dict):
             await procesar_comando({"comando": "GET_CONFIG", "_origen": origen})
             
     elif cmd == "START_CYCLE":
+        modelo = config_ref.get("modelo", "CB")
+        if modelo == "SCB" and not bomba_esta_encendida():
+            await sys_log.log_event({"tipo": "warning", "msg": "Dosis Manual denegada: Bomba apagada"})
+            await tx_queue.put({"tipo": "ERROR_START", "msg": "BOMBA_APAGADA", "_destino": origen})
+            await enviar_telemetria()
+            return
+
         if estado_dosimat in ("IDLE", "PAUSA"):
             modo_ciclo = "MANUAL"
             estado_dosimat = "FILTRO_PRE"
@@ -152,12 +198,27 @@ async def procesar_comando(cmd_dict):
             await enviar_telemetria()
             
     elif cmd == "START_PUMP":
+        modelo = config_ref.get("modelo", "CB")
+        if modelo == "SCB":
+            # En SCB no se acciona la bomba por software
+            await tx_queue.put({"tipo": "ERROR_START", "msg": "BOMBA_CONTROL_DESACTIVADO", "_destino": origen})
+            return
+
         if estado_dosimat in ("IDLE", "PAUSA"):
             modo_ciclo = "MANUAL"
             estado_dosimat = "FILTRO_MANUAL"
             ciclo_suspendido = False
             fase_actual_interrumpida = None
             abort_event.set()
+            await enviar_telemetria()
+
+    elif cmd == "SET_MODELO":
+        mod = str(cmd_dict.get("modelo", "CB")).upper()
+        if mod in ("CB", "SCB"):
+            config_ref["modelo"] = mod
+            await config_manager.guardar_configuracion(config_ref)
+            await tx_queue.put({"tipo": "ACK_MODELO", "modelo": mod, "_destino": origen})
+            await sys_log.log_event({"msg": f"Modelo del equipo configurado como {mod}"})
             await enviar_telemetria()
             
     elif cmd == "SET_REFUERZO":
@@ -361,7 +422,7 @@ async def procesar_comando(cmd_dict):
         machine.reset()
 
 async def cron_scheduler_task():
-    global estado_dosimat, modo_ciclo, tfiltro_restante, ultima_dosis_ts, ultimo_minuto_procesado, dosis_anuladas
+    global estado_dosimat, modo_ciclo, tfiltro_restante, ultima_dosis_ts, ultimo_minuto_procesado, dosis_anuladas, ventana_scb
     while True:
         try:
             t = time.localtime()
@@ -382,6 +443,35 @@ async def cron_scheduler_task():
                     print("[CORE] Auto Antiatasco disparado (>25h)")
                     estado_dosimat = "ANTI"
                     abort_event.set()
+
+            modelo = config_ref.get("modelo", "CB")
+
+            # Manejo de ventana activa para modelo SCB
+            if modelo == "SCB" and ventana_scb is not None:
+                if now_ts < ventana_scb["end_ts"]:
+                    if not ventana_scb["dosificado"] and estado_dosimat == "IDLE" and bomba_esta_encendida():
+                        print(f"[CORE-SCB] Bomba encendida en ventana activa. Iniciando dosificación...")
+                        ventana_scb["dosificado"] = True
+                        modo_ciclo = "AUTO"
+                        
+                        if dosis_anuladas > 0:
+                            dosis_anuladas -= 1
+                            config_ref["dosis_anuladas"] = dosis_anuladas
+                            await config_manager.guardar_configuracion(config_ref)
+                            print(f"[CORE-SCB] Dosis automatica anulada. Restan: {dosis_anuladas}")
+                            await sys_log.log_event({"msg": "Dosis Salteada a Pedido"})
+                            await enviar_telemetria()
+                        else:
+                            estado_dosimat = "FILTRO_PRE"
+                            tfiltro_restante = 0
+                            abort_event.set()
+                            await enviar_telemetria()
+                else:
+                    if not ventana_scb["dosificado"]:
+                        print("[CORE-SCB] Ventana finalizada sin encendido de bomba.")
+                        await sys_log.log_event({"tipo": "warning", "msg": "Dosis no realizada: Bomba apagada"})
+                        await enviar_telemetria()
+                    ventana_scb = None
             
             if t[4] != ultimo_minuto_procesado:
                 ultimo_minuto_procesado = t[4]
@@ -395,62 +485,82 @@ async def cron_scheduler_task():
                             dias = prog.get("dias", "0123456")
                             if str(js_weekday) in str(dias):
                                 print(f"[CORE] Cronograma disparado: {prog}")
-                                modo_ciclo = "AUTO"
                                 
-                                # Verificamos si tiene dosis
-                                incluye_dosis = prog.get("dosifica", prog.get("dosis", True))
-                                if dosis_anuladas > 0 and incluye_dosis:
-                                    dosis_anuladas -= 1
-                                    config_ref["dosis_anuladas"] = dosis_anuladas
-                                    await config_manager.guardar_configuracion(config_ref)
-                                    incluye_dosis = False
-                                    print(f"[CORE] Dosis automatica anulada. Restan: {dosis_anuladas}")
-                                    await sys_log.log_event({"msg": "Dosis Salteada a Pedido"})
-                                    await enviar_telemetria()
-
-                                # Compensación automática por altas temperaturas
-                                if incluye_dosis and config_ref.get("temp_comp_activa", False) and rtc_hw:
-                                    try:
-                                        temp = rtc_hw.get_temperature()
-                                        if temp is not None:
-                                            offset = float(config_ref.get("temp_offset", 0.0))
-                                            temp_corregida = temp + offset
-                                            now_ts = time.time()
-                                            if now_ts > 700000000:
-                                                ultimo_ref = config_ref.get("ultimo_refuerzo_temp_ts", 0)
-                                                dias_int = 0
-                                                if temp_corregida > 32.0:
-                                                    dias_int = 3
-                                                elif temp_corregida >= 29.0:
-                                                    dias_int = 4
-                                                
-                                                if dias_int > 0:
-                                                    segundos_int = dias_int * 24 * 3600
-                                                    # Tolerancia de 5 minutos (300 segundos) para evitar descalces en la hora exacta del cron
-                                                    if ultimo_ref == 0 or (now_ts - ultimo_ref) >= (segundos_int - 300):
-                                                        refuerzo_activo = True
-                                                        config_ref["refuerzo_activo"] = True
-                                                        config_ref["ultimo_refuerzo_temp_ts"] = now_ts
-                                                        await config_manager.guardar_configuracion(config_ref)
-                                                        print(f"[CORE] Compensación temp: Refuerzo activado (Temp corregida: {temp_corregida:.1f}°C, cada {dias_int} días)")
-                                                        await sys_log.log_event({"msg": f"Refuerzo Temp Auto - Temp: {temp_corregida:.1f}°C (c/{dias_int}d)"})
-                                    except Exception as ex:
-                                        print("[CORE] Error en compensación de temperatura:", ex)
-
-                                if incluye_dosis:
-                                    estado_dosimat = "FILTRO_PRE"
-                                    # Descontamos el tiempo de espera del total de filtrado
-                                    t_espera = int(config_ref.get("tespera_seg", 1800))
-                                    dur_seg = int(prog.get("duracion", 60)) * 60
-                                    tfiltro_restante = max(0, dur_seg - t_espera)
+                                if modelo == "SCB":
+                                    dur_min = int(prog.get("duracion", 60))
+                                    ventana_scb = {
+                                        "start_ts": now_ts,
+                                        "end_ts": now_ts + (dur_min * 60),
+                                        "dosificado": False,
+                                        "prog": prog
+                                    }
+                                    if bomba_esta_encendida() and estado_dosimat == "IDLE":
+                                        print("[CORE-SCB] Bomba encendida al inicio del horario.")
+                                        ventana_scb["dosificado"] = True
+                                        modo_ciclo = "AUTO"
+                                        if dosis_anuladas > 0:
+                                            dosis_anuladas -= 1
+                                            config_ref["dosis_anuladas"] = dosis_anuladas
+                                            await config_manager.guardar_configuracion(config_ref)
+                                            await sys_log.log_event({"msg": "Dosis Salteada a Pedido"})
+                                            await enviar_telemetria()
+                                        else:
+                                            estado_dosimat = "FILTRO_PRE"
+                                            tfiltro_restante = 0
+                                            abort_event.set()
+                                            await enviar_telemetria()
+                                    break
                                 else:
-                                    # Si no hay dosis, va directo a FILTRO_POST para solo filtrar
-                                    estado_dosimat = "FILTRO_POST"
-                                    tfiltro_restante = int(prog.get("duracion", 60)) * 60
+                                    modo_ciclo = "AUTO"
+                                    incluye_dosis = prog.get("dosifica", prog.get("dosis", True))
+                                    if dosis_anuladas > 0 and incluye_dosis:
+                                        dosis_anuladas -= 1
+                                        config_ref["dosis_anuladas"] = dosis_anuladas
+                                        await config_manager.guardar_configuracion(config_ref)
+                                        incluye_dosis = False
+                                        print(f"[CORE] Dosis automatica anulada. Restan: {dosis_anuladas}")
+                                        await sys_log.log_event({"msg": "Dosis Salteada a Pedido"})
+                                        await enviar_telemetria()
 
-                                abort_event.set()
-                                await enviar_telemetria()
-                                break
+                                    if incluye_dosis and config_ref.get("temp_comp_activa", False) and rtc_hw:
+                                        try:
+                                            temp = rtc_hw.get_temperature()
+                                            if temp is not None:
+                                                offset = float(config_ref.get("temp_offset", 0.0))
+                                                temp_corregida = temp + offset
+                                                now_ts = time.time()
+                                                if now_ts > 700000000:
+                                                    ultimo_ref = config_ref.get("ultimo_refuerzo_temp_ts", 0)
+                                                    dias_int = 0
+                                                    if temp_corregida > 32.0:
+                                                        dias_int = 3
+                                                    elif temp_corregida >= 29.0:
+                                                        dias_int = 4
+                                                    
+                                                    if dias_int > 0:
+                                                        segundos_int = dias_int * 24 * 3600
+                                                        if ultimo_ref == 0 or (now_ts - ultimo_ref) >= (segundos_int - 300):
+                                                            refuerzo_activo = True
+                                                            config_ref["refuerzo_activo"] = True
+                                                            config_ref["ultimo_refuerzo_temp_ts"] = now_ts
+                                                            await config_manager.guardar_configuracion(config_ref)
+                                                            print(f"[CORE] Compensación temp: Refuerzo activado (Temp corregida: {temp_corregida:.1f}°C, cada {dias_int} días)")
+                                                            await sys_log.log_event({"msg": f"Refuerzo Temp Auto - Temp: {temp_corregida:.1f}°C (c/{dias_int}d)"})
+                                        except Exception as ex:
+                                            print("[CORE] Error en compensación de temperatura:", ex)
+
+                                    if incluye_dosis:
+                                        estado_dosimat = "FILTRO_PRE"
+                                        t_espera = int(config_ref.get("tespera_seg", 1800))
+                                        dur_seg = int(prog.get("duracion", 60)) * 60
+                                        tfiltro_restante = max(0, dur_seg - t_espera)
+                                    else:
+                                        estado_dosimat = "FILTRO_POST"
+                                        tfiltro_restante = int(prog.get("duracion", 60)) * 60
+
+                                    abort_event.set()
+                                    await enviar_telemetria()
+                                    break
         except Exception as e:
             print("[CORE] Error en Scheduler:", e)
         
@@ -498,6 +608,13 @@ async def dispenser_loop():
             await enviar_telemetria()
             
             while tiempo_restante > 0:
+                if config_ref.get("modelo", "CB") == "SCB" and not bomba_esta_encendida():
+                    print("[CORE-SCB] Bomba se apagó en FILTRO_PRE. Cancelando ciclo...")
+                    set_relays(False, False)
+                    estado_dosimat = "IDLE"
+                    await sys_log.log_event({"tipo": "warning", "msg": "Ciclo detenido: Bomba apagada"})
+                    await enviar_telemetria()
+                    break
                 try:
                     await asyncio.wait_for(abort_event.wait(), timeout=1.0)
                     break
@@ -539,6 +656,13 @@ async def dispenser_loop():
             await enviar_telemetria()
             
             while tiempo_restante > 0:
+                if config_ref.get("modelo", "CB") == "SCB" and not bomba_esta_encendida():
+                    print("[CORE-SCB] Bomba se apagó en DOSIS. Cancelando ciclo...")
+                    set_relays(False, False)
+                    estado_dosimat = "IDLE"
+                    await sys_log.log_event({"tipo": "warning", "msg": "Ciclo detenido: Bomba apagada"})
+                    await enviar_telemetria()
+                    break
                 try:
                     await asyncio.wait_for(abort_event.wait(), timeout=1.0)
                     break

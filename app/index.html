@@ -313,13 +313,13 @@
             <button class="btn" id="btnGuardarConfig" style="margin-top: 0.5rem;">Guardar Parámetros de Tiempos</button>
         </div>
 
-        <!-- Cronograma de Horarios de Filtrado -->
+        <!-- Cronograma de Horarios de Filtrado / Dosificación -->
         <div class="card">
             <h2 style="display: flex; align-items: center; width: 100%;">
-                <span>Cronograma de Filtrado</span>
+                <span id="lblTituloCronograma">Cronograma de Filtrado</span>
                 <span class="material-symbols-outlined btn-help" data-help="cronograma-filtrado">help</span>
             </h2>
-            <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1rem;">Configura hasta 10 horarios diarios de filtrado y dosificación.</p>
+            <p id="lblSubtituloCronograma" style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1rem;">Configura hasta 10 horarios diarios de filtrado y dosificación.</p>
             
             <div id="cronogramaContainer">
                 <!-- Se inyectan las filas dinámicamente -->
@@ -342,6 +342,25 @@
             <button class="btn outline btn-help" data-help="guia-conexion" style="width: auto; padding: 0.35rem 0.75rem; font-size: 0.82rem; display: inline-flex; align-items: center; gap: 0.4rem; border-color: var(--accent); color: var(--accent); background: rgba(59, 130, 246, 0.05);">
                 <span class="material-symbols-outlined" style="font-size: 1.1rem;">help_outline</span> Guía Rápida de Conexión
             </button>
+        </div>
+
+        <!-- Tarjeta de Selección de Modelo de Hardware (Solo Técnico / Super Admin) -->
+        <div class="card" id="cardModeloEquipo">
+            <h2 style="display: flex; align-items: center; width: 100%;">
+                <span>Modelo de Equipo</span>
+                <span class="material-symbols-outlined btn-help" data-help="modelo-equipo">help</span>
+            </h2>
+            <div class="form-group">
+                <label for="selModeloEquipo">Modelo de Placa Instalada</label>
+                <select id="selModeloEquipo" disabled style="width: 100%; padding: 0.6rem; border-radius: 6px; border: 1px solid var(--card-border); background: var(--bg-main); color: var(--text-main); font-weight: 600;">
+                    <option value="CB">Dosimat_IoT CB (Con Control de Bomba)</option>
+                    <option value="SCB">Dosimat_IoT SCB (Sin Control de Bomba)</option>
+                </select>
+                <p id="lblModeloLockInfo" style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.4rem;">
+                    🔒 Selección restringida a personal técnico autorizado o súper administrador.
+                </p>
+            </div>
+            <button class="btn outline" id="btnGuardarModelo" style="display: none; margin-top: 0.5rem;">Guardar Modelo de Placa</button>
         </div>
 
         <!-- Tarjeta de Conexión BLE Local -->

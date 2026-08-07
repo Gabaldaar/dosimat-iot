@@ -49,6 +49,85 @@ var unsavedChanges = false;
 var unsavedProgramasChanges = false;
 var isTechRemoteActive = false;
 
+var globalModelo = "CB";
+var globalBombaOn = 0;
+var userEsTecnicoOAdmin = false;
+
+function renderModeloUI() {
+    const isSCB = (globalModelo === "SCB");
+
+    // 1. Dashboard: Tarjeta Bomba
+    const lblBomba = document.getElementById('lblBomba');
+    const panelBomba = document.getElementById('panelBomba');
+    if (isSCB) {
+        const isBombaOn = (globalBombaOn === 1 || globalEstadoDosificador === "DOSIS" || globalEstadoDosificador.startsWith("FILTRO"));
+        if (lblBomba) lblBomba.innerText = isBombaOn ? "Encendida" : "Apagada";
+        if (panelBomba) {
+            if (isBombaOn) panelBomba.classList.add('active-on');
+            else panelBomba.classList.remove('active-on');
+        }
+    }
+
+    // 2. Pestaña Programar
+    const lblTitulo = document.getElementById('lblTituloCronograma');
+    const lblSubtitulo = document.getElementById('lblSubtituloCronograma');
+    if (lblTitulo) lblTitulo.innerText = isSCB ? "Cronograma de Dosificación" : "Cronograma de Filtrado";
+    if (lblSubtitulo) {
+        lblSubtitulo.innerText = isSCB
+            ? "Configura hasta 10 horarios de dosificación. Recuerda que debes programar la bomba de filtrado para que esté funcionando durante estos horarios."
+            : "Configura hasta 10 horarios diarios de filtrado y dosificación.";
+    }
+
+    // Ocultar/Mostrar casillas 'Dosificar Cloro' en filas de cronograma
+    document.querySelectorAll('#cronogramaContainer .checkbox-field').forEach(el => {
+        if (isSCB) {
+            el.style.display = 'none';
+            const chk = el.querySelector('.inp-dosis');
+            if (chk) chk.checked = true;
+        } else {
+            el.style.display = 'flex';
+        }
+    });
+
+    // 3. Texto del Modal de Ayuda
+    if (isSCB) {
+        HELP_TOPICS["cronograma-filtrado"] = {
+            title: "Programación de Dosificación",
+            text: "Configura hasta 10 horarios de Dosificación independientes. Puedes seleccionar Horario y días de la semana en que se dosificará cloro. Se recomienda establecer las dosis en horarios nocturnos. Recuerda siempre que la bomba debe estar filtrando en los horarios de dosificación.\n\nPrograma Automático: establece 1 horario estándar de dosificación."
+        };
+    } else {
+        HELP_TOPICS["cronograma-filtrado"] = {
+            title: "Programación de Cronogramas",
+            text: "Configura hasta 10 horarios de Filtrado/Dosificación independientes. Permite seleccionar Horario, Días de la semana en que se repetirá el ciclo y si en ese horario debe dosificar cloro o no. Se recomienda establecer las dosis en horarios nocturnos. Programa Automático: establece 3 horarios estándar de filtrado, uno de ellos con dosificación."
+        };
+    }
+
+    // 4. Actualización del Selector de Modelo en Ajustes
+    actualizarModeloControlPermisos();
+}
+
+function actualizarModeloControlPermisos() {
+    const sel = document.getElementById('selModeloEquipo');
+    const btn = document.getElementById('btnGuardarModelo');
+    const lockInfo = document.getElementById('lblModeloLockInfo');
+
+    if (sel) {
+        sel.value = globalModelo;
+        if (userEsTecnicoOAdmin) {
+            sel.disabled = false;
+            if (btn) btn.style.display = 'inline-block';
+            if (lockInfo) lockInfo.style.display = 'none';
+        } else {
+            sel.disabled = true;
+            if (btn) btn.style.display = 'none';
+            if (lockInfo) {
+                lockInfo.style.display = 'block';
+                lockInfo.innerText = "🔒 Selección restringida a personal técnico autorizado o súper administrador.";
+            }
+        }
+    }
+}
+
 var globalSoporteWsp = "5491153074195";
 var globalSoporteMail = "soporte@dosimat.com";
 
@@ -769,6 +848,9 @@ async function checkUserRole(user) {
         }
     }
 
+    userEsTecnicoOAdmin = (isSuper || isTecnico);
+    if (typeof actualizarModeloControlPermisos === "function") actualizarModeloControlPermisos();
+
     if (navTecnicos) {
         navTecnicos.style.display = (isSuper || isTecnico) ? "flex" : "none";
     }
@@ -1305,6 +1387,9 @@ function updateUI(raw_data) {
     if (!raw_data) return;
     const data = raw_data.tipo === "TELEMETRIA" ? raw_data.data : raw_data;
 
+    if (data.modelo !== undefined) globalModelo = String(data.modelo).toUpperCase();
+    if (data.bomba_on !== undefined) globalBombaOn = Number(data.bomba_on);
+
     if (data.fase_real !== undefined) globalEstadoDosificador = data.fase_real;
     else if (data.estado !== undefined) globalEstadoDosificador = data.estado;
     else if (data.est !== undefined) globalEstadoDosificador = (data.est === "FILTRO" && globalEstadoDosificador.startsWith("FILTRO")) ? globalEstadoDosificador : data.est;
@@ -1520,6 +1605,8 @@ function updateUI(raw_data) {
     const lblAnuladasControl = document.getElementById('lblAnuladasControl');
     if (lblAnuladas) lblAnuladas.innerText = globalDosisAnuladas;
     if (lblAnuladasControl) lblAnuladasControl.innerText = globalDosisAnuladas;
+
+    renderModeloUI();
 }
 
 function obtenerMensajeRefuerzoTemp() {
@@ -1655,6 +1742,10 @@ setInterval(() => {
 const pBomba = document.getElementById('panelBomba');
 if (pBomba) {
     pBomba.onclick = () => {
+        if (globalModelo === "SCB") {
+            customAlert("En la versión Dosimat_IoT SCB la bomba de filtrado no es controlada por el equipo.", "Bomba Externa");
+            return;
+        }
         const isBombaOn = (globalEstadoDosificador === "FILTRO" || globalEstadoDosificador === "DOSIS" || globalEstadoDosificador === "FILTRO_PRE" || globalEstadoDosificador === "FILTRO_POST" || globalEstadoDosificador === "FILTRO_MANUAL");
         if (isBombaOn) {
             sendCommand({ comando: "CANCEL_CYCLE" });
@@ -1685,6 +1776,13 @@ if (pDosisManual) {
             updateUI({ estado: "IDLE", modo: "AUTO" });
             sendCommand({ comando: "CANCEL_CYCLE" });
         } else {
+            if (globalModelo === "SCB") {
+                const isBombaFuncionando = (globalBombaOn === 1 || globalEstadoDosificador === "DOSIS" || globalEstadoDosificador.startsWith("FILTRO"));
+                if (!isBombaFuncionando) {
+                    customAlert("Para poder iniciar una dosificación, la bomba de filtrado debe estar en funcionamiento.", "Bomba Apagada");
+                    return;
+                }
+            }
             globalModoCiclo = "MANUAL";
             globalEstadoDosificador = "FILTRO_PRE";
             updateUI({ estado: "FILTRO_PRE", modo: "MANUAL" });
@@ -1858,6 +1956,7 @@ function agregarFilaCronograma(inicio = "21:00", duracion = 60, dosifica = true,
     div.appendChild(topRow);
     div.appendChild(diasRow);
     container.appendChild(div);
+    if (typeof renderModeloUI === "function") renderModeloUI();
 }
 
 function updateProgramasUI(data) {
@@ -1885,6 +1984,7 @@ function updateProgramasUI(data) {
         agregarFilaCronograma("21:00", 60, true, "0123456");
     }
     unsavedProgramasChanges = false;
+    if (typeof renderModeloUI === "function") renderModeloUI();
     if (typeof updateSubtexto === 'function') updateSubtexto();
 }
 
@@ -1896,7 +1996,8 @@ if (btnAgregarHorario) {
             customAlert("El máximo permitido es de 10 programas.");
             return;
         }
-        agregarFilaCronograma("09:00", 60, false, "0123456");
+        const dosificaDefault = (globalModelo === "SCB") ? true : false;
+        agregarFilaCronograma("09:00", 60, dosificaDefault, "0123456");
         markProgramasChanged();
     };
 }
@@ -1907,9 +2008,14 @@ if (btnProgAuto) {
         if (await customConfirm("¿Estás seguro de cargar el Programa Automático? Sobrescribirá los horarios configurados.", "Programa Automático")) {
             const container = document.getElementById('cronogramaContainer');
             if (container) container.innerHTML = "";
-            agregarFilaCronograma("09:00", 60, false, "0123456");
-            agregarFilaCronograma("14:00", 60, false, "0123456");
-            agregarFilaCronograma("21:00", 60, true, "0123456");
+            if (globalModelo === "SCB") {
+                agregarFilaCronograma("21:00", 60, true, "0123456");
+            } else {
+                agregarFilaCronograma("09:00", 60, false, "0123456");
+                agregarFilaCronograma("14:00", 60, false, "0123456");
+                agregarFilaCronograma("21:00", 60, true, "0123456");
+            }
+            if (typeof renderModeloUI === "function") renderModeloUI();
             markProgramasChanged();
             showToast("Programa automático cargado. Recuerda Guardar.");
         }
@@ -2032,7 +2138,40 @@ function updateConfigUI(data) {
         globalUltRefTs = parseInt(data.ult_ref_ts);
     }
 
+    if (data.modelo !== undefined) {
+        globalModelo = String(data.modelo).toUpperCase();
+        renderModeloUI();
+    }
+
     if (typeof updateSubtexto === 'function') updateSubtexto();
+}
+
+const btnGuardarModelo = document.getElementById('btnGuardarModelo');
+if (btnGuardarModelo) {
+    btnGuardarModelo.onclick = async () => {
+        const sel = document.getElementById('selModeloEquipo');
+        if (!sel) return;
+        const nuevoModelo = sel.value;
+        if (!userEsTecnicoOAdmin) {
+            customAlert("No tienes permisos para modificar el modelo del equipo.");
+            return;
+        }
+
+        if (await customConfirm(`¿Estás seguro de cambiar el modelo a ${nuevoModelo === 'SCB' ? 'Dosimat_IoT SCB (Sin Control de Bomba)' : 'Dosimat_IoT CB (Con Control de Bomba)'}?`, "Cambiar Modelo")) {
+            globalModelo = nuevoModelo;
+            renderModeloUI();
+
+            const payload = { comando: "SET_MODELO", modelo: nuevoModelo };
+            sendCommand(payload);
+
+            if (modoConexion === "NUBE" && currentMac) {
+                const cfgRef = doc(db, "equipos", currentMac, "config", "actual");
+                setDoc(cfgRef, { modelo: nuevoModelo, config_version: Date.now() }, { merge: true })
+                    .catch(e => console.warn("Error guardando modelo en Firestore:", e));
+            }
+            showToast(`Modelo configurado como Dosimat_IoT ${nuevoModelo}`);
+        }
+    };
 }
 
 const btnGuardarConfig = document.getElementById('btnGuardarConfig');
