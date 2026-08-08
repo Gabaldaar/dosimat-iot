@@ -56,6 +56,12 @@ var userEsTecnicoOAdmin = false;
 function renderModeloUI() {
     const isSCB = (globalModelo === "SCB");
 
+    // 0. Encabezado de la app
+    const lblHeaderTitle = document.getElementById('lblHeaderTitle');
+    if (lblHeaderTitle) {
+        lblHeaderTitle.innerText = `Dosimat IoT ${globalModelo || 'CB'}`;
+    }
+
     // 1. Dashboard: Tarjeta Bomba
     const lblBomba = document.getElementById('lblBomba');
     const panelBomba = document.getElementById('panelBomba');
@@ -2417,9 +2423,21 @@ async function loadAdminGlobal() {
         // Agregar todos los equipos asignados a usuarios
         for (const mac of Object.keys(macToUser)) {
             const data = rootEquipos[mac] || {};
+            let modEquip = data.modelo;
+            if (!modEquip) {
+                try {
+                    const cfgDoc = await getDoc(doc(db, "equipos", mac, "config", "actual"));
+                    if (cfgDoc.exists() && cfgDoc.data().modelo) modEquip = cfgDoc.data().modelo;
+                    else {
+                        const estDoc = await getDoc(doc(db, "equipos", mac, "estado", "actual"));
+                        if (estDoc.exists() && estDoc.data().modelo) modEquip = estDoc.data().modelo;
+                    }
+                } catch(e) {}
+            }
             equipos.push({
                 mac: mac,
                 alias: data.alias || 'Sin alias',
+                modelo: modEquip || 'CB',
                 ownerName: macToUser[mac].nombre,
                 ownerEmail: macToUser[mac].email
             });
@@ -2429,9 +2447,17 @@ async function loadAdminGlobal() {
         // Agregar equipos que están en la base raíz pero no tienen dueño asignado
         for (const mac of Object.keys(rootEquipos)) {
             const data = rootEquipos[mac];
+            let modEquip = data.modelo;
+            if (!modEquip) {
+                try {
+                    const cfgDoc = await getDoc(doc(db, "equipos", mac, "config", "actual"));
+                    if (cfgDoc.exists() && cfgDoc.data().modelo) modEquip = cfgDoc.data().modelo;
+                } catch(e) {}
+            }
             equipos.push({
                 mac: mac,
                 alias: data.alias || 'Sin alias',
+                modelo: modEquip || 'CB',
                 ownerName: 'No asignado',
                 ownerEmail: 'N/A'
             });
@@ -2464,9 +2490,15 @@ function renderDevicesTable(equipos) {
         item.style.border = '1px solid var(--card-border)';
         item.style.marginBottom = '0.5rem';
 
+        const modBadge = eq.modelo === "SCB"
+            ? `<span style="font-size: 0.72rem; background: rgba(245, 158, 11, 0.18); color: var(--warning); padding: 2px 6px; border-radius: 4px; font-weight: bold; border: 1px solid rgba(245, 158, 11, 0.4);">Dosimat_IoT SCB</span>`
+            : `<span style="font-size: 0.72rem; background: rgba(59, 130, 246, 0.18); color: var(--accent); padding: 2px 6px; border-radius: 4px; font-weight: bold; border: 1px solid rgba(59, 130, 246, 0.4);">Dosimat_IoT CB</span>`;
+
         item.innerHTML = `
             <div>
-                <div style="font-weight: bold; color: var(--text-main);">${eq.mac}</div>
+                <div style="font-weight: bold; color: var(--text-main); display: flex; align-items: center; gap: 6px;">
+                    ${eq.mac} ${modBadge}
+                </div>
                 <div style="font-size: 0.85rem; color: var(--text-muted);">${eq.ownerName}</div>
                 <div style="font-size: 0.75rem; color: var(--text-muted);">${eq.ownerEmail}</div>
             </div>
