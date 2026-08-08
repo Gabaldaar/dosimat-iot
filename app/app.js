@@ -65,12 +65,24 @@ function renderModeloUI() {
     // 1. Dashboard: Tarjeta Bomba
     const lblBomba = document.getElementById('lblBomba');
     const panelBomba = document.getElementById('panelBomba');
+    const iconBomba = document.getElementById('iconBomba');
     if (isSCB) {
         const isBombaOn = (globalBombaOn === 1 || globalEstadoDosificador === "DOSIS" || globalEstadoDosificador.startsWith("FILTRO"));
         if (lblBomba) lblBomba.innerText = isBombaOn ? "Encendida" : "Apagada";
         if (panelBomba) {
-            if (isBombaOn) panelBomba.classList.add('active-on');
-            else panelBomba.classList.remove('active-on');
+            if (isBombaOn) {
+                panelBomba.classList.add('active-on');
+                if (iconBomba) {
+                    iconBomba.style.color = "var(--success)";
+                    iconBomba.classList.add('anim-fan');
+                }
+            } else {
+                panelBomba.classList.remove('active-on');
+                if (iconBomba) {
+                    iconBomba.style.color = "var(--text-muted)";
+                    iconBomba.classList.remove('anim-fan');
+                }
+            }
         }
     }
 
