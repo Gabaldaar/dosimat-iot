@@ -2465,6 +2465,35 @@ if (btnGuardarContactosSoporte) {
 }
 
 // === PORTAL TÉCNICO / ADMIN GLOBAL ===
+async function setDeviceModeloRemote(mac, nuevoModelo) {
+    if (await customConfirm(`¿Estás seguro de cambiar el modelo del equipo ${mac} a Dosimat_IoT ${nuevoModelo}?`, "Cambiar Modelo de Equipo")) {
+        try {
+            await setDoc(doc(db, "equipos", mac), { modelo: nuevoModelo }, { merge: true });
+            await setDoc(doc(db, "equipos", mac, "config", "actual"), { modelo: nuevoModelo, config_version: Date.now() }, { merge: true });
+            await setDoc(doc(db, "equipos", mac, "estado", "actual"), { modelo: nuevoModelo }, { merge: true });
+
+            if (mqttClient && mqttClient.isConnected()) {
+                try {
+                    const msg = new Paho.MQTT.Message(JSON.stringify({ comando: "SET_MODELO", modelo: nuevoModelo }));
+                    msg.destinationName = `dosimat/${mac}/cmd`;
+                    mqttClient.send(msg);
+                } catch (err) {}
+            }
+
+            if (currentMac === mac) {
+                globalModelo = nuevoModelo;
+                if (typeof renderModeloUI === "function") renderModeloUI();
+            }
+
+            showToast(`Modelo de ${mac} actualizado a Dosimat_IoT ${nuevoModelo}.`);
+            loadAdminGlobal();
+        } catch (e) {
+            showToast("Error al actualizar modelo: " + e.message, true);
+        }
+    }
+}
+window.setDeviceModeloRemote = setDeviceModeloRemote;
+
 async function loadAdminGlobal() {
     const listElem = document.getElementById('adminListContainer');
     if (!listElem) return;
@@ -2495,20 +2524,24 @@ async function loadAdminGlobal() {
         for (const mac of Object.keys(macToUser)) {
             const data = rootEquipos[mac] || {};
             let modEquip = data.modelo;
+            
             if (!modEquip) {
                 try {
                     const cfgDoc = await getDoc(doc(db, "equipos", mac, "config", "actual"));
                     if (cfgDoc.exists() && cfgDoc.data().modelo) modEquip = cfgDoc.data().modelo;
-                    else {
-                        const estDoc = await getDoc(doc(db, "equipos", mac, "estado", "actual"));
-                        if (estDoc.exists() && estDoc.data().modelo) modEquip = estDoc.data().modelo;
-                    }
                 } catch(e) {}
             }
+            if (!modEquip) {
+                try {
+                    const estDoc = await getDoc(doc(db, "equipos", mac, "estado", "actual"));
+                    if (estDoc.exists() && estDoc.data().modelo) modEquip = estDoc.data().modelo;
+                } catch(e) {}
+            }
+
             equipos.push({
                 mac: mac,
                 alias: data.alias || 'Sin alias',
-                modelo: modEquip || 'CB',
+                modelo: (modEquip && String(modEquip).toUpperCase() === "SCB") ? "SCB" : "CB",
                 ownerName: macToUser[mac].nombre,
                 ownerEmail: macToUser[mac].email
             });
@@ -2519,16 +2552,24 @@ async function loadAdminGlobal() {
         for (const mac of Object.keys(rootEquipos)) {
             const data = rootEquipos[mac];
             let modEquip = data.modelo;
+            
             if (!modEquip) {
                 try {
                     const cfgDoc = await getDoc(doc(db, "equipos", mac, "config", "actual"));
                     if (cfgDoc.exists() && cfgDoc.data().modelo) modEquip = cfgDoc.data().modelo;
                 } catch(e) {}
             }
+            if (!modEquip) {
+                try {
+                    const estDoc = await getDoc(doc(db, "equipos", mac, "estado", "actual"));
+                    if (estDoc.exists() && estDoc.data().modelo) modEquip = estDoc.data().modelo;
+                } catch(e) {}
+            }
+
             equipos.push({
                 mac: mac,
                 alias: data.alias || 'Sin alias',
-                modelo: modEquip || 'CB',
+                modelo: (modEquip && String(modEquip).toUpperCase() === "SCB") ? "SCB" : "CB",
                 ownerName: 'No asignado',
                 ownerEmail: 'N/A'
             });
@@ -2562,8 +2603,8 @@ function renderDevicesTable(equipos) {
         item.style.marginBottom = '0.5rem';
 
         const modBadge = eq.modelo === "SCB"
-            ? `<span style="font-size: 0.72rem; background: rgba(245, 158, 11, 0.18); color: var(--warning); padding: 2px 6px; border-radius: 4px; font-weight: bold; border: 1px solid rgba(245, 158, 11, 0.4);">Dosimat_IoT SCB</span>`
-            : `<span style="font-size: 0.72rem; background: rgba(59, 130, 246, 0.18); color: var(--accent); padding: 2px 6px; border-radius: 4px; font-weight: bold; border: 1px solid rgba(59, 130, 246, 0.4);">Dosimat_IoT CB</span>`;
+            ? `<button class="btn outline" style="width: auto; padding: 0.15rem 0.45rem; font-size: 0.72rem; background: rgba(245, 158, 11, 0.18); color: var(--warning); border: 1px solid rgba(245, 158, 11, 0.5); font-weight: bold; cursor: pointer; border-radius: 4px;" onclick="setDeviceModeloRemote('${eq.mac}', 'CB')" title="Toca para cambiar a CB">Dosimat_IoT SCB ✏️</button>`
+            : `<button class="btn outline" style="width: auto; padding: 0.15rem 0.45rem; font-size: 0.72rem; background: rgba(59, 130, 246, 0.18); color: var(--accent); border: 1px solid rgba(59, 130, 246, 0.5); font-weight: bold; cursor: pointer; border-radius: 4px;" onclick="setDeviceModeloRemote('${eq.mac}', 'SCB')" title="Toca para cambiar a SCB">Dosimat_IoT CB ✏️</button>`;
 
         item.innerHTML = `
             <div>
