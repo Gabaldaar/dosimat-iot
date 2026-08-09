@@ -947,7 +947,23 @@ onAuthStateChanged(auth, async (user) => {
             ultima_conexion: new Date()
         }, { merge: true }).catch(e => console.error("Error setting user doc:", e));
         
-        listenSupportContacts();
+        const pendingMac = localStorage.getItem('pending_link_mac');
+        if (pendingMac && user) {
+            await vincularEquipo(pendingMac);
+            currentMac = pendingMac;
+            localStorage.removeItem('pending_link_mac');
+
+            const pendingSsid = localStorage.getItem('pending_wifi_ssid');
+            const pendingPwd = localStorage.getItem('pending_wifi_pwd');
+            if (pendingSsid) {
+                sendCommand({ comando: "SET_WIFI", ssid: pendingSsid, pwd: pendingPwd || "" });
+                localStorage.removeItem('pending_wifi_ssid');
+                localStorage.removeItem('pending_wifi_pwd');
+                showToast(`Equipo ${pendingMac} vinculado a tu cuenta y datos de WiFi enviados.`);
+            } else {
+                showToast(`Equipo ${pendingMac} vinculado a tu cuenta.`);
+            }
+        }
 
         try {
             const userDoc = await getDoc(doc(db, "usuarios", user.uid));
@@ -2322,6 +2338,25 @@ if (btnGuardarWifi) {
         if (!ssid) {
             customAlert("Ingresa el nombre de la red WiFi.");
             return;
+        }
+
+        if (!currentUser) {
+            if (await customConfirm(
+                "Para poder controlar tu Dosimat desde cualquier lugar a través de la Nube, es necesario asociar este equipo a tu cuenta de correo.\n\n¿Deseas iniciar sesión o registrarte ahora?",
+                "Vincular Cuenta de Usuario"
+            )) {
+                if (currentMac) localStorage.setItem('pending_link_mac', currentMac);
+                localStorage.setItem('pending_wifi_ssid', ssid);
+                localStorage.setItem('pending_wifi_pwd', pwd);
+                const authOverlay = document.getElementById('authOverlay');
+                if (authOverlay) authOverlay.style.display = 'flex';
+                showToast("Inicia sesión o regístrate para vincular tu equipo.");
+                return;
+            }
+        }
+
+        if (currentUser && currentMac) {
+            await vincularEquipo(currentMac);
         }
 
         sendCommand({ comando: "SET_WIFI", ssid: ssid, pwd: pwd });
