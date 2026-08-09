@@ -293,7 +293,7 @@ function initHelpButtons() {
                 customAlert(HELP_TOPICS[topic].text, HELP_TOPICS[topic].title);
             } else {
                 customAlert(
-                        "Seleciona aquí el hardware de tu equipo.\n\n"+
+                        "Seleccioná aquí el hardware de tu equipo.\n\n"+
                         "Modelo Dosimat_IoT SCB:\n"+
                         "Equipo sin control de la bomba de filtrado.\n\n"+
                         "Modelo Dosimat_IoT CB:\n"+
@@ -1673,6 +1673,40 @@ function obtenerMensajeRefuerzoTemp() {
 function updateSubtexto() {
     const lblEstadoSubtexto = document.getElementById('lblEstadoSubtexto');
     if (!lblEstadoSubtexto) return;
+
+    if (!currentMac && modoConexion !== "BLE") {
+        const lblEstado = document.getElementById('lblEstado');
+        const iconEstado = document.getElementById('iconEstado');
+        const panelEstado = document.querySelector('.panel-estado');
+
+        if (lblEstado) {
+            lblEstado.innerText = "SIN EQUIPO VINCULADO";
+            lblEstado.style.color = "var(--danger)";
+        }
+        if (iconEstado) {
+            iconEstado.innerText = "device_unknown";
+            iconEstado.style.color = "var(--danger)";
+            iconEstado.className = "material-symbols-outlined";
+        }
+        if (panelEstado) {
+            panelEstado.classList.remove('bg-green-soft', 'bg-blue-soft', 'bg-yellow-soft');
+            panelEstado.classList.add('bg-red-soft');
+        }
+
+        lblEstadoSubtexto.innerHTML = `
+            <div style="background: rgba(239, 68, 68, 0.15); border: 1px solid var(--danger); color: var(--danger); padding: 0.5rem 0.75rem; border-radius: 8px; font-weight: 700; font-size: 0.88rem; display: flex; align-items: center; justify-content: center; gap: 0.4rem; margin-top: 0.2rem;">
+                <span class="material-symbols-outlined" style="font-size: 1.2rem;">warning</span>
+                ⚠️ Atención: No hay ningún equipo seleccionado.
+            </div>
+            <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.3rem;">
+                Conéctate por Bluetooth en Ajustes o selecciona un equipo en la pestaña de Técnicos.
+            </div>
+        `;
+        return;
+    } else {
+        const lblEstado = document.getElementById('lblEstado');
+        if (lblEstado) lblEstado.style.color = "";
+    }
 
     const tr = currentDosisSec;
     const isManual = globalModoCiclo === "MANUAL";
