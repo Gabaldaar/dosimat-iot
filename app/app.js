@@ -122,6 +122,18 @@ function renderModeloUI() {
 
     // 4. Actualización del Selector de Modelo en Ajustes
     actualizarModeloControlPermisos();
+
+    // 5. Información del Equipo en Solapa Ayuda
+    const lblModeloInfo = document.getElementById('lblModeloInfo');
+    if (lblModeloInfo) {
+        if (isSCB) {
+            lblModeloInfo.innerText = "Dosimat_IoT SCB (Sin Control de Bomba)";
+            lblModeloInfo.style.color = "var(--warning)";
+        } else {
+            lblModeloInfo.innerText = "Dosimat_IoT CB (Con Control de Bomba)";
+            lblModeloInfo.style.color = "var(--accent)";
+        }
+    }
 }
 
 function actualizarModeloControlPermisos() {
@@ -2228,7 +2240,11 @@ if (btnGuardarModelo) {
             if (modoConexion === "NUBE" && currentMac) {
                 const cfgRef = doc(db, "equipos", currentMac, "config", "actual");
                 setDoc(cfgRef, { modelo: nuevoModelo, config_version: Date.now() }, { merge: true })
-                    .catch(e => console.warn("Error guardando modelo en Firestore:", e));
+                    .catch(e => console.warn("Error guardando modelo en config Firestore:", e));
+                setDoc(doc(db, "equipos", currentMac), { modelo: nuevoModelo }, { merge: true })
+                    .catch(e => console.warn("Error guardando modelo en raíz Firestore:", e));
+                setDoc(doc(db, "equipos", currentMac, "estado", "actual"), { modelo: nuevoModelo }, { merge: true })
+                    .catch(e => console.warn("Error guardando modelo en estado Firestore:", e));
             }
             showToast(`Modelo configurado como Dosimat_IoT ${nuevoModelo}`);
         }

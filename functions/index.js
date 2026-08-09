@@ -91,7 +91,7 @@ exports.mqttWebhook = functions.https.onRequest(async (req, res) => {
         const data = (rawData.tipo === "TELEMETRIA" || rawData.tipo === "LOG_ENTRY") ? rawData.data : rawData;
 
         if (subTopic === "telemetry") {
-            await db.doc(`equipos/${chipId}/estado/actual`).set({
+            const estadoData = {
                 estado: data.est || "IDLE",
                 temperatura_rtc: data.temp_rtc !== undefined ? data.temp_rtc : (data.temp || 0.0),
                 refuerzo: data.ref === 1,
@@ -99,12 +99,15 @@ exports.mqttWebhook = functions.https.onRequest(async (req, res) => {
                 tr: data.tr !== undefined ? data.tr : 0,
                 config_version: data.v !== undefined ? data.v : 1,
                 ultima_sincronizacion: admin.firestore.FieldValue.serverTimestamp()
-            }, { merge: true });
+            };
+            if (data.modelo !== undefined) estadoData.modelo = String(data.modelo).toUpperCase();
+            if (data.bomba_on !== undefined) estadoData.bomba_on = Number(data.bomba_on);
 
-            // Ensure root document exists so it can be queried by getDocs(collection(db, "equipos"))
-            await db.doc(`equipos/${chipId}`).set({
-                ultima_sincronizacion: admin.firestore.FieldValue.serverTimestamp()
-            }, { merge: true });
+            await db.doc(`equipos/${chipId}/estado/actual`).set(estadoData, { merge: true });
+
+            const rootData = { ultima_sincronizacion: admin.firestore.FieldValue.serverTimestamp() };
+            if (data.modelo !== undefined) rootData.modelo = String(data.modelo).toUpperCase();
+            await db.doc(`equipos/${chipId}`).set(rootData, { merge: true });
 
             console.log(`Estado de telemetría de ${chipId} escrito en Firestore.`);
             return res.status(200).send("Telemetría procesada exitosamente.");
