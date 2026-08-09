@@ -276,10 +276,11 @@ const HELP_TOPICS = {
     },
     "guia-conexion": {
         title: "Guía de Conexión y Registro",
-        text: "Sigue estos 3 simples pasos para poner en marcha tu equipo:\n\n" +
-            "1️⃣ Conexión Bluetooth (BLE): Toca el botón azul 'Buscar Dispositivo Bluetooth' (o ingresa tu MAC) en la pantalla inicial y selecciona tu Dosimat en la lista para acceder localmente.\n\n" +
-            "2️⃣ Registro de Equipo: Al vincular tu equipo, se asociará automáticamente a tu cuenta de Google para que solo tú y tus técnicos autorizados puedan controlarlo.\n\n" +
-            "3️⃣ WiFi de tu casa: En la pestaña de Ajustes (Conectividad WiFi local), ingresa el Nombre (SSID) y Contraseña de tu WiFi domiciliario y presiona 'Registrar Red WiFi'. El equipo se reiniciará y se conectará solo a la Nube."
+        text: "Sigue estos 4 simples pasos para poner en marcha tu equipo:\n\n" +
+            "1️⃣ Ingresá a la aplicación con la cuenta de correo con la que quieras registrarte (Todavía no tendrás control del equipo).\n\n" +
+            "2️⃣ Abrí Ajustes y Tocá 'Buscar Dosificador por BLE'. Aquí ya estás conectado a tu equipo, por Bluetooth.\n\n" +
+            "3️⃣ Para configurar el WiFi de tu casa: En la pestaña de Ajustes (Conectividad WiFi local), ingresá el Nombre (SSID) y Contraseña de tu WiFi domiciliario y presioná 'Registrar Red WiFi'. El equipo se reiniciará y se conectará a la Nube. Ya podés ingresar desde cualquier lugar con tu usuario y clave.\n\n" +
+            "4️⃣ Si tu red WiFi no llega hasta el Dosimat, simplemente conectate por BLE cuando quieras controlarlo."
     }
 };
 
@@ -291,7 +292,15 @@ function initHelpButtons() {
             if (HELP_TOPICS[topic]) {
                 customAlert(HELP_TOPICS[topic].text, HELP_TOPICS[topic].title);
             } else {
-                customAlert("Información sobre esta sección de la aplicación.", "Ayuda");
+                customAlert(
+                        "Seleciona aquí el hardware de tu equipo.\n\n"+
+                        "Modelo Dosimat_IoT SCB:\n"+
+                        "Equipo sin control de la bomba de filtrado.\n\n"+
+                        "Modelo Dosimat_IoT CB:\n"+
+                        "Equipo con control de la bomba de filtrado.\n\n"+
+                        "Este ajuste sólo está disponible para personal técnico.",
+                        "Ayuda"
+                );
             }
         };
     });
