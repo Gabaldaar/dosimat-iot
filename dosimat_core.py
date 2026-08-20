@@ -186,6 +186,7 @@ async def procesar_comando(cmd_dict):
     elif cmd == "START_CYCLE":
         modelo = config_ref.get("modelo", "CB")
         if modelo == "SCB" and not bomba_esta_encendida():
+            ultimo_evento_warning = "Dosis Manual denegada: Bomba apagada"
             await sys_log.log_event({"tipo": "warning", "msg": "Dosis Manual denegada: Bomba apagada"})
             await tx_queue.put({"tipo": "ERROR_START", "msg": "BOMBA_APAGADA", "_destino": origen})
             await enviar_telemetria()
@@ -504,6 +505,7 @@ async def cron_scheduler_task():
                                         print("[CORE-SCB] Bomba encendida al inicio del horario.")
                                         ventana_scb["dosificado"] = True
                                         modo_ciclo = "AUTO"
+                                        ultimo_evento_warning = ""
                                         if dosis_anuladas > 0:
                                             dosis_anuladas -= 1
                                             config_ref["dosis_anuladas"] = dosis_anuladas
@@ -515,6 +517,10 @@ async def cron_scheduler_task():
                                             tfiltro_restante = 0
                                             abort_event.set()
                                             await enviar_telemetria()
+                                    else:
+                                        print("[CORE-SCB] Horario de dosis iniciado. Esperando encendido de bomba...")
+                                        ultimo_evento_warning = "Horario de dosis activo: Esperando encendido de bomba"
+                                        await enviar_telemetria()
                                     break
                                 else:
                                     modo_ciclo = "AUTO"
