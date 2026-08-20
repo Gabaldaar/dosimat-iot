@@ -74,6 +74,12 @@ async def log_event(event_dict, wifi_activo=None):
         except Exception as e:
             print("[LOG] Error al escribir en Flash:", e)
 
+    try:
+        import dosimat_core
+        await dosimat_core.tx_queue.put({"tipo": "LOG_ENTRY", "data": event_dict})
+    except Exception:
+        pass
+
 async def sincronizar_logs_ram_a_flash():
     """Vuelca los logs almacenados en la RAM hacia la Flash cuando hay conexión"""
     global logs_ram

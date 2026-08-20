@@ -427,7 +427,7 @@ async def procesar_comando(cmd_dict):
         machine.reset()
 
 async def cron_scheduler_task():
-    global estado_dosimat, modo_ciclo, tfiltro_restante, ultima_dosis_ts, ultimo_minuto_procesado, dosis_anuladas, ventana_scb
+    global estado_dosimat, modo_ciclo, tfiltro_restante, ultima_dosis_ts, ultimo_minuto_procesado, dosis_anuladas, ventana_scb, ultimo_evento_warning
     while True:
         try:
             t = time.localtime()
