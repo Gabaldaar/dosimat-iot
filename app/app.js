@@ -1198,7 +1198,6 @@ function listenLogsCollection() {
         const q = query(collection(db, "equipos", currentMac, "logs"), orderBy("timestamp", "desc"), limit(100));
         unsubscribeLogs = onSnapshot(q, (snap) => {
             const term = document.getElementById('logsTerminal');
-            if (!term) return;
             if (snap.empty) return;
             let logsArr = [];
             let rawDocs = [];
@@ -1219,7 +1218,7 @@ function listenLogsCollection() {
                 }
             });
             calcularDosis15Dias(rawDocs);
-            term.innerText = logsArr.slice(0, 20).join('\n');
+            if (term) term.innerText = logsArr.slice(0, 20).join('\n');
 
             if (rawDocs.length > 0 && globalEstadoDosificador === "IDLE") {
                 const firstItem = rawDocs[0];

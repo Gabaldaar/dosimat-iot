@@ -48,28 +48,29 @@ async def log_event(event_dict, wifi_activo=None):
 
     async with _log_lock:
         try:
-            logs_flash = []
-            try:
-                with open(LOG_FILE, "r") as f:
-                    for line in f:
-                        if line.strip():
-                            try:
-                                logs_flash.append(json.loads(line.strip()))
-                            except ValueError:
-                                pass
-                        await asyncio.sleep_ms(0)
-            except OSError:
-                pass
-                
-            logs_flash.append(event_dict)
-            if len(logs_flash) > 20:
-                logs_flash = logs_flash[-20:]
-                
-            with open(LOG_FILE, "w") as f:
-                for entry in logs_flash:
-                    f.write(json.dumps(entry) + "\n")
-                    
+            line_str = json.dumps(event_dict) + "\n"
+            with open(LOG_FILE, "a") as f:
+                f.write(line_str)
             print("[LOG_FLASH]", event_dict)
+            
+            # Control de rotación rápida si el archivo supera el límite de 8KB
+            try:
+                if os.stat(LOG_FILE)[6] > MAX_FILE_SIZE_BYTES:
+                    logs_flash = []
+                    with open(LOG_FILE, "r") as f:
+                        for line in f:
+                            if line.strip():
+                                try:
+                                    logs_flash.append(json.loads(line.strip()))
+                                except Exception:
+                                    pass
+                    if len(logs_flash) > 20:
+                        logs_flash = logs_flash[-20:]
+                    with open(LOG_FILE, "w") as f:
+                        for entry in logs_flash:
+                            f.write(json.dumps(entry) + "\n")
+            except Exception:
+                pass
         except Exception as e:
             print("[LOG] Error al escribir en Flash:", e)
 
