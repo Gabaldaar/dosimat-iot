@@ -56,6 +56,7 @@ rtc_hw = None
 adc_bomba = None
 UMBRAL_TENSION = 2.75
 ventana_scb = None # Rastreo de ventana programada activa en modelo SCB
+ultimo_evento_warning = "" # Registro del último evento o advertencia (ej: Dosis no realizada: Bomba apagada)
 
 def init_hardware():
     global valvula, bomba, estado_dosimat, rtc_hw, adc_bomba
@@ -125,7 +126,7 @@ def es_temporada_alta():
 
 async def enviar_telemetria():
     """Encola el estado actual abreviado para transmisión remota"""
-    global estado_dosimat, tiempo_restante, refuerzo_activo, dosis_anuladas
+    global estado_dosimat, tiempo_restante, refuerzo_activo, dosis_anuladas, ultimo_evento_warning
     modelo = config_ref.get("modelo", "CB")
     b_on = bomba_esta_encendida()
     payload = {
@@ -138,6 +139,7 @@ async def enviar_telemetria():
         "v": config_ref.get("config_version", 1),
         "modelo": modelo,
         "bomba_on": 1 if b_on else 0,
+        "ult_warn": ultimo_evento_warning,
         "temporada": "Alta" if es_temporada_alta() else "Baja",
         "temp_comp": 1 if config_ref.get("temp_comp_activa", False) else 0,
         "temp_offset": float(config_ref.get("temp_offset", 0.0)),
@@ -157,7 +159,7 @@ async def enviar_telemetria():
     await tx_queue.put({"tipo": "TELEMETRIA", "data": payload})
 
 async def procesar_comando(cmd_dict):
-    global estado_dosimat, tiempo_restante, refuerzo_activo, dosis_anuladas, ultima_dosis_ts
+    global estado_dosimat, tiempo_restante, refuerzo_activo, dosis_anuladas, ultima_dosis_ts, ultimo_evento_warning
     global ciclo_suspendido, fase_actual_interrumpida, tiempo_acumulado_fase, modo_ciclo, tfiltro_restante
     
     cmd = cmd_dict.get("comando")
@@ -194,6 +196,7 @@ async def procesar_comando(cmd_dict):
             estado_dosimat = "FILTRO_PRE"
             ciclo_suspendido = False
             fase_actual_interrumpida = None
+            ultimo_evento_warning = ""
             abort_event.set()
             await enviar_telemetria()
             
@@ -209,6 +212,7 @@ async def procesar_comando(cmd_dict):
             estado_dosimat = "FILTRO_MANUAL"
             ciclo_suspendido = False
             fase_actual_interrumpida = None
+            ultimo_evento_warning = ""
             abort_event.set()
             await enviar_telemetria()
 
@@ -464,11 +468,13 @@ async def cron_scheduler_task():
                         else:
                             estado_dosimat = "FILTRO_PRE"
                             tfiltro_restante = 0
+                            ultimo_evento_warning = ""
                             abort_event.set()
                             await enviar_telemetria()
                 else:
                     if not ventana_scb["dosificado"]:
                         print("[CORE-SCB] Ventana finalizada sin encendido de bomba.")
+                        ultimo_evento_warning = "Dosis no realizada: Bomba apagada"
                         await sys_log.log_event({"tipo": "warning", "msg": "Dosis no realizada: Bomba apagada"})
                         await enviar_telemetria()
                     ventana_scb = None
@@ -612,6 +618,7 @@ async def dispenser_loop():
                     print("[CORE-SCB] Bomba se apagó en FILTRO_PRE. Cancelando ciclo...")
                     set_relays(False, False)
                     estado_dosimat = "IDLE"
+                    ultimo_evento_warning = "Ciclo detenido: Bomba apagada"
                     await sys_log.log_event({"tipo": "warning", "msg": "Ciclo detenido: Bomba apagada"})
                     await enviar_telemetria()
                     break
@@ -660,6 +667,7 @@ async def dispenser_loop():
                     print("[CORE-SCB] Bomba se apagó en DOSIS. Cancelando ciclo...")
                     set_relays(False, False)
                     estado_dosimat = "IDLE"
+                    ultimo_evento_warning = "Ciclo detenido: Bomba apagada"
                     await sys_log.log_event({"tipo": "warning", "msg": "Ciclo detenido: Bomba apagada"})
                     await enviar_telemetria()
                     break

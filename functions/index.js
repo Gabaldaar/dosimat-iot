@@ -102,6 +102,7 @@ exports.mqttWebhook = functions.https.onRequest(async (req, res) => {
             };
             if (data.modelo !== undefined) estadoData.modelo = String(data.modelo).toUpperCase();
             if (data.bomba_on !== undefined) estadoData.bomba_on = Number(data.bomba_on);
+            if (data.ult_warn !== undefined) estadoData.ult_warn = data.ult_warn;
 
             await db.doc(`equipos/${chipId}/estado/actual`).set(estadoData, { merge: true });
 

@@ -52,6 +52,7 @@ var isTechRemoteActive = false;
 var globalModelo = "CB";
 var globalBombaOn = 0;
 var userEsTecnicoOAdmin = false;
+var globalUltWarn = "";
 
 function renderModeloUI() {
     const isSCB = (globalModelo === "SCB");
@@ -1219,6 +1220,19 @@ function listenLogsCollection() {
             });
             calcularDosis15Dias(rawDocs);
             term.innerText = logsArr.slice(0, 20).join('\n');
+
+            if (rawDocs.length > 0 && globalEstadoDosificador === "IDLE") {
+                const firstItem = rawDocs[0];
+                const msg = typeof firstItem === 'string' ? firstItem : (firstItem.msg || firstItem.mensaje || firstItem.log || "");
+                if (msg.includes("Dosis no realizada") || msg.includes("Ciclo detenido") || msg.includes("Bomba apagada") || msg.includes("bomba apagada")) {
+                    let cleanMsg = msg;
+                    if (cleanMsg.includes(" - ") && cleanMsg.split(" - ").length >= 2 && cleanMsg.includes("/")) {
+                        cleanMsg = cleanMsg.split(" - ").slice(1).join(" - ");
+                    }
+                    globalUltWarn = cleanMsg;
+                    updateSubtexto();
+                }
+            }
         }, (err) => {
             console.warn("Snapshot logs:", err.message);
         });
@@ -1448,6 +1462,13 @@ function updateUI(raw_data) {
     if (data.fase_real !== undefined) globalEstadoDosificador = data.fase_real;
     else if (data.estado !== undefined) globalEstadoDosificador = data.estado;
     else if (data.est !== undefined) globalEstadoDosificador = (data.est === "FILTRO" && globalEstadoDosificador.startsWith("FILTRO")) ? globalEstadoDosificador : data.est;
+
+    if (data.ult_warn !== undefined) {
+        globalUltWarn = data.ult_warn;
+    }
+    if (globalEstadoDosificador !== "IDLE" && globalEstadoDosificador !== "PAUSA") {
+        globalUltWarn = "";
+    }
 
     if (data.modo !== undefined) globalModoCiclo = data.modo;
     if (data.m !== undefined) globalModoCiclo = data.m;
@@ -1766,6 +1787,12 @@ function updateSubtexto() {
 
         if (globalDosisAnuladas > 0) {
             html += `<div style="color: var(--warning); font-size: 0.8rem; margin-top: 4px; font-weight: 600;">⚠️ Próxima dosis automática ANULADA (restan: ${globalDosisAnuladas})</div>`;
+        }
+        if (globalUltWarn && globalEstadoDosificador === "IDLE") {
+            html += `<div style="background: rgba(245, 158, 11, 0.18); border: 1px solid var(--warning); color: var(--warning); padding: 0.5rem 0.75rem; border-radius: 8px; font-weight: 700; font-size: 0.88rem; display: flex; align-items: center; justify-content: center; gap: 0.4rem; margin-top: 0.45rem;">
+                <span class="material-symbols-outlined" style="font-size: 1.2rem; color: var(--warning);">warning</span>
+                ⚠️ ${globalUltWarn}
+            </div>`;
         }
         lblEstadoSubtexto.innerHTML = html;
     } else if (globalEstadoDosificador === "FILTRO_MANUAL") {
