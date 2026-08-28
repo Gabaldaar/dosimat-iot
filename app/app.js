@@ -2440,6 +2440,13 @@ if (btnTechValve) {
 }
 
 // === PESTAÑA DE SOPORTE TÉCNICO Y AJUSTE DE CONTACTOS ===
+const btnPortalCliente = document.getElementById('btnPortalCliente');
+if (btnPortalCliente) {
+    btnPortalCliente.onclick = () => {
+        window.open("https://dosimat-pro.netlify.app", "_blank");
+    };
+}
+
 const btnSoporteWsp = document.getElementById('btnSoporteWsp');
 if (btnSoporteWsp) {
     btnSoporteWsp.onclick = () => {
