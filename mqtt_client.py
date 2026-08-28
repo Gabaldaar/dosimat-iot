@@ -244,17 +244,21 @@ class MQTTClient:
 
     def check_msg(self):
         """Verifica de forma no bloqueante si hay un mensaje en el buffer de red"""
-        self.sock.setblocking(False)
+        if not self.sock:
+            return
+        self.sock.settimeout(0.05)
         try:
             res = self.sock.read(1)
         except OSError as e:
-            # Reintentar si es bloqueante (EAGAIN/EWOULDBLOCK)
-            if e.args[0] in (11, 110, 115, 116):
-                self.sock.setblocking(True)
+            if self.sock: self.sock.settimeout(5.0)
+            if e.args and e.args[0] in (11, 110, 115, 116):
                 return
-            self.sock.setblocking(True)
             raise
-        self.sock.setblocking(True)
+        except Exception:
+            if self.sock: self.sock.settimeout(5.0)
+            return
+
+        if self.sock: self.sock.settimeout(5.0)
         
         if res is None or len(res) == 0:
             return

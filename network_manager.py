@@ -50,56 +50,59 @@ def mqtt_callback(topic, msg):
     except Exception as e:
         print("[MQTT_CB] Error al procesar mensaje:", e)
 
+mqtt_lock = asyncio.Lock()
+
 async def conectar_mqtt_async():
     global mqtt_client, mqtt_loop_task
     if not wifi_conectado:
         return False
 
-    try:
-        # Cerrar conexión anterior si existiese
-        if mqtt_client:
-            try:
-                mqtt_client.disconnect()
-            except:
-                pass
+    async with mqtt_lock:
+        try:
+            # Cerrar conexión anterior si existiese
+            if mqtt_client:
+                try:
+                    mqtt_client.disconnect()
+                except:
+                    pass
+                mqtt_client = None
+
+            import urandom
+            client_id = f"dosimat_{dosimat_core.chip_id}_{urandom.getrandbits(16)}"
+            
+            print(f"[MQTT] Conectando a {MQTT_BROKER}:{MQTT_PORT}...")
+            mqtt_client = MQTTClient(
+                client_id=client_id,
+                server=MQTT_BROKER,
+                port=MQTT_PORT,
+                keepalive=60
+            )
+            mqtt_client.set_callback(mqtt_callback)
+            
+            # Conectar de manera segura (con socket timeouts definidos dentro del cliente)
+            mqtt_client.connect(clean_session=True)
+            
+            # Suscribirse al topic de comandos
+            topic_sub = f"dosimat/{dosimat_core.chip_id}/cmd"
+            mqtt_client.subscribe(topic_sub)
+            print(f"[MQTT] Suscrito a: {topic_sub}")
+
+            # Cancelar loop de escucha anterior si existiese
+            if mqtt_loop_task:
+                try:
+                    mqtt_loop_task.cancel()
+                except:
+                    pass
+            mqtt_loop_task = asyncio.create_task(loop_mqtt_escucha())
+            
+            # Enviar estado inicial para que la app lo reciba
+            asyncio.create_task(dosimat_core.enviar_telemetria())
+            
+            return True
+        except Exception as e:
+            print("[MQTT] Error al establecer conexión MQTT:", e)
             mqtt_client = None
-
-        import urandom
-        client_id = f"dosimat_{dosimat_core.chip_id}_{urandom.getrandbits(16)}"
-        
-        print(f"[MQTT] Conectando a {MQTT_BROKER}:{MQTT_PORT}...")
-        mqtt_client = MQTTClient(
-            client_id=client_id,
-            server=MQTT_BROKER,
-            port=MQTT_PORT,
-            keepalive=60
-        )
-        mqtt_client.set_callback(mqtt_callback)
-        
-        # Conectar de manera segura (con socket timeouts definidos dentro del cliente)
-        mqtt_client.connect(clean_session=True)
-        
-        # Suscribirse al topic de comandos
-        topic_sub = f"dosimat/{dosimat_core.chip_id}/cmd"
-        mqtt_client.subscribe(topic_sub)
-        print(f"[MQTT] Suscrito a: {topic_sub}")
-
-        # Cancelar loop de escucha anterior si existiese
-        if mqtt_loop_task:
-            try:
-                mqtt_loop_task.cancel()
-            except:
-                pass
-        mqtt_loop_task = asyncio.create_task(loop_mqtt_escucha())
-        
-        # Enviar estado inicial para que la app lo reciba
-        asyncio.create_task(dosimat_core.enviar_telemetria())
-        
-        return True
-    except Exception as e:
-        print("[MQTT] Error al establecer conexión MQTT:", e)
-        mqtt_client = None
-        return False
+            return False
 
 def feed_watchdog():
     try:
@@ -109,19 +112,18 @@ def feed_watchdog():
         pass
 
 async def loop_mqtt_escucha():
-    """Escucha periódica de mensajes MQTT usando check_msg no bloqueante"""
+    """Escucha periódica de mensajes MQTT usando check_msg no bloqueante protegido por lock"""
     global mqtt_client
     last_ping = time.time()
     while wifi_conectado and mqtt_client is not None:
         feed_watchdog()
         try:
-            # check_msg gestiona el modo no bloqueante internamente y restaura
-            mqtt_client.check_msg()
-            
-            # Enviar PING cada 30 segundos para mantener activa la sesión
-            if time.time() - last_ping >= 30:
-                mqtt_client.ping()
-                last_ping = time.time()
+            async with mqtt_lock:
+                if mqtt_client is not None:
+                    mqtt_client.check_msg()
+                    if time.time() - last_ping >= 30:
+                        mqtt_client.ping()
+                        last_ping = time.time()
         except OSError as e:
             err_code = e.args[0] if e.args else None
             # Excluir errores de socket no bloqueante (EAGAIN, etc.)
@@ -343,7 +345,9 @@ async def tarea_tx_queue():
                         print(f"[MQTT] TX ({topic_pub}): {msg_dict}")
                         
                     json_bytes = json.dumps(msg_dict).encode('utf-8')
-                    mqtt_client.publish(topic_pub, json_bytes)
+                    async with mqtt_lock:
+                        if mqtt_client is not None:
+                            mqtt_client.publish(topic_pub, json_bytes)
                     gc.collect()
                 except MemoryError:
                     print("[NET_TX] Memoria insuficiente temporal para publicar MQTT. Reclamando RAM...")
