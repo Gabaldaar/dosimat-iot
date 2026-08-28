@@ -87,7 +87,6 @@ async def sincronizar_logs_ram_a_flash():
         return
         
     print(f"[LOG] Sincronizando {len(logs_ram)} logs de RAM a Flash...")
-    # Copiamos temporalmente para evitar condiciones de carrera si se añaden logs durante el proceso
     temp_logs = list(logs_ram)
     logs_ram = []
     
@@ -97,12 +96,12 @@ async def sincronizar_logs_ram_a_flash():
             try:
                 with open(LOG_FILE, "r") as f:
                     for line in f:
-                        if line.strip():
-                            try:
-                                logs_flash.append(json.loads(line.strip()))
-                            except ValueError: pass
-                        await asyncio.sleep_ms(0)
-            except OSError: pass
+                        l = line.strip()
+                        if l:
+                            try: logs_flash.append(json.loads(l))
+                            except Exception: pass
+            except OSError:
+                pass
             
             logs_flash.extend(temp_logs)
             if len(logs_flash) > 20:
@@ -111,12 +110,11 @@ async def sincronizar_logs_ram_a_flash():
             with open(LOG_FILE, "w") as f:
                 for entry in logs_flash:
                     f.write(json.dumps(entry) + "\n")
-                    
         except Exception as e:
             print("[LOG] Error al sincronizar Flash:", e)
 
 async def get_logs(incluir_ram=True):
-    """Retorna la lista de logs cargando desde RAM y/o Flash"""
+    """Retorna la lista de logs cargando desde RAM y/o Flash (máximo últimos 20)"""
     logs = []
     if incluir_ram:
         logs.extend(logs_ram)
@@ -125,14 +123,17 @@ async def get_logs(incluir_ram=True):
         try:
             with open(LOG_FILE, "r") as f:
                 for line in f:
-                    if line.strip():
+                    l = line.strip()
+                    if l:
                         try:
-                            logs.append(json.loads(line.strip()))
-                        except ValueError:
+                            logs.append(json.loads(l))
+                        except Exception:
                             pass
-                        await asyncio.sleep_ms(0)
         except OSError:
             pass
+
+    if len(logs) > 20:
+        logs = logs[-20:]
     return logs
 
 async def limpiar_historial():

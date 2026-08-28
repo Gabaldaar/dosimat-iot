@@ -101,11 +101,19 @@ async def conectar_mqtt_async():
         mqtt_client = None
         return False
 
+def feed_watchdog():
+    try:
+        import main
+        main.feed_wdt()
+    except Exception:
+        pass
+
 async def loop_mqtt_escucha():
     """Escucha periódica de mensajes MQTT usando check_msg no bloqueante"""
     global mqtt_client
     last_ping = time.time()
     while wifi_conectado and mqtt_client is not None:
+        feed_watchdog()
         try:
             # check_msg gestiona el modo no bloqueante internamente y restaura
             mqtt_client.check_msg()
@@ -295,7 +303,9 @@ async def tarea_tx_queue():
     """Desencola reportes/telemetría y los envía por el canal de comunicación activo"""
     global mqtt_client
     while True:
+        feed_watchdog()
         msg_dict = await dosimat_core.tx_queue.get()
+        feed_watchdog()
         destino = msg_dict.get("_destino", "ALL")
         
         # Remover clave de destino interno para la transmisión limpia
@@ -326,10 +336,15 @@ async def tarea_tx_queue():
                     else:
                         topic_pub = f"dosimat/{dosimat_core.chip_id}/telemetry"
                     
-                    if msg_dict.get("tipo") != "TELEMETRIA":
+                    if tipo == "LOGS_LIST":
+                        num_logs = len(msg_dict.get("logs", []))
+                        print(f"[MQTT] TX ({topic_pub}): LOGS_LIST ({num_logs} registros)")
+                    elif tipo != "TELEMETRIA":
                         print(f"[MQTT] TX ({topic_pub}): {msg_dict}")
+                        
                     json_bytes = json.dumps(msg_dict).encode('utf-8')
                     mqtt_client.publish(topic_pub, json_bytes)
+                    gc.collect()
                 except MemoryError:
                     print("[NET_TX] Memoria insuficiente temporal para publicar MQTT. Reclamando RAM...")
                     gc.collect()
@@ -338,4 +353,5 @@ async def tarea_tx_queue():
                     mqtt_client = None
                 except Exception as e:
                     print("[NET_TX] Error publicando telemetría MQTT:", e)
+        feed_watchdog()
         await asyncio.sleep_ms(50)
