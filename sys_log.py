@@ -132,8 +132,8 @@ async def get_logs(incluir_ram=True):
         except OSError:
             pass
 
-    if len(logs) > 20:
-        logs = logs[-20:]
+    if len(logs) > 10:
+        logs = logs[-10:]
     return logs
 
 async def limpiar_historial():

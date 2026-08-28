@@ -99,69 +99,87 @@ class MQTTClient:
         self.lw_qos = qos
 
     def connect(self, clean_session=True):
-        # Crear socket con timeout corto para la fase de conexión inicial
-        s = socket.socket()
-        s.settimeout(2.0) # Timeout de conexión bajo
-        addr = socket.getaddrinfo(self.server, self.port)[0][-1]
-        s.connect(addr)
-        
-        if self.ssl:
-            import ussl
-            s = ussl.wrap_socket(s, **self.ssl_params)
-            
-        self.sock = SockWrapper(s)
-        self.sock.settimeout(5.0) # Timeout de operación general
+        if self.sock:
+            try: self.sock.close()
+            except: pass
+            self.sock = None
 
-        # Preparar paquete CONNECT
-        premsg = bytearray(b"\x10\0\0\4MQTT\x04\x00\0\0")
-        msg = bytearray()
-        if clean_session:
-            premsg[9] |= 0x02
-        if self.user is not None:
-            premsg[9] |= 0x80
-            user_bytes = self.user.encode("utf-8") if isinstance(self.user, str) else self.user
-            msg += struct.pack("!H", len(user_bytes)) + user_bytes
-            if self.pswd is not None:
-                premsg[9] |= 0x40
-                pswd_bytes = self.pswd.encode("utf-8") if isinstance(self.pswd, str) else self.pswd
-                msg += struct.pack("!H", len(pswd_bytes)) + pswd_bytes
-        if self.keepalive:
-            assert self.keepalive < 65536
-            premsg[10] |= self.keepalive >> 8
-            premsg[11] |= self.keepalive & 0xFF
-        if self.lw_topic is not None:
-            premsg[9] |= 0x04
-            if self.lw_retain:
-                premsg[9] |= 0x20
-            premsg[9] |= self.lw_qos << 3
-            lw_topic_bytes = self.lw_topic.encode("utf-8") if isinstance(self.lw_topic, str) else self.lw_topic
-            msg += struct.pack("!H", len(lw_topic_bytes)) + lw_topic_bytes
-            lw_msg_bytes = self.lw_msg.encode("utf-8") if isinstance(self.lw_msg, str) else self.lw_msg
-            msg += struct.pack("!H", len(lw_msg_bytes)) + lw_msg_bytes
-        
-        cid_bytes = self.client_id.encode("utf-8") if isinstance(self.client_id, str) else self.client_id
-        premsg[1] = len(premsg) - 2 + len(msg) + len(cid_bytes) + 2
-        
-        self.sock.write(premsg)
-        self._send_str(cid_bytes)
-        self.sock.write(msg)
-        
-        # Leer respuesta CONNACK
-        res = self.sock.read(4)
-        if res is None or len(res) < 4:
-            raise MQTTException("Error recibiendo CONNACK")
-        assert res[0] == 0x20 and res[1] == 0x02
-        if res[3] != 0:
-            raise MQTTException(f"Conexión rechazada por Broker. Código: {res[3]}")
-        return res[2] & 1
+        s = socket.socket()
+        try:
+            s.settimeout(3.0)
+            addr = socket.getaddrinfo(self.server, self.port)[0][-1]
+            s.connect(addr)
+            
+            if self.ssl:
+                import ussl
+                s = ussl.wrap_socket(s, **self.ssl_params)
+                
+            self.sock = SockWrapper(s)
+            self.sock.settimeout(5.0)
+
+            # Preparar paquete CONNECT
+            premsg = bytearray(b"\x10\0\0\4MQTT\x04\x00\0\0")
+            msg = bytearray()
+            if clean_session:
+                premsg[9] |= 0x02
+            if self.user is not None:
+                premsg[9] |= 0x80
+                user_bytes = self.user.encode("utf-8") if isinstance(self.user, str) else self.user
+                msg += struct.pack("!H", len(user_bytes)) + user_bytes
+                if self.pswd is not None:
+                    premsg[9] |= 0x40
+                    pswd_bytes = self.pswd.encode("utf-8") if isinstance(self.pswd, str) else self.pswd
+                    msg += struct.pack("!H", len(pswd_bytes)) + pswd_bytes
+            if self.keepalive:
+                assert self.keepalive < 65536
+                premsg[10] |= self.keepalive >> 8
+                premsg[11] |= self.keepalive & 0xFF
+            if self.lw_topic is not None:
+                premsg[9] |= 0x04
+                if self.lw_retain:
+                    premsg[9] |= 0x20
+                premsg[9] |= self.lw_qos << 3
+                lw_topic_bytes = self.lw_topic.encode("utf-8") if isinstance(self.lw_topic, str) else self.lw_topic
+                msg += struct.pack("!H", len(lw_topic_bytes)) + lw_topic_bytes
+                lw_msg_bytes = self.lw_msg.encode("utf-8") if isinstance(self.lw_msg, str) else self.lw_msg
+                msg += struct.pack("!H", len(lw_msg_bytes)) + lw_msg_bytes
+            
+            cid_bytes = self.client_id.encode("utf-8") if isinstance(self.client_id, str) else self.client_id
+            premsg[1] = len(premsg) - 2 + len(msg) + len(cid_bytes) + 2
+            
+            self.sock.write(premsg)
+            self._send_str(cid_bytes)
+            self.sock.write(msg)
+            
+            # Leer respuesta CONNACK
+            res = self.sock.read(4)
+            if res is None or len(res) < 4:
+                raise MQTTException("Error recibiendo CONNACK")
+            assert res[0] == 0x20 and res[1] == 0x02
+            if res[3] != 0:
+                raise MQTTException(f"Conexión rechazada por Broker. Código: {res[3]}")
+            return res[2] & 1
+        except Exception:
+            if self.sock:
+                try: self.sock.close()
+                except: pass
+                self.sock = None
+            else:
+                try: s.close()
+                except: pass
+            raise
 
     def disconnect(self):
-        try:
-            self.sock.write(b"\xe0\0")
-        except:
-            pass
-        self.sock.close()
-        self.sock = None
+        if self.sock:
+            try:
+                self.sock.write(b"\xe0\0")
+            except:
+                pass
+            try:
+                self.sock.close()
+            except:
+                pass
+            self.sock = None
 
     def ping(self):
         self.sock.write(b"\xc0\0")
