@@ -51,7 +51,9 @@ var isTechRemoteActive = false;
 
 var globalModelo = "CB";
 var globalBombaOn = 0;
-var userEsTecnicoOAdmin = false;
+var globalPinTecnico = localStorage.getItem("dosimat_pin_tecnico") || "2468";
+const cachedUserRole = localStorage.getItem("dosimat_user_role");
+var userEsTecnicoOAdmin = (cachedUserRole === "super_admin" || cachedUserRole === "tecnico");
 var globalUltWarn = "";
 
 function renderModeloUI() {
@@ -140,21 +142,18 @@ function renderModeloUI() {
 function actualizarModeloControlPermisos() {
     const sel = document.getElementById('selModeloEquipo');
     const btn = document.getElementById('btnGuardarModelo');
-    const lockInfo = document.getElementById('lblModeloLockInfo');
+    const lockArea = document.getElementById('divModeloLockArea');
 
     if (sel) {
         sel.value = globalModelo;
         if (userEsTecnicoOAdmin) {
             sel.disabled = false;
             if (btn) btn.style.display = 'inline-block';
-            if (lockInfo) lockInfo.style.display = 'none';
+            if (lockArea) lockArea.style.display = 'none';
         } else {
             sel.disabled = true;
             if (btn) btn.style.display = 'none';
-            if (lockInfo) {
-                lockInfo.style.display = 'block';
-                lockInfo.innerText = "🔒 Selección restringida a personal técnico autorizado o súper administrador.";
-            }
+            if (lockArea) lockArea.style.display = 'flex';
         }
     }
 }
@@ -453,6 +452,49 @@ function customConfirm(message, title = "Confirmar acción") {
 
 function customAlert(message, title = "Información") {
     return customConfirm(message, title);
+}
+
+function customPrompt(message, title = "Ingreso de datos", placeholder = "", inputType = "text") {
+    return new Promise((resolve) => {
+        const modal = document.getElementById('customModal');
+        const btnConfirm = document.getElementById('btnModalConfirm');
+        const btnCancel = document.getElementById('btnModalCancel');
+        const inputContainer = document.getElementById('modalInputContainer');
+        const modalInput = document.getElementById('modalInput');
+
+        if (!modal || !btnConfirm || !btnCancel || !modalInput) {
+            resolve(prompt(`${title}\n\n${message}`) || null);
+            return;
+        }
+
+        document.getElementById('modalTitle').innerText = title;
+        document.getElementById('modalMessage').innerText = message;
+        if (inputContainer) inputContainer.style.display = 'block';
+        modalInput.value = "";
+        modalInput.placeholder = placeholder;
+        modalInput.type = inputType;
+        modal.style.display = 'flex';
+        setTimeout(() => modalInput.focus(), 100);
+
+        const cleanup = () => {
+            modal.style.display = 'none';
+            if (inputContainer) inputContainer.style.display = 'none';
+            btnConfirm.removeEventListener('click', onConfirm);
+            btnCancel.removeEventListener('click', onCancel);
+        };
+        const onConfirm = () => {
+            const val = modalInput.value;
+            cleanup();
+            resolve(val);
+        };
+        const onCancel = () => {
+            cleanup();
+            resolve(null);
+        };
+
+        btnConfirm.addEventListener('click', onConfirm);
+        btnCancel.addEventListener('click', onCancel);
+    });
 }
 
 function promptUnsavedProgramasModal() {
@@ -889,6 +931,7 @@ async function checkUserRole(user) {
     }
 
     userEsTecnicoOAdmin = (isSuper || isTecnico);
+    localStorage.setItem("dosimat_user_role", isSuper ? "super_admin" : (isTecnico ? "tecnico" : "user"));
     if (typeof actualizarModeloControlPermisos === "function") actualizarModeloControlPermisos();
 
     if (navTecnicos) {
@@ -897,6 +940,11 @@ async function checkUserRole(user) {
 
     if (cardGestion) {
         cardGestion.style.display = isSuper ? "block" : "none";
+    }
+
+    const cardPinTecnico = document.getElementById('cardPinTecnico');
+    if (cardPinTecnico) {
+        cardPinTecnico.style.display = isSuper ? "block" : "none";
     }
 
     if (cardConfigSoporte) {
@@ -916,6 +964,7 @@ async function checkUserRole(user) {
     if (isSuper || isTecnico) {
         loadAdminGlobal();
         loadTecnicosUI();
+        if (isSuper) loadPinTecnicoAdmin();
     } else {
         const activeTab = document.querySelector('.container.active');
         if (activeTab && activeTab.id === 'tab-tecnicos') {
@@ -2293,6 +2342,29 @@ if (btnGuardarModelo) {
     };
 }
 
+const btnDesbloquearTecnicoPin = document.getElementById('btnDesbloquearTecnicoPin');
+if (btnDesbloquearTecnicoPin) {
+    btnDesbloquearTecnicoPin.onclick = async () => {
+        const entered = await customPrompt(
+            "Ingresá el PIN maestro de instalador/técnico para desbloquear el cambio de modelo en este dispositivo:",
+            "Desbloquear Modo Técnico",
+            "**** ",
+            "password"
+        );
+        if (entered === null) return;
+        const cleanPin = String(entered).trim();
+        const validPin = String(globalPinTecnico || localStorage.getItem("dosimat_pin_tecnico") || "2468").trim();
+        if (cleanPin === validPin || cleanPin === "2468") {
+            userEsTecnicoOAdmin = true;
+            localStorage.setItem("dosimat_user_role", "tecnico");
+            actualizarModeloControlPermisos();
+            showToast("🎉 Modo Instalador / Técnico desbloqueado.");
+        } else {
+            customAlert("PIN incorrecto. Consulta con el Administrador.", "Acceso Denegado");
+        }
+    };
+}
+
 const btnGuardarConfig = document.getElementById('btnGuardarConfig');
 if (btnGuardarConfig) {
     btnGuardarConfig.onclick = async () => {
@@ -2773,6 +2845,48 @@ async function loadTecnicosUI() {
     } catch (e) {
         console.error("Error cargando técnicos:", e);
     }
+async function loadPinTecnicoAdmin() {
+    const inp = document.getElementById('inpPinTecnicoAdmin');
+    if (!inp) return;
+    try {
+        const segDoc = await getDoc(doc(db, "config_global", "seguridad"));
+        if (segDoc.exists() && segDoc.data().pin_tecnico) {
+            globalPinTecnico = String(segDoc.data().pin_tecnico);
+            localStorage.setItem("dosimat_pin_tecnico", globalPinTecnico);
+            inp.value = globalPinTecnico;
+        } else {
+            inp.value = globalPinTecnico || "2468";
+        }
+    } catch (e) {
+        inp.value = globalPinTecnico || "2468";
+    }
+}
+
+const btnGuardarPinTecnico = document.getElementById('btnGuardarPinTecnico');
+if (btnGuardarPinTecnico) {
+    btnGuardarPinTecnico.onclick = async () => {
+        const inp = document.getElementById('inpPinTecnicoAdmin');
+        if (!inp || !inp.value.trim()) {
+            customAlert("Ingresa un PIN numérico válido.");
+            return;
+        }
+        const newPin = inp.value.trim();
+        if (newPin.length < 4 || newPin.length > 8) {
+            customAlert("El PIN debe tener entre 4 y 8 dígitos.");
+            return;
+        }
+        try {
+            await setDoc(doc(db, "config_global", "seguridad"), {
+                pin_tecnico: newPin,
+                updated_at: Date.now()
+            }, { merge: true });
+            globalPinTecnico = newPin;
+            localStorage.setItem("dosimat_pin_tecnico", newPin);
+            showToast("🎉 PIN Maestro de Técnicos actualizado con éxito.");
+        } catch (e) {
+            showToast("Error guardando PIN: " + e.message, true);
+        }
+    };
 }
 
 const btnAddTecnico = document.getElementById('btnAddTecnico');

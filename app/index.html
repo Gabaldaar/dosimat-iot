@@ -362,9 +362,14 @@
                     <option value="CB">Dosimat_IoT CB (Con Control de Bomba)</option>
                     <option value="SCB">Dosimat_IoT SCB (Sin Control de Bomba)</option>
                 </select>
-                <p id="lblModeloLockInfo" style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.4rem;">
-                    🔒 Selección restringida a personal técnico autorizado o súper administrador.
-                </p>
+                <div id="divModeloLockArea" style="margin-top: 0.5rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;">
+                    <p id="lblModeloLockInfo" style="font-size: 0.75rem; color: var(--text-muted); margin: 0; flex: 1; min-width: 200px;">
+                        🔒 Selección restringida a personal técnico autorizado o súper administrador.
+                    </p>
+                    <button id="btnDesbloquearTecnicoPin" class="btn outline" style="width: auto; padding: 0.3rem 0.7rem; font-size: 0.78rem; border-color: var(--accent); color: var(--accent); display: inline-flex; align-items: center; gap: 0.3rem;">
+                        <span class="material-symbols-outlined" style="font-size: 1rem;">key</span> Desbloquear con PIN
+                    </button>
+                </div>
             </div>
             <button class="btn outline" id="btnGuardarModelo" style="display: none; margin-top: 0.5rem;">Guardar Modelo de Placa</button>
         </div>
@@ -589,6 +594,20 @@
             </div>
         </div>
 
+        <!-- Configuración de PIN Maestro para Técnicos (Solo Super Admin) -->
+        <div class="card" id="cardPinTecnico" style="margin-top: 1rem; display: none;">
+            <h2 style="display: flex; align-items: center; width: 100%;">
+                <span>PIN Maestro de Técnicos</span>
+            </h2>
+            <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1rem;">
+                Este PIN permite a los técnicos desbloquear la selección de modelo en dispositivos donde no hayan iniciado sesión o en instalaciones offline por Bluetooth (BLE).
+            </p>
+            <div style="display: flex; gap: 0.5rem; align-items: center; max-width: 320px;">
+                <input type="text" id="inpPinTecnicoAdmin" placeholder="Ej: 2468" maxlength="8" style="padding: 0.5rem; border-radius: 6px; border: 1px solid var(--card-border); font-weight: bold; font-size: 1.1rem; text-align: center; letter-spacing: 2px;">
+                <button id="btnGuardarPinTecnico" class="btn" style="width: auto; padding: 0.5rem 1rem;">Guardar PIN</button>
+            </div>
+        </div>
+
         <!-- Configuración de Contactos de Soporte -->
         <div class="card" id="cardConfigSoporte" style="margin-top: 1rem; display: none; border: 1px solid var(--accent);">
             <h2>Contactos de Ayuda / Soporte</h2>
@@ -639,6 +658,9 @@
         <div class="overlay-content">
             <h3 id="modalTitle">Confirmación</h3>
             <p id="modalMessage" style="margin: 1rem 0; color: var(--text-muted);"></p>
+            <div id="modalInputContainer" style="display: none; margin: 1rem 0;">
+                <input type="text" id="modalInput" style="width: 100%; padding: 0.6rem; border-radius: 6px; border: 1px solid var(--card-border); font-size: 1.1rem; text-align: center; letter-spacing: 2px;">
+            </div>
             <div style="display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 1.5rem;">
                 <button class="btn outline" id="btnModalCancel" style="width: auto; padding: 0.5rem 1rem;">Cancelar</button>
                 <button class="btn" id="btnModalConfirm" style="width: auto; padding: 0.5rem 1rem;">Confirmar</button>
