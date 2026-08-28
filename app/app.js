@@ -145,7 +145,11 @@ function actualizarModeloControlPermisos() {
     const lockArea = document.getElementById('divModeloLockArea');
 
     if (sel) {
-        sel.value = globalModelo;
+        // Solo actualizar el selector si el usuario no lo está manipulando actualmente
+        if (document.activeElement !== sel && !sel.dataset.userModified) {
+            sel.value = globalModelo || "CB";
+        }
+
         if (userEsTecnicoOAdmin) {
             sel.disabled = false;
             if (btn) btn.style.display = 'inline-block';
@@ -2310,6 +2314,13 @@ function updateConfigUI(data) {
     if (typeof updateSubtexto === 'function') updateSubtexto();
 }
 
+const selModeloEquipo = document.getElementById('selModeloEquipo');
+if (selModeloEquipo) {
+    selModeloEquipo.addEventListener('change', () => {
+        selModeloEquipo.dataset.userModified = "true";
+    });
+}
+
 const btnGuardarModelo = document.getElementById('btnGuardarModelo');
 if (btnGuardarModelo) {
     btnGuardarModelo.onclick = async () => {
@@ -2322,6 +2333,7 @@ if (btnGuardarModelo) {
         }
 
         if (await customConfirm(`¿Estás seguro de cambiar el modelo a ${nuevoModelo === 'SCB' ? 'Dosimat_IoT SCB (Sin Control de Bomba)' : 'Dosimat_IoT CB (Con Control de Bomba)'}?`, "Cambiar Modelo")) {
+            delete sel.dataset.userModified;
             globalModelo = nuevoModelo;
             renderModeloUI();
 
