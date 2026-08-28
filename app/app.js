@@ -2845,6 +2845,8 @@ async function loadTecnicosUI() {
     } catch (e) {
         console.error("Error cargando técnicos:", e);
     }
+}
+
 async function loadPinTecnicoAdmin() {
     const inp = document.getElementById('inpPinTecnicoAdmin');
     if (!inp) return;
