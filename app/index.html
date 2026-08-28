@@ -580,7 +580,15 @@
     <div id="tab-tecnicos" class="container">
         <!-- Portal Tecnico -->
         <div class="card" id="cardPortalTecnico">
-            <h2 style="color: var(--accent);">Portal Técnico</h2>
+            <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.5rem;">
+                <h2 style="color: var(--accent); margin: 0; display: flex; align-items: center; gap: 6px;">
+                    <span>Portal Técnico</span>
+                    <span class="material-symbols-outlined btn-help" data-help="guia-tecnico">help</span>
+                </h2>
+                <button class="btn outline" id="btnGuiaTecnico" style="width: auto; padding: 0.35rem 0.75rem; font-size: 0.82rem; border-color: var(--accent); color: var(--accent); display: inline-flex; align-items: center; gap: 0.3rem;">
+                    <span class="material-symbols-outlined" style="font-size: 1.1rem;">menu_book</span> Guía de Operaciones
+                </button>
+            </div>
             <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem;">Bienvenido al centro de soporte remoto. Conéctate a cualquier equipo usando su MAC/ID.</p>
             
             <div style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem;">
@@ -683,6 +691,6 @@
         </div>
     </div>
 
-    <script type="module" src="app.js?v=6.76"></script>
+    <script type="module" src="app.js?v=6.77"></script>
 </body>
 </html>

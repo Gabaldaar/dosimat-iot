@@ -297,6 +297,23 @@ const HELP_TOPICS = {
             "2️⃣ Abrí Ajustes y Tocá 'Buscar Dosificador por BLE'. Aquí ya estás conectado a tu equipo, por Bluetooth.\n\n" +
             "3️⃣ Para configurar el WiFi de tu casa: En la pestaña de Ajustes (Conectividad WiFi local), ingresá el Nombre (SSID) y Contraseña de tu WiFi domiciliario y presioná 'Registrar Red WiFi'. El equipo se reiniciará y se conectará a la Nube. Ya podés ingresar desde cualquier lugar con tu usuario y clave.\n\n" +
             "4️⃣ Si tu red WiFi no llega hasta el Dosimat, simplemente conectate por BLE cuando quieras controlarlo."
+    },
+    "guia-tecnico": {
+        title: "Guía de Operaciones Técnicas",
+        text: "🛠️ MANUAL RÁPIDO PARA TÉCNICOS E INSTALADORES\n\n" +
+            "1️⃣ CÓMO CONECTARSE A UN EQUIPO:\n" +
+            "• Remoto (WiFi / Nube): En este Portal Técnico, busca el equipo en la lista y pulsa 'Conectar', o escribe la MAC y pulsa 'Conectar'. Verás la barra roja superior con los datos del cliente.\n" +
+            "• Local (Bluetooth / BLE): Útil en instalaciones nuevas o sin internet. Ve a la solapa Ajustes > Vinculación Bluetooth y presiona 'Buscar Dosificador por BLE'.\n\n" +
+            "2️⃣ CÓMO REGISTRAR UNA NUEVA RED WIFI:\n" +
+            "• Conéctate al dosificador primero por Bluetooth (BLE) desde Ajustes.\n" +
+            "• En la tarjeta 'Conectividad WiFi local', escribe el Nombre (SSID) y Contraseña del WiFi del cliente.\n" +
+            "• Presiona 'Registrar Red WiFi'. El equipo guardará los datos en memoria, se reiniciará y se vinculará a la nube.\n\n" +
+            "3️⃣ CÓMO MODIFICAR EL MODELO DE EQUIPO (CB / SCB):\n" +
+            "• Conéctate al equipo (por BLE o Nube).\n" +
+            "• Ve a la solapa Ajustes > Modelo de Equipo.\n" +
+            "• Elige entre 'CB' (Con Control de Bomba) o 'SCB' (Sin Control de Bomba).\n" +
+            "• Si estás usando el teléfono del cliente o sin sesión iniciada, pulsa '🔑 Desbloquear con PIN' e ingresa el PIN maestro.\n" +
+            "• Presiona 'Guardar Modelo de Placa' y confirma."
     }
 };
 
@@ -2827,6 +2844,15 @@ async function connectRemoteDevice(mac, ownerName = "", ownerEmail = "", alias =
     showToast(`🔧 Conectado en Modo Técnico a: ${displayClient || mac}`);
 }
 
+const btnGuiaTecnico = document.getElementById('btnGuiaTecnico');
+if (btnGuiaTecnico) {
+    btnGuiaTecnico.onclick = () => {
+        if (HELP_TOPICS["guia-tecnico"]) {
+            customAlert(HELP_TOPICS["guia-tecnico"].text, HELP_TOPICS["guia-tecnico"].title);
+        }
+    };
+}
+
 const btnDisconnectTech = document.getElementById('btnDisconnectTech');
 if (btnDisconnectTech) {
     btnDisconnectTech.onclick = () => {
@@ -2844,9 +2870,28 @@ if (btnDisconnectTech) {
         const headerTech = document.getElementById('headerTechMode');
         if (headerTech) headerTech.style.display = 'none';
 
+        // 1. Desconectar MQTT del cliente
+        if (mqttClient) {
+            try { mqttClient.disconnect(); } catch (e) { }
+            mqttClient = null;
+        }
+
+        // 2. Desuscribir Firestore listeners del cliente
+        if (unsubscribeFirestore) { unsubscribeFirestore(); unsubscribeFirestore = null; }
+        if (unsubscribeConfig) { unsubscribeConfig(); unsubscribeConfig = null; }
+        if (unsubscribeProgramas) { unsubscribeProgramas(); unsubscribeProgramas = null; }
+        if (unsubscribeLogs) { unsubscribeLogs(); unsubscribeLogs = null; }
+
+        // 3. Limpiar MAC activa y modo de conexión
+        currentMac = "";
+        setConexionModo("OFFLINE");
+
         showToast("Conexión remota finalizada.");
-        if (currentUser) {
-            onAuthStateChanged(auth, () => { });
+
+        // 4. Volver a la pestaña de Técnicos
+        const navTec = document.querySelector('nav [data-target="tecnicos"]');
+        if (navTec) {
+            switchTab(navTec, 'tecnicos');
         }
     };
 }
