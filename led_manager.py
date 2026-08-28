@@ -1,5 +1,6 @@
 # led_manager.py - Control asíncrono y no bloqueante de los LEDs
 import machine
+import time
 import uasyncio as asyncio
 
 # Configuración de pines de LED (Activos en Alto)
@@ -74,14 +75,13 @@ def actualizar_patron(state, wifi_online, ble_active, refuerzo_activo):
                 set_pattern('En_espera_ble')
 
 async def led_task():
-    """Tarea asíncrona de loop infinito que reproduce el patrón activo"""
+    """Tarea asíncrona de loop infinito que reproduce el patrón activo con reloj exacto"""
     init_leds()
     while True:
         _pattern_event.clear()
         pattern = LED_PATRONES.get(current_pattern, [(0, 1000)])
         
         for val, dur in pattern:
-            # Si se configuró un nuevo patrón durante el ciclo, salir para iniciarlo de inmediato
             if _pattern_event.is_set():
                 break
                 
@@ -90,16 +90,14 @@ async def led_task():
             if led_panel:
                 led_panel.value(val)
                 
-            # Dormir asíncronamente en intervalos pequeños para permitir una respuesta inmediata
-            # ante un cambio de estado sin colgar el hilo
-            elapsed = 0
-            interval = 50
-            while elapsed < dur:
+            start_ms = time.ticks_ms()
+            while time.ticks_diff(time.ticks_ms(), start_ms) < dur:
                 if _pattern_event.is_set():
                     break
-                await asyncio.sleep_ms(min(interval, dur - elapsed))
-                elapsed += interval
+                restante = dur - time.ticks_diff(time.ticks_ms(), start_ms)
+                await asyncio.sleep_ms(min(50, max(1, restante)))
                 
-        # Si no hubo cambios en el patrón, esperar un instante mínimo antes de reiniciar
-        if not _pattern_event.is_set():
+        if _pattern_event.is_set():
+            if led_internal: led_internal.value(0)
+            if led_panel: led_panel.value(0)
             await asyncio.sleep_ms(10)

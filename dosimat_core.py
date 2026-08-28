@@ -266,7 +266,6 @@ async def procesar_comando(cmd_dict):
             config_ref["estado_pausa"] = True
             await config_manager.guardar_configuracion(config_ref)
             set_relays(False, False)
-            led_manager.actualizar_patron(estado_dosimat, False, False, refuerzo_activo)
             abort_event.set()
             await sys_log.log_event({"msg": "Inicio de Pausa/Mantenimiento"})
             await enviar_telemetria()
@@ -288,7 +287,6 @@ async def procesar_comando(cmd_dict):
             config_ref["estado_pausa"] = False
             await config_manager.guardar_configuracion(config_ref)
             set_relays(False, False)
-            led_manager.actualizar_patron(estado_dosimat, False, False, refuerzo_activo)
             abort_event.set()
             await enviar_telemetria()
             
