@@ -2758,16 +2758,20 @@ function renderDevicesTable(equipos) {
             ? `<button class="btn outline" style="width: auto; padding: 0.15rem 0.45rem; font-size: 0.72rem; background: rgba(245, 158, 11, 0.18); color: var(--warning); border: 1px solid rgba(245, 158, 11, 0.5); font-weight: bold; cursor: pointer; border-radius: 4px;" onclick="setDeviceModeloRemote('${eq.mac}', 'CB')" title="Toca para cambiar a CB">Dosimat_IoT SCB ✏️</button>`
             : `<button class="btn outline" style="width: auto; padding: 0.15rem 0.45rem; font-size: 0.72rem; background: rgba(59, 130, 246, 0.18); color: var(--accent); border: 1px solid rgba(59, 130, 246, 0.5); font-weight: bold; cursor: pointer; border-radius: 4px;" onclick="setDeviceModeloRemote('${eq.mac}', 'SCB')" title="Toca para cambiar a SCB">Dosimat_IoT CB ✏️</button>`;
 
+        const ownerSafe = (eq.ownerName || 'No asignado').replace(/'/g, "\\'");
+        const emailSafe = (eq.ownerEmail || '').replace(/'/g, "\\'");
+        const aliasSafe = (eq.alias || '').replace(/'/g, "\\'");
+
         item.innerHTML = `
             <div>
                 <div style="font-weight: bold; color: var(--text-main); display: flex; align-items: center; gap: 6px;">
                     ${eq.mac} ${modBadge}
                 </div>
-                <div style="font-size: 0.85rem; color: var(--text-muted);">${eq.ownerName}</div>
+                <div style="font-size: 0.85rem; color: var(--text-muted); font-weight: 600;">👤 ${eq.ownerName}</div>
                 <div style="font-size: 0.75rem; color: var(--text-muted);">${eq.ownerEmail}</div>
             </div>
             <div style="display: flex; flex-direction: column; gap: 0.4rem;">
-                <button class="btn outline" style="width: auto; padding: 0.3rem 0.6rem; font-size: 0.8rem;" onclick="connectRemoteDevice('${eq.mac}')">Conectar</button>
+                <button class="btn outline" style="width: auto; padding: 0.3rem 0.6rem; font-size: 0.8rem;" onclick="connectRemoteDevice('${eq.mac}', '${ownerSafe}', '${emailSafe}', '${aliasSafe}')">Conectar</button>
                 <button class="btn danger" style="width: auto; padding: 0.3rem 0.6rem; font-size: 0.8rem; background: var(--danger);" onclick="deleteRemoteDevice('${eq.mac}')">Dar de Baja</button>
             </div>
         `;
@@ -2775,21 +2779,52 @@ function renderDevicesTable(equipos) {
     });
 }
 
-function connectRemoteDevice(mac) {
+async function connectRemoteDevice(mac, ownerName = "", ownerEmail = "", alias = "") {
     currentMac = mac;
     isTechRemoteActive = true;
 
     const headerTech = document.getElementById('headerTechMode');
     const headerMac = document.getElementById('headerTechMac');
+    const headerCliente = document.getElementById('headerTechCliente');
+    const headerEmail = document.getElementById('headerTechEmail');
     const btnDisconnect = document.getElementById('btnDisconnectTech');
 
+    let displayClient = ownerName || "";
+    let displayEmail = ownerEmail || "";
+    let displayAlias = alias || "";
+
     if (headerTech) headerTech.style.display = 'block';
-    if (headerMac) headerMac.innerText = mac;
+    if (headerMac) headerMac.innerText = mac + (displayAlias ? ` (${displayAlias})` : "");
+    if (headerCliente) headerCliente.innerText = displayClient || "Consultando cliente...";
+    if (headerEmail) headerEmail.innerText = displayEmail ? `• ${displayEmail}` : "";
     if (btnDisconnect) btnDisconnect.style.display = 'inline-block';
+
+    // Si no vino el cliente, buscarlo en Firestore
+    if (!displayClient || displayClient === "No asignado" || displayClient === "Sin nombre") {
+        try {
+            const userSnap = await getDocs(collection(db, "usuarios"));
+            for (const userDoc of userSnap.docs) {
+                const udata = userDoc.data();
+                const eqSnap = await getDoc(doc(db, "usuarios", userDoc.id, "equipos_asignados", mac));
+                if (eqSnap.exists()) {
+                    displayClient = udata.nombre || udata.displayName || userDoc.id;
+                    displayEmail = udata.email || "";
+                    if (headerCliente) headerCliente.innerText = displayClient;
+                    if (headerEmail) headerEmail.innerText = displayEmail ? `• ${displayEmail}` : "";
+                    break;
+                }
+            }
+            if (!displayClient || displayClient === "No asignado") {
+                if (headerCliente) headerCliente.innerText = "Equipo sin cliente asignado";
+            }
+        } catch (err) {
+            console.warn("Error buscando cliente de equipo:", err);
+        }
+    }
 
     connectNube();
     switchTab(document.querySelector('nav [data-target="dashboard"]'), 'dashboard');
-    showToast(`Conectado en Modo Técnico a: ${mac}`);
+    showToast(`🔧 Conectado en Modo Técnico a: ${displayClient || mac}`);
 }
 
 const btnDisconnectTech = document.getElementById('btnDisconnectTech');

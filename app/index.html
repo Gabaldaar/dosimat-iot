@@ -72,16 +72,31 @@
     </div>
 
     <!-- Header Técnico (Solo visible en control remoto) -->
-    <div id="headerTechMode" style="display: none; background: var(--danger); color: white; padding: 0.5rem; text-align: center; font-weight: bold; font-size: 0.9rem; position: sticky; top: 0; z-index: 100;">
-        MODO TÉCNICO: <span id="headerTechMac">Debe seleccionar un equipo</span>
-        <button id="btnDisconnectTech" style="margin-left:1rem; padding:0.2rem 0.5rem; color:var(--text-main); font-size:0.8rem; cursor:pointer; display:none;">Cerrar Conexión</button>
+    <div id="headerTechMode" style="display: none; background: linear-gradient(135deg, #dc2626, #991b1b); color: white; padding: 0.6rem 1rem; position: sticky; top: 0; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.35); border-bottom: 2px solid #fef08a;">
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.6rem; max-width: 900px; margin: 0 auto;">
+            <div style="display: flex; align-items: center; gap: 10px; text-align: left;">
+                <span class="material-symbols-outlined" style="font-size: 1.6rem; color: #fef08a;">engineering</span>
+                <div>
+                    <div style="font-weight: 800; font-size: 0.95rem; letter-spacing: 0.5px;">
+                        MODO TÉCNICO &bull; CLIENTE: <span id="headerTechCliente" style="color: #fef08a; font-weight: 900;">Consultando...</span>
+                    </div>
+                    <div style="font-size: 0.78rem; opacity: 0.95; display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+                        <span>Equipo: <strong id="headerTechMac" style="font-family: monospace; letter-spacing: 1px;">-</strong></span>
+                        <span id="headerTechEmail" style="opacity: 0.85;"></span>
+                    </div>
+                </div>
+            </div>
+            <button id="btnDisconnectTech" class="btn" style="width: auto; padding: 0.35rem 0.8rem; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.7); color: white; font-weight: 700; font-size: 0.8rem; border-radius: 6px; cursor: pointer; display: none;">
+                ✕ Salir de Modo Técnico
+            </button>
+        </div>
     </div>
 
     <!-- Main Header -->
     <header>
         <div class="header-title" style="align-items: flex-start; margin-top: 5px;">
             <div style="display: flex; flex-direction: column;">
-                <h1 style="margin-bottom: 0;"><span id="lblHeaderTitle">Dosimat IoT CB</span> <span style="font-size: 0.7rem; color: var(--accent); margin-left: 5px;">v6.73</span></h1>
+                <h1 style="margin-bottom: 0;"><span id="lblHeaderTitle">Dosimat IoT CB</span> <span style="font-size: 0.7rem; color: var(--accent); margin-left: 5px;">v6.75</span></h1>
                 <div id="lblUserName" style="font-size: 0.85rem; font-weight: 300; color: var(--text-muted); display: none;"></div>
             </div>
         </div>
@@ -668,6 +683,6 @@
         </div>
     </div>
 
-    <script type="module" src="app.js?v=6.75"></script>
+    <script type="module" src="app.js?v=6.76"></script>
 </body>
 </html>
