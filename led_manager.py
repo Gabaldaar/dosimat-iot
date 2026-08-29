@@ -3,8 +3,7 @@ import machine
 import time
 import uasyncio as asyncio
 
-# Configuración de pines de LED (Activos en Alto)
-LED_INTERNAL_PIN = 4
+# Configuración del pin de LED de panel (Activo en Alto)
 LED_PANEL_PIN = 2
 
 # Definición de patrones según la especificación [(valor, duracion_ms)]
@@ -20,18 +19,18 @@ LED_PATRONES = {
 
 # Variables de control
 current_pattern = 'En_espera_ble'
-led_internal = None
 led_panel = None
 _pattern_event = asyncio.Event()
+_is_running = False
 
 def init_leds():
-    global led_internal, led_panel
-    try:
-        led_internal = machine.Pin(LED_INTERNAL_PIN, machine.Pin.OUT, value=0)
-        led_panel = machine.Pin(LED_PANEL_PIN, machine.Pin.OUT, value=0)
-        print("[LED] Controladores de LED inicializados.")
-    except Exception as e:
-        print("[LED] Error inicializando pines de LED:", e)
+    global led_panel
+    if led_panel is None:
+        try:
+            led_panel = machine.Pin(LED_PANEL_PIN, machine.Pin.OUT, value=0)
+            print("[LED] Controlador de LED inicializado en Pin 2.")
+        except Exception as e:
+            print("[LED] Error inicializando pin de LED:", e)
 
 def set_pattern(pattern_name):
     """Establece un nuevo patrón y despierta el loop del LED si estaba durmiendo"""
@@ -75,29 +74,35 @@ def actualizar_patron(state, wifi_online, ble_active, refuerzo_activo):
                 set_pattern('En_espera_ble')
 
 async def led_task():
-    """Tarea asíncrona de loop infinito que reproduce el patrón activo con reloj exacto"""
+    """Tarea asíncrona de loop infinito que reproduce el patrón activo con reloj exacto (Singleton)"""
+    global _is_running
+    if _is_running:
+        print("[LED] Tarea led_task ya activa. Evitando tarea duplicada.")
+        return
+    _is_running = True
     init_leds()
-    while True:
-        _pattern_event.clear()
-        pattern = LED_PATRONES.get(current_pattern, [(0, 1000)])
-        
-        for val, dur in pattern:
-            if _pattern_event.is_set():
-                break
-                
-            if led_internal:
-                led_internal.value(val)
-            if led_panel:
-                led_panel.value(val)
-                
-            start_ms = time.ticks_ms()
-            while time.ticks_diff(time.ticks_ms(), start_ms) < dur:
+    
+    try:
+        while True:
+            _pattern_event.clear()
+            pattern = LED_PATRONES.get(current_pattern, [(0, 1000)])
+            
+            for val, dur in pattern:
                 if _pattern_event.is_set():
                     break
-                restante = dur - time.ticks_diff(time.ticks_ms(), start_ms)
-                await asyncio.sleep_ms(min(50, max(1, restante)))
-                
-        if _pattern_event.is_set():
-            if led_internal: led_internal.value(0)
-            if led_panel: led_panel.value(0)
-            await asyncio.sleep_ms(10)
+                    
+                if led_panel:
+                    led_panel.value(val)
+                    
+                start_ms = time.ticks_ms()
+                while time.ticks_diff(time.ticks_ms(), start_ms) < dur:
+                    if _pattern_event.is_set():
+                        break
+                    restante = dur - time.ticks_diff(time.ticks_ms(), start_ms)
+                    await asyncio.sleep_ms(min(50, max(1, restante)))
+                    
+            if _pattern_event.is_set():
+                if led_panel: led_panel.value(0)
+                await asyncio.sleep_ms(20)
+    finally:
+        _is_running = False
