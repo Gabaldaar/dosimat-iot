@@ -2552,26 +2552,36 @@ function actualizarUIEstadoNotificaciones() {
 }
 
 async function registrarTokenFCM() {
-    if (!messaging || !currentUser) return;
+    if (!currentUser) return null;
     try {
+        if (!('serviceWorker' in navigator)) {
+            throw new Error("Service Worker no disponible en este navegador.");
+        }
         const swReg = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
-        const token = await getToken(messaging, { serviceWorkerRegistration: swReg });
-        if (token) {
-            console.log("[FCM] Token obtenido:", token);
-            await setDoc(doc(db, "usuarios", currentUser.uid, "fcm_tokens", token.substring(0, 30)), {
-                token: token,
-                userAgent: navigator.userAgent,
-                updatedAt: Date.now()
-            }, { merge: true });
+        await navigator.serviceWorker.ready;
+
+        if (messaging) {
+            const token = await getToken(messaging, { serviceWorkerRegistration: swReg });
+            if (token) {
+                console.log("[FCM] Token obtenido:", token);
+                await setDoc(doc(db, "usuarios", currentUser.uid, "fcm_tokens", token.substring(0, 30)), {
+                    token: token,
+                    userAgent: navigator.userAgent,
+                    updatedAt: Date.now()
+                }, { merge: true });
+                return token;
+            }
         }
     } catch (e) {
-        console.warn("[FCM] Error registrando token:", e);
+        console.error("[FCM] Error registrando token FCM:", e);
+        throw e;
     }
+    return null;
 }
 
 async function solicitarPermisoNotificaciones() {
     if (!('Notification' in window)) {
-        customAlert("Tu navegador no soporta notificaciones push.");
+        customAlert("Tu navegador o sistema operativo no soporta notificaciones push.\n\nSi estás en un iPhone/iPad (iOS), debes primero 'Agregar a Pantalla de Inicio' desde el menú Compartir de Safari.", "Notificaciones");
         return;
     }
 
@@ -2579,14 +2589,55 @@ async function solicitarPermisoNotificaciones() {
         const permission = await Notification.requestPermission();
         actualizarUIEstadoNotificaciones();
         if (permission === 'granted') {
-            await registrarTokenFCM();
-            showToast("🎉 Notificaciones activadas en este dispositivo.");
+            try {
+                await registrarTokenFCM();
+                showToast("🎉 Notificaciones activadas y registradas con éxito.");
+            } catch (errToken) {
+                customAlert("Permiso concedido, pero ocurrió un detalle registrando el token del dispositivo:\n" + (errToken.message || errToken), "Registro FCM");
+            }
         } else if (permission === 'denied') {
-            customAlert("Has bloqueado las notificaciones. Para recibirlas, ve a los ajustes de tu navegador y permite las notificaciones para este sitio.");
+            customAlert("Has bloqueado las notificaciones. Para recibirlas, ve a los ajustes de tu navegador y permite las notificaciones para este sitio.", "Permisos Bloqueados");
         }
     } catch (e) {
         console.error("Error solicitando permisos:", e);
-        showToast("Error solicitando permisos: " + e.message, true);
+        customAlert("Error solicitando permisos: " + e.message, "Error");
+    }
+}
+
+async function probarNotificacionLocal() {
+    if (!('Notification' in window)) {
+        customAlert("Tu navegador no soporta notificaciones.");
+        return;
+    }
+
+    if (Notification.permission !== 'granted') {
+        const perm = await Notification.requestPermission();
+        actualizarUIEstadoNotificaciones();
+        if (perm !== 'granted') {
+            customAlert("Debes permitir las notificaciones para probarlas.");
+            return;
+        }
+    }
+
+    try {
+        const swReg = await navigator.serviceWorker.ready;
+        if (swReg && swReg.showNotification) {
+            await swReg.showNotification("⚠️ Alerta Dosimat (Prueba)", {
+                body: "¡Prueba exitosa! Las notificaciones push en tu teléfono están configuradas correctamente.",
+                icon: "/manifest.json",
+                badge: "/manifest.json",
+                vibrate: [200, 100, 200]
+            });
+            showToast("Notificación de prueba enviada.");
+        } else {
+            new Notification("⚠️ Alerta Dosimat (Prueba)", {
+                body: "¡Prueba exitosa! Las notificaciones funcionan en tu teléfono.",
+                icon: "/manifest.json"
+            });
+        }
+    } catch (e) {
+        console.error("Error enviando notificación de prueba:", e);
+        customAlert("Error al disparar la notificación de prueba: " + e.message, "Prueba");
     }
 }
 
@@ -2644,6 +2695,11 @@ if (btnHabilitarNotif) {
 const btnGuardarPreferenciasNotif = document.getElementById('btnGuardarPreferenciasNotif');
 if (btnGuardarPreferenciasNotif) {
     btnGuardarPreferenciasNotif.onclick = () => guardarPreferenciasNotificaciones();
+}
+
+const btnProbarNotif = document.getElementById('btnProbarNotif');
+if (btnProbarNotif) {
+    btnProbarNotif.onclick = () => probarNotificacionLocal();
 }
 
 // === HISTORIAL / LOGS DEL SISTEMA ===

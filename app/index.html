@@ -461,7 +461,10 @@
                     <input type="checkbox" id="chkNotifSistemaPausa" checked style="width: 18px; height: 18px; accent-color: var(--accent);">
                 </label>
                 
-                <button class="btn outline" id="btnGuardarPreferenciasNotif" style="margin-top: 0.5rem;">Guardar Preferencias de Avisos</button>
+                <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem; flex-wrap: wrap;">
+                    <button class="btn outline" id="btnGuardarPreferenciasNotif" style="flex: 1; min-width: 160px;">Guardar Preferencias</button>
+                    <button class="btn outline" id="btnProbarNotif" style="flex: 1; min-width: 160px; border-color: var(--accent); color: var(--accent);">🧪 Probar Notificación</button>
+                </div>
             </div>
         </div>
     </div>
@@ -738,6 +741,6 @@
         </div>
     </div>
 
-    <script type="module" src="app.js?v=6.78"></script>
+    <script type="module" src="app.js?v=6.79"></script>
 </body>
 </html>

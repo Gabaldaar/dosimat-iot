@@ -104,11 +104,43 @@ exports.mqttWebhook = functions.https.onRequest(async (req, res) => {
             if (data.bomba_on !== undefined) estadoData.bomba_on = Number(data.bomba_on);
             if (data.ult_warn !== undefined) estadoData.ult_warn = data.ult_warn;
 
+            const prevEstadoSnap = await db.doc(`equipos/${chipId}/estado/actual`).get();
+            const prevEstado = prevEstadoSnap.exists ? prevEstadoSnap.data() : {};
+
             await db.doc(`equipos/${chipId}/estado/actual`).set(estadoData, { merge: true });
 
             const rootData = { ultima_sincronizacion: admin.firestore.FieldValue.serverTimestamp() };
             if (data.modelo !== undefined) rootData.modelo = String(data.modelo).toUpperCase();
             await db.doc(`equipos/${chipId}`).set(rootData, { merge: true });
+
+            // 1. Advertencia en tiempo real (ej: Bomba apagada / Dosis cancelada)
+            if (data.ult_warn && data.ult_warn !== prevEstado.ult_warn) {
+                console.log(`[FCM] Advertencia en telemetría para ${chipId}: ${data.ult_warn}`);
+                await sendPushToDeviceOwners(chipId, {
+                    title: "⚠️ Alerta Dosimat",
+                    body: data.ult_warn
+                }, "dosis_no_realizada");
+            }
+
+            // 2. Transición a PAUSA
+            if (data.est === "PAUSA" && prevEstado.estado !== "PAUSA") {
+                console.log(`[FCM] Transición a PAUSA detectada para ${chipId}`);
+                await sendPushToDeviceOwners(chipId, {
+                    title: "⏸️ Sistema en Pausa",
+                    body: "El dosificador ha sido puesto en Pausa/Mantenimiento."
+                }, "sistema_pausa");
+            }
+
+            // 3. Transición de DOSIS a IDLE o FILTRO (Dosis completada)
+            if (prevEstado.estado === "DOSIS" && (data.est === "IDLE" || data.est === "FILTRO_POST" || data.est === "FILTRO")) {
+                if (!data.ult_warn || data.ult_warn === prevEstado.ult_warn) {
+                    console.log(`[FCM] Dosis completada detectada para ${chipId}`);
+                    await sendPushToDeviceOwners(chipId, {
+                        title: "✅ Dosis Completada",
+                        body: "La dosificación de cloro programada ha finalizado con éxito."
+                    }, "dosis_completada");
+                }
+            }
 
             console.log(`Estado de telemetría de ${chipId} escrito en Firestore.`);
             return res.status(200).send("Telemetría procesada exitosamente.");
@@ -332,6 +364,11 @@ async function sendPushToDeviceOwners(chipId, notification, eventType) {
         const targetUids = [];
 
         for (const userDoc of userDocsSnap.docs) {
+            const uData = userDoc.data() || {};
+            if (uData.id_equipo === chipId || (Array.isArray(uData.equipos) && uData.equipos.includes(chipId))) {
+                targetUids.push(userDoc.id);
+                continue;
+            }
             const eqRef = db.doc(`usuarios/${userDoc.id}/equipos_asignados/${chipId}`);
             const eqSnap = await eqRef.get();
             if (eqSnap.exists) {
