@@ -1340,10 +1340,9 @@ function connectNube() {
     }
 
     const clientId = "dosimat_pwa_" + Math.random().toString(16).substr(2, 8);
-    const host = "broker.hivemq.com";
-    const isHttps = window.location.protocol === "https:";
+    const host = "d7e739cc51844a9699a70616d89a2b99.s1.eu.hivemq.cloud";
 
-    mqttClient = new Paho.MQTT.Client(host, isHttps ? 8884 : 8000, clientId);
+    mqttClient = new Paho.MQTT.Client(host, 8884, clientId);
 
     mqttClient.onConnectionLost = (responseObject) => {
         if (responseObject.errorCode !== 0) {
@@ -1424,8 +1423,10 @@ function connectNube() {
     };
 
     const options = {
-        timeout: 4,
-        useSSL: isHttps,
+        timeout: 6,
+        useSSL: true,
+        userName: "Dosimat",
+        password: "Ga210295",
         onSuccess: () => {
             console.log("MQTT Conectado a HiveMQ (Esperando datos del equipo...)");
             

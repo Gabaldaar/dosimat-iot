@@ -24,9 +24,12 @@ mqtt_client = None
 mqtt_loop_task = None
 ventana_fallback_ble_s = 180  # 3 minutos de BLE antes de reintentar WiFi
 
-# Servidor MQTT de prueba (se reemplazará en la integración final)
-MQTT_BROKER = "broker.hivemq.com"
-MQTT_PORT = 1883
+# Servidor MQTT Privado en HiveMQ Cloud
+MQTT_BROKER = "d7e739cc51844a9699a70616d89a2b99.s1.eu.hivemq.cloud"
+MQTT_PORT = 8883
+MQTT_USER = "Dosimat"
+MQTT_PASS = "Ga210295"
+MQTT_SSL = True
 
 def get_state_name():
     states = {
@@ -70,11 +73,14 @@ async def conectar_mqtt_async():
             import urandom
             client_id = f"dosimat_{dosimat_core.chip_id}_{urandom.getrandbits(16)}"
             
-            print(f"[MQTT] Conectando a {MQTT_BROKER}:{MQTT_PORT}...")
+            print(f"[MQTT] Conectando a {MQTT_BROKER}:{MQTT_PORT} (TLS)...")
             mqtt_client = MQTTClient(
                 client_id=client_id,
                 server=MQTT_BROKER,
                 port=MQTT_PORT,
+                user=MQTT_USER,
+                password=MQTT_PASS,
+                ssl=MQTT_SSL,
                 keepalive=60
             )
             mqtt_client.set_callback(mqtt_callback)

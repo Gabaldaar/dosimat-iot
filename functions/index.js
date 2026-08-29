@@ -5,8 +5,8 @@ const mqtt = require("mqtt");
 admin.initializeApp();
 const db = admin.firestore();
 
-// Configuración del Broker MQTT
-const MQTT_BROKER_URL = "mqtt://broker.hivemq.com:1883";
+// Configuración del Broker MQTT Privado HiveMQ Cloud
+const MQTT_BROKER_URL = "mqtts://Dosimat:Ga210295@d7e739cc51844a9699a70616d89a2b99.s1.eu.hivemq.cloud:8883";
 
 /**
  * Función auxiliar para verificar roles y permisos del usuario en Firestore.
