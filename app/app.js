@@ -1382,6 +1382,19 @@ function connectNube() {
                 if (modoConexion !== "BLE") {
                     setConexionModo("NUBE", innerData.wifi_ssid || innerData.ssid || "");
                     updateUI(data);
+
+                    if (currentMac) {
+                        try {
+                            const estObj = {
+                                estado: innerData.est || innerData.estado || "IDLE",
+                                ult_warn: innerData.ult_warn || "",
+                                bomba_on: innerData.bomba_on !== undefined ? Number(innerData.bomba_on) : 0,
+                                ultima_sincronizacion: Date.now()
+                            };
+                            setDoc(doc(db, "equipos", currentMac, "estado", "actual"), estObj, { merge: true })
+                                .catch(() => {});
+                        } catch (err) {}
+                    }
                 }
             } else if (topic === `dosimat/${currentMac}/config`) {
                 updateConfigUI(innerData);
@@ -1391,7 +1404,18 @@ function connectNube() {
                 if (Array.isArray(innerData)) {
                     renderLogsList(innerData);
                 } else {
+                    const logObj = (typeof innerData === 'object') ? innerData : { msg: String(innerData), ts: Date.now() };
                     appendLogToTerminal(typeof innerData === 'string' ? innerData : JSON.stringify(innerData));
+
+                    if (currentMac && logObj.msg) {
+                        try {
+                            const logId = String(logObj.ts || Date.now());
+                            setDoc(doc(db, "equipos", currentMac, "logs", logId), {
+                                ...logObj,
+                                timestamp: Date.now()
+                            }, { merge: true }).catch(() => {});
+                        } catch (err) {}
+                    }
                 }
             }
         } catch (e) {
