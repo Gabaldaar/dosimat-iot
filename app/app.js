@@ -1,6 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, GoogleAuthProvider, signInWithPopup, updateProfile } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, collection, addDoc, deleteDoc, getDocs, query, where, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging.js";
 
 window.onerror = function (msg, url, lineNo, columnNo, error) {
     const errorMsg = `Error: ${msg}\nLínea: ${lineNo}\nArchivo: ${url}`;
@@ -26,6 +27,12 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
+let messaging = null;
+try {
+    messaging = getMessaging(app);
+} catch (e) {
+    console.warn("FCM no disponible en este entorno:", e);
+}
 
 // === ESTADO GLOBAL DE LA APLICACIÓN ===
 var currentUser = null;
@@ -314,6 +321,16 @@ const HELP_TOPICS = {
             "• Elige entre 'CB' (Con Control de Bomba) o 'SCB' (Sin Control de Bomba).\n" +
             "• Si estás usando el teléfono del cliente o sin sesión iniciada, pulsa '🔑 Desbloquear con PIN' e ingresa el PIN maestro.\n" +
             "• Presiona 'Guardar Modelo de Placa' y confirma."
+    },
+    "notificaciones-push": {
+        title: "Notificaciones en el Móvil",
+        text: "Configura qué avisos deseas recibir en tu teléfono:\n\n" +
+            "• ⚠️ Dosis no realizada: Alerta si la bomba estuvo apagada durante el horario programado.\n" +
+            "• 🌡️ Refuerzo por temperatura: Notifica cuando se programa una dosis doble por alta temperatura.\n" +
+            "• ✅ Dosis completada: Confirma la finalización exitosa de cada dosificación.\n" +
+            "• 🚫 Próxima dosis anulada: Notifica cancelaciones de dosis.\n" +
+            "• ⏸️ Sistema en Pausa: Advierte cuando el equipo entra en modo de mantenimiento o pausa.\n\n" +
+            "En iPhone/iPad (iOS), debes tener agregada la app a la Pantalla de Inicio para recibir notificaciones."
     }
 };
 
@@ -1009,6 +1026,8 @@ onAuthStateChanged(auth, async (user) => {
         }
 
         checkUserRole(user);
+        initPushNotifications();
+        cargarPreferenciasNotificaciones();
 
         // Ensure root document exists so it can be queried by getDocs(collection(db, "usuarios"))
         const uDocRef = doc(db, "usuarios", user.uid);
@@ -2489,6 +2508,142 @@ if (btnGuardarWifi) {
         sendCommand({ comando: "SET_WIFI", ssid: ssid, pwd: pwd });
         showToast("Datos de WiFi enviados al equipo.");
     };
+}
+
+// === GESTIÓN DE NOTIFICACIONES PUSH (FCM) ===
+async function initPushNotifications() {
+    actualizarUIEstadoNotificaciones();
+    if (!('Notification' in window)) return;
+
+    if (Notification.permission === 'granted' && currentUser) {
+        await registrarTokenFCM();
+    }
+}
+
+function actualizarUIEstadoNotificaciones() {
+    const lblEstado = document.getElementById('lblEstadoPermisoNotif');
+    const btnHabilitar = document.getElementById('btnHabilitarNotif');
+    if (!lblEstado || !btnHabilitar) return;
+
+    if (!('Notification' in window) || !('serviceWorker' in navigator)) {
+        lblEstado.innerText = "No soportado en este navegador.";
+        lblEstado.style.color = "var(--text-muted)";
+        btnHabilitar.style.display = "none";
+        return;
+    }
+
+    if (Notification.permission === 'granted') {
+        lblEstado.innerText = "✅ Notificaciones activas en este dispositivo.";
+        lblEstado.style.color = "var(--success)";
+        btnHabilitar.innerText = "Actualizar";
+        btnHabilitar.className = "btn outline";
+        btnHabilitar.style.display = "inline-block";
+    } else if (Notification.permission === 'denied') {
+        lblEstado.innerText = "❌ Bloqueadas en el navegador.";
+        lblEstado.style.color = "var(--danger)";
+        btnHabilitar.style.display = "none";
+    } else {
+        lblEstado.innerText = "⚠️ No activadas. Toca Habilitar.";
+        lblEstado.style.color = "var(--warning)";
+        btnHabilitar.innerText = "Habilitar";
+        btnHabilitar.className = "btn";
+        btnHabilitar.style.display = "inline-block";
+    }
+}
+
+async function registrarTokenFCM() {
+    if (!messaging || !currentUser) return;
+    try {
+        const swReg = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+        const token = await getToken(messaging, { serviceWorkerRegistration: swReg });
+        if (token) {
+            console.log("[FCM] Token obtenido:", token);
+            await setDoc(doc(db, "usuarios", currentUser.uid, "fcm_tokens", token.substring(0, 30)), {
+                token: token,
+                userAgent: navigator.userAgent,
+                updatedAt: Date.now()
+            }, { merge: true });
+        }
+    } catch (e) {
+        console.warn("[FCM] Error registrando token:", e);
+    }
+}
+
+async function solicitarPermisoNotificaciones() {
+    if (!('Notification' in window)) {
+        customAlert("Tu navegador no soporta notificaciones push.");
+        return;
+    }
+
+    try {
+        const permission = await Notification.requestPermission();
+        actualizarUIEstadoNotificaciones();
+        if (permission === 'granted') {
+            await registrarTokenFCM();
+            showToast("🎉 Notificaciones activadas en este dispositivo.");
+        } else if (permission === 'denied') {
+            customAlert("Has bloqueado las notificaciones. Para recibirlas, ve a los ajustes de tu navegador y permite las notificaciones para este sitio.");
+        }
+    } catch (e) {
+        console.error("Error solicitando permisos:", e);
+        showToast("Error solicitando permisos: " + e.message, true);
+    }
+}
+
+async function cargarPreferenciasNotificaciones() {
+    if (!currentUser) return;
+    try {
+        const snap = await getDoc(doc(db, "usuarios", currentUser.uid, "config_notificaciones", "actual"));
+        const data = snap.exists() ? snap.data() : {};
+
+        const chkDosisNo = document.getElementById('chkNotifDosisNoRealizada');
+        const chkRefuerzo = document.getElementById('chkNotifRefuerzoTemp');
+        const chkDosisOk = document.getElementById('chkNotifDosisCompletada');
+        const chkAnulada = document.getElementById('chkNotifDosisAnulada');
+        const chkPausa = document.getElementById('chkNotifSistemaPausa');
+
+        if (chkDosisNo) chkDosisNo.checked = (data.dosis_no_realizada !== false);
+        if (chkRefuerzo) chkRefuerzo.checked = (data.refuerzo_temp !== false);
+        if (chkDosisOk) chkDosisOk.checked = (data.dosis_completada !== false);
+        if (chkAnulada) chkAnulada.checked = (data.dosis_anulada !== false);
+        if (chkPausa) chkPausa.checked = (data.sistema_pausa !== false);
+    } catch (e) {
+        console.warn("Error cargando preferencias de notificaciones:", e);
+    }
+}
+
+async function guardarPreferenciasNotificaciones() {
+    if (!currentUser) {
+        customAlert("Debes iniciar sesión para guardar preferencias.");
+        return;
+    }
+
+    const prefs = {
+        notificaciones_activas: true,
+        dosis_no_realizada: !!document.getElementById('chkNotifDosisNoRealizada')?.checked,
+        refuerzo_temp: !!document.getElementById('chkNotifRefuerzoTemp')?.checked,
+        dosis_completada: !!document.getElementById('chkNotifDosisCompletada')?.checked,
+        dosis_anulada: !!document.getElementById('chkNotifDosisAnulada')?.checked,
+        sistema_pausa: !!document.getElementById('chkNotifSistemaPausa')?.checked,
+        updatedAt: Date.now()
+    };
+
+    try {
+        await setDoc(doc(db, "usuarios", currentUser.uid, "config_notificaciones", "actual"), prefs, { merge: true });
+        showToast("Preferencias de notificaciones guardadas.");
+    } catch (e) {
+        showToast("Error guardando preferencias: " + e.message, true);
+    }
+}
+
+const btnHabilitarNotif = document.getElementById('btnHabilitarNotif');
+if (btnHabilitarNotif) {
+    btnHabilitarNotif.onclick = () => solicitarPermisoNotificaciones();
+}
+
+const btnGuardarPreferenciasNotif = document.getElementById('btnGuardarPreferenciasNotif');
+if (btnGuardarPreferenciasNotif) {
+    btnGuardarPreferenciasNotif.onclick = () => guardarPreferenciasNotificaciones();
 }
 
 // === HISTORIAL / LOGS DEL SISTEMA ===

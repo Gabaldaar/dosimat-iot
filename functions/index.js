@@ -318,3 +318,154 @@ exports.onEstadoWrite = functions.firestore.document("equipos/{chipId}/estado/ac
         });
     }
 });
+
+/**
+ * Función auxiliar para enviar notificaciones Push vía FCM a todos los usuarios asignados al equipo,
+ * verificando las preferencias individuales de notificación de cada cliente.
+ */
+async function sendPushToDeviceOwners(chipId, notification, eventType) {
+    try {
+        console.log(`[FCM] Evaluando envío de notificación para equipo ${chipId} - Tipo: ${eventType}`);
+        
+        // 1. Buscar todos los usuarios que tienen asignado este chipId
+        const userDocsSnap = await db.collection("usuarios").get();
+        const targetUids = [];
+
+        for (const userDoc of userDocsSnap.docs) {
+            const eqRef = db.doc(`usuarios/${userDoc.id}/equipos_asignados/${chipId}`);
+            const eqSnap = await eqRef.get();
+            if (eqSnap.exists) {
+                targetUids.push(userDoc.id);
+            }
+        }
+
+        // Si no se encontró en subcolecciones, verificar propietarios directos
+        const propSnap = await db.collection(`equipos/${chipId}/propietarios`).get();
+        propSnap.forEach(doc => {
+            if (!targetUids.includes(doc.id)) targetUids.push(doc.id);
+        });
+
+        if (targetUids.length === 0) {
+            console.log(`[FCM] No se encontraron usuarios vinculados al equipo ${chipId}`);
+            return;
+        }
+
+        // 2. Para cada usuario, verificar preferencias y recolectar tokens FCM
+        const tokensToSend = [];
+        const tokenDocRefs = [];
+
+        for (const uid of targetUids) {
+            // Preferencias del usuario
+            const prefSnap = await db.doc(`usuarios/${uid}/config_notificaciones/actual`).get();
+            const prefs = prefSnap.exists ? prefSnap.data() : {};
+
+            // Si el switch maestro está desactivado, omitir
+            if (prefs.notificaciones_activas === false) continue;
+
+            // Si el switch específico para este evento está desactivado, omitir
+            if (eventType && prefs[eventType] === false) continue;
+
+            // Obtener tokens de FCM del usuario
+            const fcmSnap = await db.collection(`usuarios/${uid}/fcm_tokens`).get();
+            fcmSnap.forEach(tokenDoc => {
+                const tokenVal = tokenDoc.data().token || tokenDoc.id;
+                if (tokenVal && typeof tokenVal === "string" && !tokensToSend.includes(tokenVal)) {
+                    tokensToSend.push(tokenVal);
+                    tokenDocRefs.push({ ref: tokenDoc.ref, token: tokenVal });
+                }
+            });
+        }
+
+        if (tokensToSend.length === 0) {
+            console.log(`[FCM] No hay tokens FCM activos o autorizados para ${chipId}`);
+            return;
+        }
+
+        console.log(`[FCM] Enviando mensaje a ${tokensToSend.length} dispositivo(s)...`);
+
+        const messagePayload = {
+            tokens: tokensToSend,
+            notification: {
+                title: notification.title || "Dosimat IoT",
+                body: notification.body || ""
+            },
+            data: {
+                chipId: String(chipId),
+                eventType: String(eventType || "general"),
+                url: "/"
+            }
+        };
+
+        const response = await admin.messaging().sendEachForMulticast(messagePayload);
+        console.log(`[FCM] Resultado de envío: ${response.successCount} exitosos, ${response.failureCount} fallidos.`);
+
+        // Limpiar tokens inválidos o expirados
+        if (response.failureCount > 0) {
+            const deletePromises = [];
+            response.responses.forEach((resp, idx) => {
+                if (!resp.success) {
+                    const errCode = resp.error ? resp.error.code : "";
+                    if (errCode === "messaging/registration-token-not-registered" ||
+                        errCode === "messaging/invalid-registration-token" ||
+                        errCode === "messaging/invalid-argument") {
+                        const tokenInfo = tokenDocRefs[idx];
+                        if (tokenInfo && tokenInfo.ref) {
+                            deletePromises.push(tokenInfo.ref.delete().catch(() => {}));
+                        }
+                    }
+                }
+            });
+            await Promise.all(deletePromises);
+        }
+    } catch (error) {
+        console.error(`[FCM] Error enviando notificaciones para ${chipId}:`, error);
+    }
+}
+
+/**
+ * 5. Trigger de Firestore: Escucha la creación de logs y despacha notificaciones push automáticas.
+ */
+exports.onLogCreated = functions.firestore.document("equipos/{chipId}/logs/{logId}").onCreate(async (snap, context) => {
+    const chipId = context.params.chipId;
+    const logData = snap.data();
+    if (!logData) return;
+
+    const msg = String(logData.msg || "");
+    const tipo = String(logData.tipo || "");
+
+    // 1. Advertencia de dosis no realizada
+    if (tipo === "warning" || msg.includes("Dosis no realizada") || msg.includes("Bomba apagada")) {
+        await sendPushToDeviceOwners(chipId, {
+            title: "⚠️ Alerta Dosimat",
+            body: msg || "Dosis no realizada: la bomba de filtrado no estuvo encendida."
+        }, "dosis_no_realizada");
+    }
+    // 2. Refuerzo por temperatura
+    else if (msg.includes("Refuerzo automático") || msg.includes("Refuerzo por temperatura") || tipo === "refuerzo_temp") {
+        await sendPushToDeviceOwners(chipId, {
+            title: "🌡️ Refuerzo por Temperatura",
+            body: msg || "Se ha programado una dosis reforzada preventiva por alta temperatura."
+        }, "refuerzo_temp");
+    }
+    // 3. Dosis completada
+    else if (msg.includes("Dosis completada") || msg.includes("Dosis finalizada") || tipo === "dosis_ok") {
+        await sendPushToDeviceOwners(chipId, {
+            title: "✅ Dosis Completada",
+            body: msg || "La dosificación de cloro programada ha finalizado con éxito."
+        }, "dosis_completada");
+    }
+    // 4. Dosis anulada
+    else if (msg.includes("Dosis anulada") || msg.includes("Próxima dosis anulada") || msg.includes("anuladas")) {
+        await sendPushToDeviceOwners(chipId, {
+            title: "🚫 Dosis Anulada",
+            body: msg || "Se ha anulado la próxima dosis programada."
+        }, "dosis_anulada");
+    }
+    // 5. Sistema en Pausa
+    else if (msg.includes("Inicio de Pausa") || msg.includes("Pausa/Mantenimiento")) {
+        await sendPushToDeviceOwners(chipId, {
+            title: "⏸️ Sistema en Pausa",
+            body: "El dosificador ha sido puesto en Pausa/Mantenimiento."
+        }, "sistema_pausa");
+    }
+});
