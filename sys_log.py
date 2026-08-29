@@ -80,6 +80,29 @@ async def log_event(event_dict, wifi_activo=None):
     except Exception:
         pass
 
+    # Disparar alerta en tiempo real hacia la nube
+    try:
+        tipo_ev = event_dict.get("tipo", "")
+        msg_raw = str(event_dict.get("msg", ""))
+        
+        if tipo_ev == "warning" or "Bomba apagada" in msg_raw or "Dosis no realizada" in msg_raw:
+            import network_manager
+            asyncio.create_task(network_manager.notificar_alerta_a_nube_async("warning", msg_raw))
+        elif tipo_ev == "dosis_ok" or "Dosis completada" in msg_raw:
+            import network_manager
+            asyncio.create_task(network_manager.notificar_alerta_a_nube_async("dosis_completada", msg_raw))
+        elif "Refuerzo" in msg_raw and "temperatura" in msg_raw:
+            import network_manager
+            asyncio.create_task(network_manager.notificar_alerta_a_nube_async("refuerzo_temp", msg_raw))
+        elif "Inicio de Pausa" in msg_raw:
+            import network_manager
+            asyncio.create_task(network_manager.notificar_alerta_a_nube_async("sistema_pausa", msg_raw))
+        elif "Dosis Salteada" in msg_raw or "anulada" in msg_raw:
+            import network_manager
+            asyncio.create_task(network_manager.notificar_alerta_a_nube_async("dosis_anulada", msg_raw))
+    except Exception:
+        pass
+
 async def sincronizar_logs_ram_a_flash():
     """Vuelca los logs almacenados en la RAM hacia la Flash cuando hay conexión"""
     global logs_ram

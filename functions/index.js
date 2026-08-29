@@ -114,16 +114,16 @@ exports.mqttWebhook = functions.https.onRequest(async (req, res) => {
             await db.doc(`equipos/${chipId}`).set(rootData, { merge: true });
 
             // 1. Advertencia en tiempo real (ej: Bomba apagada / Dosis cancelada)
-            if (data.ult_warn && data.ult_warn !== prevEstado.ult_warn) {
-                console.log(`[FCM] Advertencia en telemetría para ${chipId}: ${data.ult_warn}`);
+            if (data.evento_tipo === "warning" || (data.ult_warn && data.ult_warn !== prevEstado.ult_warn)) {
+                console.log(`[FCM] Advertencia en telemetría para ${chipId}: ${data.ult_warn || data.msg}`);
                 await sendPushToDeviceOwners(chipId, {
                     title: "⚠️ Alerta Dosimat",
-                    body: data.ult_warn
+                    body: data.ult_warn || data.msg || "Dosis no realizada: la bomba de filtrado no estuvo encendida."
                 }, "dosis_no_realizada");
             }
 
             // 2. Transición a PAUSA
-            if (data.est === "PAUSA" && prevEstado.estado !== "PAUSA") {
+            if (data.evento_tipo === "sistema_pausa" || (data.est === "PAUSA" && prevEstado.estado !== "PAUSA")) {
                 console.log(`[FCM] Transición a PAUSA detectada para ${chipId}`);
                 await sendPushToDeviceOwners(chipId, {
                     title: "⏸️ Sistema en Pausa",
@@ -131,15 +131,24 @@ exports.mqttWebhook = functions.https.onRequest(async (req, res) => {
                 }, "sistema_pausa");
             }
 
-            // 3. Transición de DOSIS a IDLE o FILTRO (Dosis completada)
-            if (prevEstado.estado === "DOSIS" && (data.est === "IDLE" || data.est === "FILTRO_POST" || data.est === "FILTRO")) {
-                if (!data.ult_warn || data.ult_warn === prevEstado.ult_warn) {
+            // 3. Dosis completada
+            if (data.evento_tipo === "dosis_completada" || (prevEstado.estado === "DOSIS" && (data.est === "IDLE" || data.est === "FILTRO_POST" || data.est === "FILTRO"))) {
+                if (!data.ult_warn || data.ult_warn === prevEstado.ult_warn || data.evento_tipo === "dosis_completada") {
                     console.log(`[FCM] Dosis completada detectada para ${chipId}`);
                     await sendPushToDeviceOwners(chipId, {
                         title: "✅ Dosis Completada",
-                        body: "La dosificación de cloro programada ha finalizado con éxito."
+                        body: data.msg || "La dosificación de cloro programada ha finalizado con éxito."
                     }, "dosis_completada");
                 }
+            }
+
+            // 4. Refuerzo de temperatura
+            if (data.evento_tipo === "refuerzo_temp") {
+                console.log(`[FCM] Refuerzo por temperatura detectado para ${chipId}`);
+                await sendPushToDeviceOwners(chipId, {
+                    title: "🌡️ Refuerzo por Temperatura",
+                    body: data.msg || "Se ha programado una dosis reforzada preventiva por alta temperatura."
+                }, "refuerzo_temp");
             }
 
             console.log(`Estado de telemetría de ${chipId} escrito en Firestore.`);
