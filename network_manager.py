@@ -355,7 +355,55 @@ async def tarea_tx_queue():
                 except OSError as e:
                     print("[NET_TX] Error de socket publicando MQTT:", e)
                     mqtt_client = None
-                except Exception as e:
-                    print("[NET_TX] Error publicando telemetría MQTT:", e)
         feed_watchdog()
         await asyncio.sleep_ms(50)
+
+async def notificar_alerta_a_nube_async(tipo_evento, mensaje, extra_data=None):
+    """Envía un webhook HTTP asíncrono y no bloqueante a Firebase Cloud Functions para disparar push con la app cerrada"""
+    global wifi_conectado
+    if not wifi_conectado:
+        return
+    try:
+        host = "us-central1-dosimat-iot-v2.cloudfunctions.net"
+        path = "/mqttWebhook"
+        
+        payload_data = {
+            "est": getattr(dosimat_core, "estado_dosimat", "IDLE"),
+            "ult_warn": mensaje if tipo_evento == "warning" else "",
+            "evento_tipo": tipo_evento,
+            "msg": mensaje,
+            "ts": int(time.time())
+        }
+        if extra_data and isinstance(extra_data, dict):
+            payload_data.update(extra_data)
+            
+        post_body = json.dumps({
+            "topic": f"dosimat/{dosimat_core.chip_id}/telemetry",
+            "payload": {
+                "tipo": "TELEMETRIA",
+                "data": payload_data
+            }
+        })
+        
+        import usocket as socket
+        import ussl
+        addr = socket.getaddrinfo(host, 443)[0][-1]
+        s = socket.socket()
+        s.settimeout(4.0)
+        s.connect(addr)
+        s = ussl.wrap_socket(s, server_hostname=host)
+        
+        req = (
+            f"POST {path} HTTP/1.1\r\n"
+            f"Host: {host}\r\n"
+            f"Content-Type: application/json\r\n"
+            f"Content-Length: {len(post_body)}\r\n"
+            f"Connection: close\r\n\r\n"
+            f"{post_body}"
+        )
+        s.write(req.encode('utf-8'))
+        s.read(80)
+        s.close()
+        print(f"[CLOUD_NOTIF] Evento '{tipo_evento}' notificado a la nube exitosamente.")
+    except Exception as e:
+        print(f"[CLOUD_NOTIF] Aviso nube omitido ({e}).")

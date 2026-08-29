@@ -1997,7 +1997,14 @@ if (pDosisManual) {
 
 const pPausa = document.getElementById('panelPausa');
 if (pPausa) {
+    let lastPauseClickTs = 0;
     pPausa.onclick = () => {
+        const now = Date.now();
+        if (now - lastPauseClickTs < 1200) {
+            showToast("Espera un momento...");
+            return;
+        }
+        lastPauseClickTs = now;
         const isPausaOn = (globalEstadoDosificador === "PAUSA");
         if (isPausaOn) {
             sendCommand({ comando: "RESUME_CYCLE" });
