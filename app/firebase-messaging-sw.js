@@ -1,7 +1,58 @@
-// firebase-messaging-sw.js - Manejador de notificaciones Push en segundo plano para Dosimat IoT
+// firebase-messaging-sw.js - Service Worker unificado para PWA y Notificaciones Push FCM
 importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-compat.js');
 
+const CACHE_NAME = 'dosimat-iot-v2-cache-v6.79';
+const ASSETS = [
+  "./",
+  "./index.html",
+  "./app.js",
+  "./index.css",
+  "./manifest.json"
+];
+
+// === 1. CACHÉ PWA ===
+self.addEventListener("install", event => {
+  event.waitUntil(
+    caches.open(CACHE_NAME).then(cache => {
+      return cache.addAll(ASSETS);
+    })
+  );
+});
+
+self.addEventListener("message", event => {
+  if (event.data && event.data.type === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
+});
+
+self.addEventListener('activate', event => {
+  event.waitUntil(
+    caches.keys().then(cacheNames => {
+      return Promise.all(
+        cacheNames.map(cache => {
+          if (cache !== CACHE_NAME) {
+            return caches.delete(cache);
+          }
+        })
+      );
+    })
+  );
+});
+
+self.addEventListener("fetch", event => {
+  // Ignorar peticiones a Firebase, APIs u orígenes externos
+  if (!event.request.url.startsWith(self.location.origin)) {
+    return;
+  }
+  event.respondWith(
+    fetch(event.request).catch(() => {
+      return caches.match(event.request);
+    })
+  );
+});
+
+// === 2. FIREBASE CLOUD MESSAGING (PUSH) ===
 firebase.initializeApp({
   apiKey: "AIzaSyDrfjhqsAdkDbQFCXqzns6UF7JByccg5vw",
   authDomain: "dosimat-iot-v2.firebaseapp.com",
