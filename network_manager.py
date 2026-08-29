@@ -385,25 +385,58 @@ async def notificar_alerta_a_nube_async(tipo_evento, mensaje, extra_data=None):
             }
         })
         
-        import usocket as socket
-        import ussl
-        addr = socket.getaddrinfo(host, 443)[0][-1]
-        s = socket.socket()
-        s.settimeout(4.0)
-        s.connect(addr)
-        s = ussl.wrap_socket(s, server_hostname=host)
-        
-        req = (
-            f"POST {path} HTTP/1.1\r\n"
-            f"Host: {host}\r\n"
-            f"Content-Type: application/json\r\n"
-            f"Content-Length: {len(post_body)}\r\n"
-            f"Connection: close\r\n\r\n"
-            f"{post_body}"
-        )
-        s.write(req.encode('utf-8'))
-        s.read(80)
-        s.close()
+        enviado = False
+        try:
+            import urequests
+            url = f"https://{host}{path}"
+            headers = {'Content-Type': 'application/json'}
+            r = urequests.post(url, data=post_body, headers=headers)
+            r.close()
+            enviado = True
+        except Exception:
+            enviado = False
+
+        if not enviado:
+            try:
+                import ssl
+            except ImportError:
+                try:
+                    import tls as ssl
+                except ImportError:
+                    import ussl as ssl
+                    
+            try:
+                import socket
+            except ImportError:
+                import usocket as socket
+
+            addr = socket.getaddrinfo(host, 443)[0][-1]
+            s = socket.socket()
+            s.settimeout(6.0)
+            s.connect(addr)
+            
+            try:
+                if hasattr(ssl, "SSLContext"):
+                    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+                    ctx.verify_mode = ssl.CERT_NONE
+                    s = ctx.wrap_socket(s, server_hostname=host)
+                else:
+                    s = ssl.wrap_socket(s, server_hostname=host)
+            except Exception:
+                s = ssl.wrap_socket(s)
+                
+            req = (
+                f"POST {path} HTTP/1.1\r\n"
+                f"Host: {host}\r\n"
+                f"Content-Type: application/json\r\n"
+                f"Content-Length: {len(post_body)}\r\n"
+                f"Connection: close\r\n\r\n"
+                f"{post_body}"
+            )
+            s.write(req.encode('utf-8'))
+            s.read(80)
+            s.close()
+            
         print(f"[CLOUD_NOTIF] Evento '{tipo_evento}' notificado a la nube exitosamente.")
     except Exception as e:
         print(f"[CLOUD_NOTIF] Aviso nube omitido ({e}).")
