@@ -2542,12 +2542,38 @@ if (btnGuardarWifi) {
 }
 
 // === GESTIÓN DE NOTIFICACIONES PUSH (FCM) ===
+let isFcmForegroundListening = false;
 async function initPushNotifications() {
     actualizarUIEstadoNotificaciones();
     if (!('Notification' in window)) return;
 
     if (Notification.permission === 'granted' && currentUser) {
         await registrarTokenFCM();
+    }
+
+    if (messaging && !isFcmForegroundListening) {
+        isFcmForegroundListening = true;
+        onMessage(messaging, (payload) => {
+            console.log("[FCM] Notificación Push recibida en primer plano:", payload);
+            const title = (payload.notification && payload.notification.title) || (payload.data && payload.data.title) || "Alerta Dosimat";
+            const body = (payload.notification && payload.notification.body) || (payload.data && payload.data.body) || "";
+
+            if (Notification.permission === "granted") {
+                navigator.serviceWorker.ready.then(reg => {
+                    if (reg && reg.showNotification) {
+                        reg.showNotification(title, {
+                            body: body,
+                            icon: "/manifest.json",
+                            badge: "/manifest.json",
+                            data: payload.data || {},
+                            vibrate: [200, 100, 200]
+                        });
+                    }
+                }).catch(() => {});
+            }
+
+            showToast(`🔔 ${title}\n${body}`);
+        });
     }
 }
 
