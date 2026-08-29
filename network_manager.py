@@ -233,7 +233,21 @@ async def gestionar_interfaces_network():
         elif current_state == STATE_WIFI_CONNECTING:
             # Exclusión: Detener BLE antes de encender WiFi
             await ble_service.stop_ble_service()
-            wlan.active(True)
+            gc.collect()
+            await asyncio.sleep_ms(200)
+            
+            try:
+                if not wlan.active():
+                    wlan.active(True)
+            except Exception as e_wlan:
+                print("[WIFI] Reintentando activacion WLAN:", e_wlan)
+                gc.collect()
+                await asyncio.sleep_ms(300)
+                try:
+                    wlan.active(True)
+                except:
+                    pass
+                    
             gc.collect()
             
             success = await conectar_wifi_non_blocking(wlan)
