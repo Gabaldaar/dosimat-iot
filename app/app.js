@@ -1625,7 +1625,7 @@ function updateUI(raw_data) {
     const lblTemp = document.getElementById('lblTemp');
     const iconTemp = document.getElementById('iconTemp');
     if (lblTemp) {
-        lblTemp.innerText = temp !== null ? `${Number(temp).toFixed(1)}°C` : "--°C";
+        lblTemp.innerText = (globalTemp !== null && !isNaN(globalTemp)) ? `${Number(globalTemp).toFixed(1)}°C` : "--°C";
         if (globalTemp !== null && globalTemp >= 27 && globalTemp <= 30) {
             lblTemp.style.color = "var(--warning)";
             if (iconTemp) iconTemp.style.color = "var(--warning)";

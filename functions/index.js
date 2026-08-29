@@ -279,6 +279,25 @@ exports.onEstadoWrite = functions.firestore.document("equipos/{chipId}/estado/ac
         }
     }
 
+    if (nextData) {
+        // 1. Detección de advertencia en estado
+        if (nextData.ult_warn && (!prevData || prevData.ult_warn !== nextData.ult_warn)) {
+            console.log(`[FCM] onEstadoWrite detectó advertencia para ${chipId}: ${nextData.ult_warn}`);
+            await sendPushToDeviceOwners(chipId, {
+                title: "⚠️ Alerta Dosimat",
+                body: nextData.ult_warn
+            }, "dosis_no_realizada");
+        }
+        // 2. Detección de transición a Pausa
+        if (nextData.estado === "PAUSA" && (!prevData || prevData.estado !== "PAUSA")) {
+            console.log(`[FCM] onEstadoWrite detectó PAUSA para ${chipId}`);
+            await sendPushToDeviceOwners(chipId, {
+                title: "⏸️ Sistema en Pausa",
+                body: "El dosificador ha sido puesto en Pausa/Mantenimiento."
+            }, "sistema_pausa");
+        }
+    }
+
     if (!nextData || !nextData.comando_solicitado) return;
     
     // Si el timestamp es el mismo (o ambos no lo tienen y el comando es igual), salimos

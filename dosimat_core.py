@@ -269,11 +269,6 @@ async def procesar_comando(cmd_dict):
             abort_event.set()
             await sys_log.log_event({"msg": "Inicio de Pausa/Mantenimiento"})
             await enviar_telemetria()
-            try:
-                import network_manager
-                asyncio.create_task(network_manager.notificar_alerta_a_nube_async("sistema_pausa", "Inicio de Pausa/Mantenimiento"))
-            except Exception:
-                pass
             
     elif cmd == "RESUME_CYCLE":
         if estado_dosimat == "PAUSA":
@@ -630,11 +625,6 @@ async def dispenser_loop():
                     ultimo_evento_warning = "Ciclo detenido: Bomba apagada"
                     await sys_log.log_event({"tipo": "warning", "msg": "Ciclo detenido: Bomba apagada"})
                     await enviar_telemetria()
-                    try:
-                        import network_manager
-                        asyncio.create_task(network_manager.notificar_alerta_a_nube_async("warning", "Ciclo detenido: Bomba apagada"))
-                    except Exception:
-                        pass
                     break
                 try:
                     await asyncio.wait_for(abort_event.wait(), timeout=1.0)
@@ -684,11 +674,6 @@ async def dispenser_loop():
                     ultimo_evento_warning = "Ciclo detenido: Bomba apagada"
                     await sys_log.log_event({"tipo": "warning", "msg": "Ciclo detenido: Bomba apagada"})
                     await enviar_telemetria()
-                    try:
-                        import network_manager
-                        asyncio.create_task(network_manager.notificar_alerta_a_nube_async("warning", "Ciclo detenido: Bomba apagada"))
-                    except Exception:
-                        pass
                     break
                 try:
                     await asyncio.wait_for(abort_event.wait(), timeout=1.0)
@@ -705,11 +690,6 @@ async def dispenser_loop():
                 estado_dosimat = "FILTRO_POST"
                 await sys_log.log_event({"tipo": "dosis_ok", "msg": "Dosis completada con éxito"})
                 await enviar_telemetria()
-                try:
-                    import network_manager
-                    asyncio.create_task(network_manager.notificar_alerta_a_nube_async("dosis_completada", "Dosis completada con éxito"))
-                except Exception:
-                    pass
                 
         # ----------------------------------------------------
         # 3.5. ESTADO: FILTRO_POST (Limpieza de tuberías / Fin de ciclo)
