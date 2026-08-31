@@ -974,7 +974,7 @@ async function checkUserRole(user) {
 
     const btnLimpiarHistorial = document.getElementById('btnLimpiarHistorial');
     if (btnLimpiarHistorial) {
-        btnLimpiarHistorial.style.display = (isSuper || isTecnico) ? "inline-block" : "none";
+        btnLimpiarHistorial.style.display = "flex";
     }
 
     const techValveControl = document.getElementById('techValveControl');
@@ -2635,18 +2635,20 @@ if (btnLimpiarHistorial) {
     btnLimpiarHistorial.onclick = async () => {
         if (await customConfirm("¿Estás seguro de borrar todo el historial? Esto no se puede deshacer.", "Limpiar Historial")) {
             sendCommand({ comando: "CLEAR_LOGS" });
-            try {
-                const logsRef = collection(db, "equipos", currentMac, "logs");
-                const snapshot = await getDocs(logsRef);
-                for (const docSnap of snapshot.docs) {
-                    await deleteDoc(docSnap.ref);
-                }
-                const term = document.getElementById('logsTerminal');
-                if (term) term.innerHTML = "Historial limpiado.";
-                showToast("Historial borrado.");
-            } catch (e) {
-                console.error("Error borrando logs:", e);
+            currentLogsCache = [];
+            calcularDosis15Dias([]);
+            const container = document.getElementById('logsCardsContainer');
+            if (container) {
+                container.innerHTML = `
+                    <div class="historial-empty">
+                        <span class="material-symbols-outlined">delete_sweep</span>
+                        <div>Historial borrado.</div>
+                    </div>
+                `;
             }
+            const term = document.getElementById('logsTerminal');
+            if (term) term.innerText = "";
+            showToast("Historial borrado con éxito.");
         }
     };
 }
