@@ -96,7 +96,7 @@
     <header>
         <div class="header-title" style="align-items: flex-start; margin-top: 5px;">
             <div style="display: flex; flex-direction: column;">
-                <h1 style="margin-bottom: 0;"><span id="lblHeaderTitle">Dosimat IoT CB</span> <span style="font-size: 0.7rem; color: var(--accent); margin-left: 5px;">v6.93</span></h1>
+                <h1 style="margin-bottom: 0;"><span id="lblHeaderTitle">Dosimat IoT CB</span> <span style="font-size: 0.7rem; color: var(--accent); margin-left: 5px;">v6.94</span></h1>
                 <div id="lblUserName" style="font-size: 0.85rem; font-weight: 300; color: var(--text-muted); display: none;"></div>
             </div>
         </div>
@@ -312,79 +312,115 @@
 
     <!-- 2. Pantalla: Programación (Filtrado / Dosificación / Tiempos / Vacaciones) -->
     <div id="tab-programacion" class="container">
-        <!-- Parámetros de Tiempos del Dosificador -->
-        <div class="card">
-            <h2 style="display: flex; align-items: center; width: 100%;">
-                <span>Tiempos del Dosificador</span>
-                <span class="material-symbols-outlined btn-help" data-help="tiempos-dosificador">help</span>
-            </h2>
-            
-            <div class="form-group">
-                <label>Tiempo de Espera (Minutos y Segundos)</label>
-                <div class="time-inputs-wrapper">
-                    <input type="number" id="inpEsperaMin" min="0" max="599" value="1" placeholder="Min">
-                    <span>m</span>
-                    <input type="number" id="inpEsperaSeg" min="0" max="59" value="30" placeholder="Seg">
-                    <span>s</span>
-                </div>
-            </div>
 
-            <div class="form-group">
-                <label>Duración de Dosis (Minutos y Segundos)</label>
-                <div class="time-inputs-wrapper">
-                    <input type="number" id="inpDosisMin" min="0" max="59" value="1" placeholder="Min">
-                    <span>m</span>
-                    <input type="number" id="inpDosisSeg" min="0" max="59" value="30" placeholder="Seg">
-                    <span>s</span>
-                </div>
-            </div>
-
-            <div class="form-group">
-                <label>Ajuste por Temporada Baja: <span id="lblValAjusteBaja" style="font-weight: bold; color: var(--accent);">50%</span></label>
-                <div style="display: flex; align-items: center; gap: 0.75rem;">
-                    <span>0%</span>
-                    <input type="range" id="inpAjusteBaja" min="0" max="100" value="50" style="padding: 0; height: auto;">
-                    <span>100%</span>
-                </div>
-            </div>
-
-            <div class="row">
-                <div class="form-group">
-                    <label>Inicio Temporada Alta (DD-MM)</label>
-                    <div class="date-selects-wrapper">
-                        <select id="selectFVeranoDia"></select>
-                        <select id="selectFVeranoMes"></select>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label>Fin Temporada Alta (DD-MM)</label>
-                    <div class="date-selects-wrapper">
-                        <select id="selectFInviernoDia"></select>
-                        <select id="selectFInviernoMes"></select>
-                    </div>
-                </div>
-            </div>
-
-            <button class="btn" id="btnGuardarConfig" style="margin-top: 0.5rem;">Guardar Parámetros de Tiempos</button>
+        <!-- Sub-Navegación: Editor vs Calendario -->
+        <div class="subnav-container">
+            <button class="subnav-btn active" id="btnSubnavEditor" data-subtab="editor">
+                <span class="material-symbols-outlined">tune</span>
+                <span>Editor</span>
+            </button>
+            <button class="subnav-btn" id="btnSubnavCalendario" data-subtab="calendario">
+                <span class="material-symbols-outlined">calendar_month</span>
+                <span>Calendario</span>
+            </button>
         </div>
 
-        <!-- Cronograma de Horarios de Filtrado / Dosificación -->
-        <div class="card">
-            <h2 style="display: flex; align-items: center; width: 100%;">
-                <span id="lblTituloCronograma">Cronograma de Filtrado</span>
-                <span class="material-symbols-outlined btn-help" data-help="cronograma-filtrado">help</span>
-            </h2>
-            <p id="lblSubtituloCronograma" style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1rem;">Configura hasta 10 horarios diarios de filtrado y dosificación.</p>
-            
-            <div id="cronogramaContainer">
-                <!-- Se inyectan las filas dinámicamente -->
+        <!-- Vista 1: Editor de Cronograma y Parámetros -->
+        <div id="subtab-prog-editor">
+            <!-- Parámetros de Tiempos del Dosificador -->
+            <div class="card">
+                <h2 style="display: flex; align-items: center; width: 100%;">
+                    <span>Tiempos del Dosificador</span>
+                    <span class="material-symbols-outlined btn-help" data-help="tiempos-dosificador">help</span>
+                </h2>
+                
+                <div class="form-group">
+                    <label>Tiempo de Espera (Minutos y Segundos)</label>
+                    <div class="time-inputs-wrapper">
+                        <input type="number" id="inpEsperaMin" min="0" max="599" value="1" placeholder="Min">
+                        <span>m</span>
+                        <input type="number" id="inpEsperaSeg" min="0" max="59" value="30" placeholder="Seg">
+                        <span>s</span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Duración de Dosis (Minutos y Segundos)</label>
+                    <div class="time-inputs-wrapper">
+                        <input type="number" id="inpDosisMin" min="0" max="59" value="1" placeholder="Min">
+                        <span>m</span>
+                        <input type="number" id="inpDosisSeg" min="0" max="59" value="30" placeholder="Seg">
+                        <span>s</span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Ajuste por Temporada Baja: <span id="lblValAjusteBaja" style="font-weight: bold; color: var(--accent);">50%</span></label>
+                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                        <span>0%</span>
+                        <input type="range" id="inpAjusteBaja" min="0" max="100" value="50" style="padding: 0; height: auto;">
+                        <span>100%</span>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="form-group">
+                        <label>Inicio Temporada Alta (DD-MM)</label>
+                        <div class="date-selects-wrapper">
+                            <select id="selectFVeranoDia"></select>
+                            <select id="selectFVeranoMes"></select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Fin Temporada Alta (DD-MM)</label>
+                        <div class="date-selects-wrapper">
+                            <select id="selectFInviernoDia"></select>
+                            <select id="selectFInviernoMes"></select>
+                        </div>
+                    </div>
+                </div>
+
+                <button class="btn" id="btnGuardarConfig" style="margin-top: 0.5rem;">Guardar Parámetros de Tiempos</button>
             </div>
 
-            <div style="display: flex; flex-direction: column; gap: 0.50rem; margin-top: 1rem;">
-                <button class="btn outline" id="btnAgregarHorario">Agregar Horario</button>
-                <div style="display: flex; gap: 0.5rem;">
-                    <button class="btn outline" id="btnProgAuto" style="flex: 1;">Programa Automático</button>
-                    <button class="btn" id="btnGuardarCronograma" style="flex: 1;">Guardar Cronograma</button>
+            <!-- Cronograma de Horarios de Filtrado / Dosificación -->
+            <div class="card">
+                <h2 style="display: flex; align-items: center; width: 100%;">
+                    <span id="lblTituloCronograma">Cronograma de Filtrado</span>
+                    <span class="material-symbols-outlined btn-help" data-help="cronograma-filtrado">help</span>
+                </h2>
+                <p id="lblSubtituloCronograma" style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1rem;">Configura hasta 10 horarios diarios de filtrado y dosificación.</p>
+                
+                <div id="cronogramaContainer">
+                    <!-- Se inyectan las filas dinámicamente -->
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 0.50rem; margin-top: 1rem;">
+                    <button class="btn outline" id="btnAgregarHorario">Agregar Horario</button>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button class="btn outline" id="btnProgAuto" style="flex: 1;">Programa Automático</button>
+                        <button class="btn" id="btnGuardarCronograma" style="flex: 1;">Guardar Cronograma</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Vista 2: Calendario Semanal Visual -->
+        <div id="subtab-prog-calendario" style="display: none;">
+            <div class="card">
+                <div class="calendar-summary-header">
+                    <div class="calendar-title-group">
+                        <span class="material-symbols-outlined">calendar_month</span>
+                        <span>CRONOGRAMA SEMANAL</span>
+                    </div>
+                    <div class="calendar-week-badge" id="lblCalendarWeekSummary">0 min / sem</div>
+                </div>
+                <p style="color: var(--text-muted); font-size: 0.78rem; margin: -0.5rem 0 1rem 0;">
+                    Ventanas de filtrado y dosificación programadas para cada día de la semana.
+                </p>
+
+                <div class="calendar-days-list" id="calendarDaysContainer">
+                    <!-- Se renderizan los 7 días de LUNES a DOMINGO -->
                 </div>
             </div>
         </div>
@@ -787,6 +823,6 @@
         </div>
     </div>
 
-    <script type="module" src="app.js?v=6.94"></script>
+    <script type="module" src="app.js?v=6.95"></script>
 </body>
 </html>

@@ -2557,6 +2557,150 @@ function updateProgramasUI(data) {
     unsavedProgramasChanges = false;
     if (typeof renderModeloUI === "function") renderModeloUI();
     if (typeof updateSubtexto === 'function') updateSubtexto();
+    if (typeof renderCalendarView === 'function') renderCalendarView();
+}
+
+function renderCalendarView() {
+    const container = document.getElementById('calendarDaysContainer');
+    const lblSummary = document.getElementById('lblCalendarWeekSummary');
+    if (!container) return;
+
+    const programasList = (typeof obtenerListaProgramas === "function") ? obtenerListaProgramas() : [];
+    const dayNames = ["LUNES", "MARTES", "MIÉRCOLES", "JUEVES", "VIERNES", "SÁBADO", "DOMINGO"];
+    const todayIndex = (new Date().getDay() + 6) % 7; // 0 = Lunes, ..., 6 = Domingo
+
+    let totalSemanalFiltroMin = 0;
+    let totalSemanalDosisCount = 0;
+
+    container.innerHTML = "";
+
+    dayNames.forEach((dName, dayIdx) => {
+        const isToday = (dayIdx === todayIndex);
+        const dayCard = document.createElement('div');
+        dayCard.className = `calendar-day-card ${isToday ? 'is-today' : ''}`;
+
+        const dayEvents = [];
+        programasList.forEach(p => {
+            if (p.dias && p.dias.includes(dayIdx.toString()) && p.duracion > 0) {
+                dayEvents.push(p);
+            }
+        });
+
+        dayEvents.sort((a, b) => (a.on || "").localeCompare(b.on || ""));
+
+        let dayFiltroMin = 0;
+        let dayDosisCount = 0;
+
+        dayEvents.forEach(e => {
+            dayFiltroMin += e.duracion;
+            if (e.dosifica) dayDosisCount++;
+        });
+
+        totalSemanalFiltroMin += dayFiltroMin;
+        totalSemanalDosisCount += dayDosisCount;
+
+        let dayTotalsText = "0 min";
+        if (dayEvents.length > 0) {
+            if (globalModelo === "SCB") {
+                dayTotalsText = `${dayDosisCount} ${dayDosisCount === 1 ? 'dosis' : 'dosis'}`;
+            } else {
+                const horas = Math.floor(dayFiltroMin / 60);
+                const mins = dayFiltroMin % 60;
+                let filtroStr = (horas > 0) ? `${horas}h ${mins > 0 ? mins + 'm' : ''}` : `${mins}m`;
+                dayTotalsText = `${filtroStr} filtrado`;
+                if (dayDosisCount > 0) {
+                    dayTotalsText += ` · ${dayDosisCount} ${dayDosisCount === 1 ? 'dosis' : 'dosis'}`;
+                }
+            }
+        }
+
+        let eventsHTML = "";
+        if (dayEvents.length === 0) {
+            eventsHTML = `<div class="calendar-empty-day">Sin programación activa</div>`;
+        } else {
+            dayEvents.forEach(e => {
+                const isDosis = !!e.dosifica;
+                let typeText = "";
+                let typeIcon = "autorenew";
+                let itemClass = "filtro-only";
+
+                if (globalModelo === "SCB") {
+                    typeText = "Dosis de Cloro";
+                    typeIcon = "water_drop";
+                    itemClass = "dosis";
+                } else {
+                    if (isDosis) {
+                        typeText = "Dosis + Filtrado";
+                        typeIcon = "water_drop";
+                        itemClass = "dosis";
+                    } else {
+                        typeText = "Solo Filtrado";
+                        typeIcon = "autorenew";
+                        itemClass = "filtro-only";
+                    }
+                }
+
+                eventsHTML += `
+                    <div class="calendar-event-item ${itemClass}">
+                        <div class="calendar-event-type">
+                            <span class="material-symbols-outlined">${typeIcon}</span>
+                            <span>${typeText}</span>
+                        </div>
+                        <div class="calendar-event-time">
+                            <span class="material-symbols-outlined">schedule</span>
+                            <span>${e.on} (${e.duracion} min)</span>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        dayCard.innerHTML = `
+            <div class="calendar-day-header">
+                <div class="calendar-day-name">
+                    <span>${dName}</span>
+                    ${isToday ? '<span class="badge-today">HOY</span>' : ''}
+                </div>
+                <div class="calendar-day-totals">${dayTotalsText}</div>
+            </div>
+            <div class="calendar-day-events">
+                ${eventsHTML}
+            </div>
+        `;
+        container.appendChild(dayCard);
+    });
+
+    if (lblSummary) {
+        if (globalModelo === "SCB") {
+            lblSummary.innerText = `${totalSemanalDosisCount} dosis / sem`;
+        } else {
+            const hTotal = (totalSemanalFiltroMin / 60).toFixed(1).replace('.0', '');
+            lblSummary.innerText = `${hTotal} h filtrado · ${totalSemanalDosisCount} dosis / sem`;
+        }
+    }
+}
+
+// Sub-Navegación Programación (Editor vs Calendario)
+const btnSubnavEditor = document.getElementById('btnSubnavEditor');
+const btnSubnavCalendario = document.getElementById('btnSubnavCalendario');
+const subtabProgEditor = document.getElementById('subtab-prog-editor');
+const subtabProgCalendario = document.getElementById('subtab-prog-calendario');
+
+if (btnSubnavEditor && btnSubnavCalendario) {
+    btnSubnavEditor.onclick = () => {
+        btnSubnavEditor.classList.add('active');
+        btnSubnavCalendario.classList.remove('active');
+        if (subtabProgEditor) subtabProgEditor.style.display = 'block';
+        if (subtabProgCalendario) subtabProgCalendario.style.display = 'none';
+    };
+
+    btnSubnavCalendario.onclick = () => {
+        btnSubnavCalendario.classList.add('active');
+        btnSubnavEditor.classList.remove('active');
+        if (subtabProgCalendario) subtabProgCalendario.style.display = 'block';
+        if (subtabProgEditor) subtabProgEditor.style.display = 'none';
+        renderCalendarView();
+    };
 }
 
 const btnAgregarHorario = document.getElementById('btnAgregarHorario');
