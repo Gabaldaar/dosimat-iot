@@ -96,7 +96,7 @@
     <header>
         <div class="header-title" style="align-items: flex-start; margin-top: 5px;">
             <div style="display: flex; flex-direction: column;">
-                <h1 style="margin-bottom: 0;"><span id="lblHeaderTitle">Dosimat IoT CB</span> <span style="font-size: 0.7rem; color: var(--accent); margin-left: 5px;">v6.86</span></h1>
+                <h1 style="margin-bottom: 0;"><span id="lblHeaderTitle">Dosimat IoT CB</span> <span style="font-size: 0.7rem; color: var(--accent); margin-left: 5px;">v6.75</span></h1>
                 <div id="lblUserName" style="font-size: 0.85rem; font-weight: 300; color: var(--text-muted); display: none;"></div>
             </div>
         </div>
@@ -417,56 +417,6 @@
             </div>
             <button class="btn outline" id="btnGuardarWifi">Registrar Red WiFi</button>
         </div>
-
-        <!-- Tarjeta de Notificaciones Push -->
-        <div class="card" id="cardNotificacionesPush">
-            <h2 style="display: flex; align-items: center; width: 100%; justify-content: space-between;">
-                <span style="display: flex; align-items: center; gap: 8px;">
-                    <span class="material-symbols-outlined" style="color: var(--accent);">notifications_active</span>
-                    <span>Notificaciones en el Móvil</span>
-                </span>
-                <span class="material-symbols-outlined btn-help" data-help="notificaciones-push">help</span>
-            </h2>
-            <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1rem;">
-                Recibe alertas en tu teléfono incluso con la aplicación cerrada.
-            </p>
-
-            <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.75rem; background: var(--bg-color); border-radius: 8px; border: 1px solid var(--card-border); margin-bottom: 1rem;">
-                <div>
-                    <strong style="font-size: 0.95rem;">Activar en este dispositivo</strong>
-                    <div id="lblEstadoPermisoNotif" style="font-size: 0.75rem; color: var(--text-muted);">Verificando permisos...</div>
-                </div>
-                <button id="btnHabilitarNotif" class="btn" style="width: auto; padding: 0.4rem 0.8rem; font-size: 0.82rem;">Habilitar</button>
-            </div>
-
-            <div id="panelOpcionesNotif" style="display: flex; flex-direction: column; gap: 0.75rem;">
-                <label style="display: flex; align-items: center; justify-content: space-between; font-size: 0.9rem; cursor: pointer;">
-                    <span>⚠️ Dosis no realizada (bomba apagada)</span>
-                    <input type="checkbox" id="chkNotifDosisNoRealizada" checked style="width: 18px; height: 18px; accent-color: var(--accent);">
-                </label>
-                <label style="display: flex; align-items: center; justify-content: space-between; font-size: 0.9rem; cursor: pointer;">
-                    <span>🌡️ Refuerzo por alta temperatura</span>
-                    <input type="checkbox" id="chkNotifRefuerzoTemp" checked style="width: 18px; height: 18px; accent-color: var(--accent);">
-                </label>
-                <label style="display: flex; align-items: center; justify-content: space-between; font-size: 0.9rem; cursor: pointer;">
-                    <span>✅ Dosis completada</span>
-                    <input type="checkbox" id="chkNotifDosisCompletada" checked style="width: 18px; height: 18px; accent-color: var(--accent);">
-                </label>
-                <label style="display: flex; align-items: center; justify-content: space-between; font-size: 0.9rem; cursor: pointer;">
-                    <span>🚫 Próxima dosis anulada</span>
-                    <input type="checkbox" id="chkNotifDosisAnulada" checked style="width: 18px; height: 18px; accent-color: var(--accent);">
-                </label>
-                <label style="display: flex; align-items: center; justify-content: space-between; font-size: 0.9rem; cursor: pointer;">
-                    <span>⏸️ Sistema en Pausa / Mantenimiento</span>
-                    <input type="checkbox" id="chkNotifSistemaPausa" checked style="width: 18px; height: 18px; accent-color: var(--accent);">
-                </label>
-                
-                <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem; flex-wrap: wrap;">
-                    <button class="btn outline" id="btnGuardarPreferenciasNotif" style="flex: 1; min-width: 160px;">Guardar Preferencias</button>
-                    <button class="btn outline" id="btnProbarNotif" style="flex: 1; min-width: 160px; border-color: var(--accent); color: var(--accent);">🧪 Probar Notificación</button>
-                </div>
-            </div>
-        </div>
     </div>
 
     <!-- 4. Pantalla: Logs e Historial -->
@@ -741,6 +691,6 @@
         </div>
     </div>
 
-    <script type="module" src="app.js?v=6.87"></script>
+    <script type="module" src="app.js?v=6.77"></script>
 </body>
 </html>

@@ -111,22 +111,8 @@ class MQTTClient:
             s.connect(addr)
             
             if self.ssl:
-                try:
-                    import ssl
-                except ImportError:
-                    try:
-                        import tls as ssl
-                    except ImportError:
-                        import ussl as ssl
-                try:
-                    if hasattr(ssl, "SSLContext"):
-                        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-                        ctx.verify_mode = ssl.CERT_NONE
-                        s = ctx.wrap_socket(s, server_hostname=self.server)
-                    else:
-                        s = ssl.wrap_socket(s, server_hostname=self.server)
-                except Exception:
-                    s = ssl.wrap_socket(s)
+                import ussl
+                s = ussl.wrap_socket(s, **self.ssl_params)
                 
             self.sock = SockWrapper(s)
             self.sock.settimeout(5.0)

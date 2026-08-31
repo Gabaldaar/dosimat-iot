@@ -1,7 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, GoogleAuthProvider, signInWithPopup, updateProfile } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, collection, addDoc, deleteDoc, getDocs, query, where, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging.js";
 
 window.onerror = function (msg, url, lineNo, columnNo, error) {
     const errorMsg = `Error: ${msg}\nLínea: ${lineNo}\nArchivo: ${url}`;
@@ -27,12 +26,6 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-let messaging = null;
-try {
-    messaging = getMessaging(app);
-} catch (e) {
-    console.warn("FCM no disponible en este entorno:", e);
-}
 
 // === ESTADO GLOBAL DE LA APLICACIÓN ===
 var currentUser = null;
@@ -321,16 +314,6 @@ const HELP_TOPICS = {
             "• Elige entre 'CB' (Con Control de Bomba) o 'SCB' (Sin Control de Bomba).\n" +
             "• Si estás usando el teléfono del cliente o sin sesión iniciada, pulsa '🔑 Desbloquear con PIN' e ingresa el PIN maestro.\n" +
             "• Presiona 'Guardar Modelo de Placa' y confirma."
-    },
-    "notificaciones-push": {
-        title: "Notificaciones en el Móvil",
-        text: "Configura qué avisos deseas recibir en tu teléfono:\n\n" +
-            "• ⚠️ Dosis no realizada: Alerta si la bomba estuvo apagada durante el horario programado.\n" +
-            "• 🌡️ Refuerzo por temperatura: Notifica cuando se programa una dosis doble por alta temperatura.\n" +
-            "• ✅ Dosis completada: Confirma la finalización exitosa de cada dosificación.\n" +
-            "• 🚫 Próxima dosis anulada: Notifica cancelaciones de dosis.\n" +
-            "• ⏸️ Sistema en Pausa: Advierte cuando el equipo entra en modo de mantenimiento o pausa.\n\n" +
-            "En iPhone/iPad (iOS), debes tener agregada la app a la Pantalla de Inicio para recibir notificaciones."
     }
 };
 
@@ -1026,8 +1009,6 @@ onAuthStateChanged(auth, async (user) => {
         }
 
         checkUserRole(user);
-        initPushNotifications();
-        cargarPreferenciasNotificaciones();
 
         // Ensure root document exists so it can be queried by getDocs(collection(db, "usuarios"))
         const uDocRef = doc(db, "usuarios", user.uid);
@@ -1382,19 +1363,6 @@ function connectNube() {
                 if (modoConexion !== "BLE") {
                     setConexionModo("NUBE", innerData.wifi_ssid || innerData.ssid || "");
                     updateUI(data);
-
-                    if (currentMac) {
-                        try {
-                            const estObj = {
-                                estado: innerData.est || innerData.estado || "IDLE",
-                                ult_warn: innerData.ult_warn || "",
-                                bomba_on: innerData.bomba_on !== undefined ? Number(innerData.bomba_on) : 0,
-                                ultima_sincronizacion: Date.now()
-                            };
-                            setDoc(doc(db, "equipos", currentMac, "estado", "actual"), estObj, { merge: true })
-                                .catch(() => {});
-                        } catch (err) {}
-                    }
                 }
             } else if (topic === `dosimat/${currentMac}/config`) {
                 updateConfigUI(innerData);
@@ -1404,18 +1372,7 @@ function connectNube() {
                 if (Array.isArray(innerData)) {
                     renderLogsList(innerData);
                 } else {
-                    const logObj = (typeof innerData === 'object') ? innerData : { msg: String(innerData), ts: Date.now() };
                     appendLogToTerminal(typeof innerData === 'string' ? innerData : JSON.stringify(innerData));
-
-                    if (currentMac && logObj.msg) {
-                        try {
-                            const logId = String(logObj.ts || Date.now());
-                            setDoc(doc(db, "equipos", currentMac, "logs", logId), {
-                                ...logObj,
-                                timestamp: Date.now()
-                            }, { merge: true }).catch(() => {});
-                        } catch (err) {}
-                    }
                 }
             }
         } catch (e) {
@@ -1625,7 +1582,7 @@ function updateUI(raw_data) {
     const lblTemp = document.getElementById('lblTemp');
     const iconTemp = document.getElementById('iconTemp');
     if (lblTemp) {
-        lblTemp.innerText = (globalTemp !== null && !isNaN(globalTemp)) ? `${Number(globalTemp).toFixed(1)}°C` : "--°C";
+        lblTemp.innerText = temp !== null ? `${Number(temp).toFixed(1)}°C` : "--°C";
         if (globalTemp !== null && globalTemp >= 27 && globalTemp <= 30) {
             lblTemp.style.color = "var(--warning)";
             if (iconTemp) iconTemp.style.color = "var(--warning)";
@@ -2021,14 +1978,7 @@ if (pDosisManual) {
 
 const pPausa = document.getElementById('panelPausa');
 if (pPausa) {
-    let lastPauseClickTs = 0;
     pPausa.onclick = () => {
-        const now = Date.now();
-        if (now - lastPauseClickTs < 1200) {
-            showToast("Espera un momento...");
-            return;
-        }
-        lastPauseClickTs = now;
         const isPausaOn = (globalEstadoDosificador === "PAUSA");
         if (isPausaOn) {
             sendCommand({ comando: "RESUME_CYCLE" });
@@ -2539,224 +2489,6 @@ if (btnGuardarWifi) {
         sendCommand({ comando: "SET_WIFI", ssid: ssid, pwd: pwd });
         showToast("Datos de WiFi enviados al equipo.");
     };
-}
-
-// === GESTIÓN DE NOTIFICACIONES PUSH (FCM) ===
-let isFcmForegroundListening = false;
-async function initPushNotifications() {
-    actualizarUIEstadoNotificaciones();
-    if (!('Notification' in window)) return;
-
-    if (Notification.permission === 'granted' && currentUser) {
-        await registrarTokenFCM();
-    }
-
-    if (messaging && !isFcmForegroundListening) {
-        isFcmForegroundListening = true;
-        onMessage(messaging, (payload) => {
-            console.log("[FCM] Notificación Push recibida en primer plano:", payload);
-            const title = (payload.notification && payload.notification.title) || (payload.data && payload.data.title) || "Alerta Dosimat";
-            const body = (payload.notification && payload.notification.body) || (payload.data && payload.data.body) || "";
-
-            if (Notification.permission === "granted") {
-                navigator.serviceWorker.ready.then(reg => {
-                    if (reg && reg.showNotification) {
-                        reg.showNotification(title, {
-                            body: body,
-                            icon: "/icon-192.png",
-                            badge: "/icon-192.png",
-                            data: payload.data || {},
-                            vibrate: [200, 100, 200]
-                        });
-                    }
-                }).catch(() => {});
-            }
-
-            showToast(`🔔 ${title}\n${body}`);
-        });
-    }
-}
-
-function actualizarUIEstadoNotificaciones() {
-    const lblEstado = document.getElementById('lblEstadoPermisoNotif');
-    const btnHabilitar = document.getElementById('btnHabilitarNotif');
-    if (!lblEstado || !btnHabilitar) return;
-
-    if (!('Notification' in window) || !('serviceWorker' in navigator)) {
-        lblEstado.innerText = "No soportado en este navegador.";
-        lblEstado.style.color = "var(--text-muted)";
-        btnHabilitar.style.display = "none";
-        return;
-    }
-
-    if (Notification.permission === 'granted') {
-        lblEstado.innerText = "✅ Notificaciones activas en este dispositivo.";
-        lblEstado.style.color = "var(--success)";
-        btnHabilitar.innerText = "Actualizar";
-        btnHabilitar.className = "btn outline";
-        btnHabilitar.style.display = "inline-block";
-    } else if (Notification.permission === 'denied') {
-        lblEstado.innerText = "❌ Bloqueadas en el navegador.";
-        lblEstado.style.color = "var(--danger)";
-        btnHabilitar.style.display = "none";
-    } else {
-        lblEstado.innerText = "⚠️ No activadas. Toca Habilitar.";
-        lblEstado.style.color = "var(--warning)";
-        btnHabilitar.innerText = "Habilitar";
-        btnHabilitar.className = "btn";
-        btnHabilitar.style.display = "inline-block";
-    }
-}
-
-async function registrarTokenFCM() {
-    if (!currentUser) return null;
-    try {
-        if (!('serviceWorker' in navigator)) {
-            throw new Error("Service Worker no disponible en este navegador.");
-        }
-        const swReg = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
-        await navigator.serviceWorker.ready;
-
-        if (messaging) {
-            const token = await getToken(messaging, { serviceWorkerRegistration: swReg });
-            if (token) {
-                console.log("[FCM] Token obtenido:", token);
-                await setDoc(doc(db, "usuarios", currentUser.uid, "fcm_tokens", token.substring(0, 30)), {
-                    token: token,
-                    userAgent: navigator.userAgent,
-                    updatedAt: Date.now()
-                }, { merge: true });
-                return token;
-            }
-        }
-    } catch (e) {
-        console.error("[FCM] Error registrando token FCM:", e);
-        throw e;
-    }
-    return null;
-}
-
-async function solicitarPermisoNotificaciones() {
-    if (!('Notification' in window)) {
-        customAlert("Tu navegador o sistema operativo no soporta notificaciones push.\n\nSi estás en un iPhone/iPad (iOS), debes primero 'Agregar a Pantalla de Inicio' desde el menú Compartir de Safari.", "Notificaciones");
-        return;
-    }
-
-    try {
-        const permission = await Notification.requestPermission();
-        actualizarUIEstadoNotificaciones();
-        if (permission === 'granted') {
-            try {
-                await registrarTokenFCM();
-                showToast("🎉 Notificaciones activadas y registradas con éxito.");
-            } catch (errToken) {
-                customAlert("Permiso concedido, pero ocurrió un detalle registrando el token del dispositivo:\n" + (errToken.message || errToken), "Registro FCM");
-            }
-        } else if (permission === 'denied') {
-            customAlert("Has bloqueado las notificaciones. Para recibirlas, ve a los ajustes de tu navegador y permite las notificaciones para este sitio.", "Permisos Bloqueados");
-        }
-    } catch (e) {
-        console.error("Error solicitando permisos:", e);
-        customAlert("Error solicitando permisos: " + e.message, "Error");
-    }
-}
-
-async function probarNotificacionLocal() {
-    if (!('Notification' in window)) {
-        customAlert("Tu navegador no soporta notificaciones.");
-        return;
-    }
-
-    if (Notification.permission !== 'granted') {
-        const perm = await Notification.requestPermission();
-        actualizarUIEstadoNotificaciones();
-        if (perm !== 'granted') {
-            customAlert("Debes permitir las notificaciones para probarlas.");
-            return;
-        }
-    }
-
-    try {
-        const swReg = await navigator.serviceWorker.ready;
-        if (swReg && swReg.showNotification) {
-            await swReg.showNotification("⚠️ Alerta Dosimat (Prueba)", {
-                body: "¡Prueba exitosa! Las notificaciones push en tu teléfono están configuradas correctamente.",
-                icon: "/manifest.json",
-                badge: "/manifest.json",
-                vibrate: [200, 100, 200]
-            });
-            showToast("Notificación de prueba enviada.");
-        } else {
-            new Notification("⚠️ Alerta Dosimat (Prueba)", {
-                body: "¡Prueba exitosa! Las notificaciones funcionan en tu teléfono.",
-                icon: "/manifest.json"
-            });
-        }
-    } catch (e) {
-        console.error("Error enviando notificación de prueba:", e);
-        customAlert("Error al disparar la notificación de prueba: " + e.message, "Prueba");
-    }
-}
-
-async function cargarPreferenciasNotificaciones() {
-    if (!currentUser) return;
-    try {
-        const snap = await getDoc(doc(db, "usuarios", currentUser.uid, "config_notificaciones", "actual"));
-        const data = snap.exists() ? snap.data() : {};
-
-        const chkDosisNo = document.getElementById('chkNotifDosisNoRealizada');
-        const chkRefuerzo = document.getElementById('chkNotifRefuerzoTemp');
-        const chkDosisOk = document.getElementById('chkNotifDosisCompletada');
-        const chkAnulada = document.getElementById('chkNotifDosisAnulada');
-        const chkPausa = document.getElementById('chkNotifSistemaPausa');
-
-        if (chkDosisNo) chkDosisNo.checked = (data.dosis_no_realizada !== false);
-        if (chkRefuerzo) chkRefuerzo.checked = (data.refuerzo_temp !== false);
-        if (chkDosisOk) chkDosisOk.checked = (data.dosis_completada !== false);
-        if (chkAnulada) chkAnulada.checked = (data.dosis_anulada !== false);
-        if (chkPausa) chkPausa.checked = (data.sistema_pausa !== false);
-    } catch (e) {
-        console.warn("Error cargando preferencias de notificaciones:", e);
-    }
-}
-
-async function guardarPreferenciasNotificaciones() {
-    if (!currentUser) {
-        customAlert("Debes iniciar sesión para guardar preferencias.");
-        return;
-    }
-
-    const prefs = {
-        notificaciones_activas: true,
-        dosis_no_realizada: !!document.getElementById('chkNotifDosisNoRealizada')?.checked,
-        refuerzo_temp: !!document.getElementById('chkNotifRefuerzoTemp')?.checked,
-        dosis_completada: !!document.getElementById('chkNotifDosisCompletada')?.checked,
-        dosis_anulada: !!document.getElementById('chkNotifDosisAnulada')?.checked,
-        sistema_pausa: !!document.getElementById('chkNotifSistemaPausa')?.checked,
-        updatedAt: Date.now()
-    };
-
-    try {
-        await setDoc(doc(db, "usuarios", currentUser.uid, "config_notificaciones", "actual"), prefs, { merge: true });
-        showToast("Preferencias de notificaciones guardadas.");
-    } catch (e) {
-        showToast("Error guardando preferencias: " + e.message, true);
-    }
-}
-
-const btnHabilitarNotif = document.getElementById('btnHabilitarNotif');
-if (btnHabilitarNotif) {
-    btnHabilitarNotif.onclick = () => solicitarPermisoNotificaciones();
-}
-
-const btnGuardarPreferenciasNotif = document.getElementById('btnGuardarPreferenciasNotif');
-if (btnGuardarPreferenciasNotif) {
-    btnGuardarPreferenciasNotif.onclick = () => guardarPreferenciasNotificaciones();
-}
-
-const btnProbarNotif = document.getElementById('btnProbarNotif');
-if (btnProbarNotif) {
-    btnProbarNotif.onclick = () => probarNotificacionLocal();
 }
 
 // === HISTORIAL / LOGS DEL SISTEMA ===
@@ -3777,7 +3509,7 @@ window.addEventListener('appinstalled', () => {
 // ==========================================
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/firebase-messaging-sw.js')
+        navigator.serviceWorker.register('service-worker.js')
             .then(reg => {
                 console.log('Service Worker registrado con éxito:', reg.scope);
 

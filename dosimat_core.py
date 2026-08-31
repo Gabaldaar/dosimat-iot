@@ -688,7 +688,6 @@ async def dispenser_loop():
                 config_ref["refuerzo_activo"] = False
                 await config_manager.guardar_configuracion(config_ref)
                 estado_dosimat = "FILTRO_POST"
-                await sys_log.log_event({"tipo": "dosis_ok", "msg": "Dosis completada con éxito"})
                 await enviar_telemetria()
                 
         # ----------------------------------------------------

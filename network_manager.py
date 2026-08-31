@@ -24,12 +24,9 @@ mqtt_client = None
 mqtt_loop_task = None
 ventana_fallback_ble_s = 180  # 3 minutos de BLE antes de reintentar WiFi
 
-# Servidor MQTT de alta velocidad (Ligero, sin sobrecarga TLS)
+# Servidor MQTT de prueba (se reemplazará en la integración final)
 MQTT_BROKER = "broker.hivemq.com"
 MQTT_PORT = 1883
-MQTT_USER = None
-MQTT_PASS = None
-MQTT_SSL = False
 
 def get_state_name():
     states = {
@@ -155,11 +152,7 @@ async def conectar_wifi_non_blocking(wlan):
         return False
 
     print(f"[WIFI] Conectando a AP: {ssid}...")
-    try:
-        if not wlan.isconnected():
-            wlan.connect(ssid, password)
-    except OSError as e:
-        print("[WIFI] Aviso al iniciar conexión:", e)
+    wlan.connect(ssid, password)
     
     # Bucle de espera no bloqueante de 15 segundos máximo (30 * 500ms)
     for _ in range(30):
@@ -240,21 +233,7 @@ async def gestionar_interfaces_network():
         elif current_state == STATE_WIFI_CONNECTING:
             # Exclusión: Detener BLE antes de encender WiFi
             await ble_service.stop_ble_service()
-            gc.collect()
-            await asyncio.sleep_ms(200)
-            
-            try:
-                if not wlan.active():
-                    wlan.active(True)
-            except Exception as e_wlan:
-                print("[WIFI] Reintentando activacion WLAN:", e_wlan)
-                gc.collect()
-                await asyncio.sleep_ms(300)
-                try:
-                    wlan.active(True)
-                except:
-                    pass
-                    
+            wlan.active(True)
             gc.collect()
             
             success = await conectar_wifi_non_blocking(wlan)
@@ -372,6 +351,11 @@ async def tarea_tx_queue():
                     gc.collect()
                 except MemoryError:
                     print("[NET_TX] Memoria insuficiente temporal para publicar MQTT. Reclamando RAM...")
+                    gc.collect()
+                except OSError as e:
+                    print("[NET_TX] Error de socket publicando MQTT:", e)
+                    mqtt_client = None
+                except Exception as e:
+                    print("[NET_TX] Error publicando telemetría MQTT:", e)
         feed_watchdog()
         await asyncio.sleep_ms(50)
-
