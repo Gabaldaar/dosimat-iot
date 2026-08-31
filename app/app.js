@@ -4858,7 +4858,8 @@ async function ensureProAuth() {
 let proUnsubs = {
     orders: null,
     sheets: null,
-    client: null
+    client: null,
+    tx: null
 };
 
 function setupProRealtimeListeners(clientId) {
@@ -4881,7 +4882,6 @@ function setupProRealtimeListeners(clientId) {
             renderDosimatProUI();
         }, (err) => {
             console.warn("onSnapshot client_requests aviso:", err);
-            // Fallback manual si fallase el snapshot
             loadProClientOrders(clientId);
         });
     } catch (e) {
@@ -4896,7 +4896,7 @@ function setupProRealtimeListeners(clientId) {
         const qSheets = query(
             collection(proDb, "route_sheets"),
             where("participantClientIds", "array-contains", clientId),
-            where("status", "in", ["planned", "active"])
+            where("status", "in", ["planned", "active", "completed"])
         );
         proUnsubs.sheets = onSnapshot(qSheets, (snap) => {
             if (!snap.empty) {
@@ -4912,15 +4912,123 @@ function setupProRealtimeListeners(clientId) {
                     cloro: Number(item?.plannedChlorine || 0),
                     acido: Number(item?.plannedAcid || 0)
                 };
+
+                if (item && item.isDelivered) {
+                    proClientState.deliverySheetItem = {
+                        sheetId: sheet.id,
+                        sheetDate: sheet.date,
+                        isDelivered: true,
+                        realChlorine: Number(item.realChlorine || item.plannedChlorine || 0)
+                    };
+                }
             } else {
                 proClientState.deliveryLocked = false;
             }
             renderDosimatProUI();
+            checkAndSyncProRefillToBidon();
         }, (err) => {
             console.warn("onSnapshot route_sheets aviso:", err);
         });
     } catch (e) {
         console.warn("setup listener sheets err:", e);
+    }
+
+    // 3. Listener de Transacciones (transactions)
+    if (proUnsubs.tx) {
+        try { proUnsubs.tx(); } catch(e){}
+    }
+    try {
+        const qTx = query(
+            collection(proDb, "transactions"),
+            where("clientId", "==", clientId)
+        );
+        proUnsubs.tx = onSnapshot(qTx, (snap) => {
+            proClientState.transactions = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => {
+                return new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime();
+            });
+            renderDosimatProUI();
+            checkAndSyncProRefillToBidon();
+        }, (err) => {
+            console.warn("onSnapshot transactions aviso:", err);
+        });
+    } catch (e) {
+        console.warn("setup listener tx err:", e);
+    }
+}
+
+function checkAndSyncProRefillToBidon() {
+    if (!proClientState.isLinked || !proClientState.clientDoc) return;
+
+    let latestDelivery = null;
+
+    // A. Buscar en transacciones de tipo refill / Reposición
+    if (proClientState.transactions && proClientState.transactions.length > 0) {
+        const refillTx = proClientState.transactions.find(t => t.type === 'refill' || t.type === 'Reposición');
+        if (refillTx && refillTx.date) {
+            const dateOnly = String(refillTx.date).split('T')[0];
+            const cantCloro = Number(refillTx.cloro ?? refillTx.chlorine ?? refillTx.cantBidones ?? 0);
+            latestDelivery = {
+                id: refillTx.id || `tx_${dateOnly}`,
+                date: dateOnly,
+                cloro: cantCloro > 0 ? cantCloro : (bidonConfig.totalBidones || 1),
+                source: "transacción"
+            };
+        }
+    }
+
+    // B. Buscar en hoja de ruta si hay un item marcado como entregado (isDelivered: true)
+    if (proClientState.deliverySheetItem && proClientState.deliverySheetItem.isDelivered) {
+        const item = proClientState.deliverySheetItem;
+        const dateOnly = String(item.sheetDate || '').split('T')[0];
+        const cantCloro = Number(item.realChlorine || item.plannedChlorine || 0);
+        if (dateOnly && (!latestDelivery || new Date(dateOnly + 'T12:00:00') >= new Date(latestDelivery.date + 'T12:00:00'))) {
+            latestDelivery = {
+                id: `sheet_${item.sheetId}_${dateOnly}`,
+                date: dateOnly,
+                cloro: cantCloro > 0 ? cantCloro : (bidonConfig.totalBidones || 1),
+                source: "hoja de ruta"
+            };
+        }
+    }
+
+    if (!latestDelivery || !latestDelivery.date) return;
+
+    const currentRecargaDate = bidonConfig.fechaRecarga || "2000-01-01";
+    const lastAppliedId = localStorage.getItem("dosimat_last_applied_pro_delivery_id") || "";
+
+    const isNewerDate = new Date(latestDelivery.date + 'T12:00:00') > new Date(currentRecargaDate + 'T12:00:00');
+    const isDifferentId = lastAppliedId !== latestDelivery.id;
+
+    if (isNewerDate && isDifferentId) {
+        console.log(`[Auto-Refill] Aplicando reposición automática: ${latestDelivery.cloro} bidón(es) del ${latestDelivery.date}`);
+
+        bidonConfig.fechaRecarga = latestDelivery.date;
+        bidonConfig.bidonesRecargados = latestDelivery.cloro;
+        bidonConfig.totalBidones = latestDelivery.cloro;
+        bidonConfig.dosisAcumuladasHardware = 0.0;
+
+        localStorage.setItem("dosimat_bidon_config", JSON.stringify(bidonConfig));
+        localStorage.setItem("dosimat_last_applied_pro_delivery_id", latestDelivery.id);
+
+        // Resetear contador del hardware ESP32
+        sendCommand({ comando: "RESET_CONTADOR_DOSIS" });
+
+        // Guardar en Firestore del equipo
+        if (currentMac) {
+            setDoc(doc(db, "equipos", currentMac, "config", "actual"), {
+                bidon_fecha_recarga: latestDelivery.date,
+                bidon_total_bidones: latestDelivery.cloro,
+                bidon_dosis_acum: 0.0,
+                reset_dosis_ts: Date.now()
+            }, { merge: true }).catch(err => console.warn("Aviso Firestore config bidon:", err));
+        }
+
+        if (typeof renderBidonUI === "function") {
+            renderBidonUI();
+        }
+
+        const fechaFmt = formatProDate(latestDelivery.date);
+        showToast(`🚚 ¡Reposición detectada! Se registraron ${latestDelivery.cloro} bidón(es) del día ${fechaFmt} y se reinició el nivel al 100%.`);
     }
 }
 
@@ -4936,6 +5044,7 @@ async function syncDosimatProClient() {
         proClientState.isLinked = false;
         proClientState.clientDoc = null;
         proClientState.upcomingDelivery = null;
+        proClientState.deliverySheetItem = null;
         proClientState.openOrders = [];
         proClientState.transactions = [];
         proClientState.deliveryLocked = false;
@@ -4998,10 +5107,14 @@ async function syncDosimatProClient() {
 
             // 5. Configurar listeners en tiempo real
             setupProRealtimeListeners(matchedDoc.id);
+
+            // 6. Verificar si hay reposición para aplicar al bidón
+            checkAndSyncProRefillToBidon();
         } else {
             proClientState.isLinked = false;
             proClientState.clientDoc = null;
             proClientState.upcomingDelivery = null;
+            proClientState.deliverySheetItem = null;
             proClientState.openOrders = [];
             proClientState.transactions = [];
             proClientState.deliveryLocked = false;
@@ -5020,7 +5133,7 @@ async function loadProDeliverySheet(clientId) {
         const qSheets = query(
             collection(proDb, "route_sheets"),
             where("participantClientIds", "array-contains", clientId),
-            where("status", "in", ["planned", "active"])
+            where("status", "in", ["planned", "active", "completed"])
         );
         const snap = await getDocs(qSheets);
         
@@ -5040,6 +5153,15 @@ async function loadProDeliverySheet(clientId) {
                 cloro: Number(item?.plannedChlorine || 0),
                 acido: Number(item?.plannedAcid || 0)
             };
+
+            if (item && item.isDelivered) {
+                proClientState.deliverySheetItem = {
+                    sheetId: sheet.id,
+                    sheetDate: sheet.date,
+                    isDelivered: true,
+                    realChlorine: Number(item.realChlorine || item.plannedChlorine || 0)
+                };
+            }
         } else {
             proClientState.deliveryLocked = false;
             const qGlobal = query(collection(proDb, "route_sheets"), where("status", "==", "planned"));
@@ -5099,6 +5221,7 @@ async function loadProTransactions(clientId) {
         proClientState.transactions = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => {
             return new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime();
         });
+        checkAndSyncProRefillToBidon();
     } catch (err) {
         console.error("Error cargando transacciones de DosimatPro:", err);
         proClientState.transactions = [];
