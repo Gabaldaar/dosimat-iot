@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, GoogleAuthProvider, signInWithPopup, updateProfile } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, GoogleAuthProvider, signInWithPopup, updateProfile, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, collection, addDoc, deleteDoc, getDocs, query, where, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 window.onerror = function (msg, url, lineNo, columnNo, error) {
@@ -36,9 +36,11 @@ const proFirebaseConfig = {
     appId: "1:711462197972:web:d190a572e8561b3004f941"
 };
 let proApp = null;
+let proAuth = null;
 let proDb = null;
 try {
     proApp = initializeApp(proFirebaseConfig, "dosimatProApp");
+    proAuth = getAuth(proApp);
     proDb = getFirestore(proApp);
 } catch (e) {
     console.error("Error inicializando DosimatPro App:", e);
@@ -908,6 +910,9 @@ if (btnActionAuth) {
         try {
             if (authMode === "LOGIN") {
                 await signInWithEmailAndPassword(auth, email, password);
+                if (proAuth) {
+                    signInWithEmailAndPassword(proAuth, email, password).catch(() => {});
+                }
             } else {
                 const nombre = txtNombre.value.trim();
                 if (!nombre) {
@@ -4800,19 +4805,6 @@ function initBidonModule() {
     renderBidonUI();
 }
 
-// Iniciar módulos al cargar
-if (document.readyState === "loading") {
-    document.addEventListener('DOMContentLoaded', () => {
-        initPoolCalculator();
-        initBidonModule();
-        initDosimatProModule();
-    });
-} else {
-    initPoolCalculator();
-    initBidonModule();
-    initDosimatProModule();
-}
-
 // =========================================================================
 // === MÓDULO DE INTEGRACIÓN CON DOSIMAT PRO (SISTEMA DE REPOSICIÓN) ===
 // =========================================================================
@@ -4825,8 +4817,21 @@ let proClientState = {
     customEmail: localStorage.getItem("dosimat_pro_email") || ""
 };
 
+async function ensureProAuth() {
+    if (!proAuth) return;
+    if (!proAuth.currentUser) {
+        try {
+            await signInAnonymously(proAuth);
+        } catch (e) {
+            console.warn("proAuth signInAnonymously aviso/error:", e);
+        }
+    }
+}
+
 async function syncDosimatProClient() {
     if (!proDb) return;
+
+    await ensureProAuth();
 
     const emailToSearch = (proClientState.customEmail || (auth.currentUser ? auth.currentUser.email : "") || "").trim().toLowerCase();
     
@@ -4891,6 +4896,7 @@ async function syncDosimatProClient() {
 async function loadProDeliverySheet(clientId) {
     if (!proDb || !clientId) return;
     try {
+        await ensureProAuth();
         const qSheets = query(
             collection(proDb, "route_sheets"),
             where("participantClientIds", "array-contains", clientId),
@@ -4940,6 +4946,7 @@ async function loadProDeliverySheet(clientId) {
 async function loadProClientOrders(clientId) {
     if (!proDb || !clientId) return;
     try {
+        await ensureProAuth();
         const qOrders = query(
             collection(proDb, "client_requests"),
             where("clientId", "==", clientId),
@@ -5110,6 +5117,7 @@ async function enviarNuevoPedidoPro(cloro, acido, notas) {
     }
 
     try {
+        await ensureProAuth();
         const c = proClientState.clientDoc;
         await addDoc(collection(proDb, "client_requests"), {
             clientId: c.id,
@@ -5134,6 +5142,7 @@ async function enviarNuevoPedidoPro(cloro, acido, notas) {
 window.cancelarPedidoPro = async function(requestId) {
     if (!proDb || !requestId) return;
     try {
+        await ensureProAuth();
         await deleteDoc(doc(proDb, "client_requests", requestId));
         showToast("Pedido cancelado.");
         await syncDosimatProClient();
@@ -5144,28 +5153,75 @@ window.cancelarPedidoPro = async function(requestId) {
 };
 
 function initDosimatProModule() {
-    // Botón Vincular Email
+    // Botón Vincular / Iniciar Sesión en Pro
     const btnVincular = document.getElementById('btnVincularProEmail');
     const inpCustomEmail = document.getElementById('inpProCustomEmail');
+    const inpCustomPassword = document.getElementById('inpProCustomPassword');
+    const lblError = document.getElementById('lblProLoginError');
+
     if (btnVincular && inpCustomEmail) {
-        btnVincular.onclick = () => {
+        btnVincular.onclick = async () => {
             const email = inpCustomEmail.value.trim().toLowerCase();
+            const password = inpCustomPassword ? inpCustomPassword.value.trim() : "";
+            if (lblError) lblError.style.display = 'none';
+
             if (!email) {
-                showToast("Ingresá un correo electrónico.");
+                showToast("Ingresá tu correo electrónico.");
                 return;
             }
-            proClientState.customEmail = email;
-            localStorage.setItem("dosimat_pro_email", email);
-            showToast("Buscando cuenta en el sistema de reposición...");
-            syncDosimatProClient();
+
+            btnVincular.disabled = true;
+            btnVincular.innerText = "Conectando...";
+
+            try {
+                if (proAuth && password) {
+                    await signInWithEmailAndPassword(proAuth, email, password);
+                } else {
+                    await ensureProAuth();
+                }
+
+                proClientState.customEmail = email;
+                localStorage.setItem("dosimat_pro_email", email);
+                await syncDosimatProClient();
+
+                if (!proClientState.isLinked) {
+                    if (lblError) {
+                        lblError.innerText = "No se encontró un cliente con este correo en el sistema de reposición.";
+                        lblError.style.display = 'block';
+                    }
+                } else {
+                    showToast("¡Portal de Clientes conectado exitosamente!");
+                }
+            } catch (err) {
+                console.error("Error conectando con Portal Pro:", err);
+                if (lblError) {
+                    let msg = "No se pudo conectar. Verificá tu correo y contraseña del Portal.";
+                    if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+                        msg = "Contraseña incorrecta del Portal de Clientes.";
+                    } else if (err.code === 'auth/user-not-found') {
+                        msg = "No se encontró una cuenta registrada con este correo.";
+                    }
+                    lblError.innerText = msg;
+                    lblError.style.display = 'block';
+                }
+            } finally {
+                btnVincular.disabled = false;
+                btnVincular.innerText = "Conectar con Portal de Clientes";
+            }
         };
     }
 
-    // Botón Cambiar Email
+    // Botón Cambiar Email / Desconectar
     const btnCambiar = document.getElementById('btnProCambiarEmail');
     if (btnCambiar) {
-        btnCambiar.onclick = () => {
+        btnCambiar.onclick = async () => {
+            if (proAuth) {
+                try { await signOut(proAuth); } catch(e){}
+            }
             proClientState.isLinked = false;
+            proClientState.clientDoc = null;
+            proClientState.upcomingDelivery = null;
+            proClientState.openOrders = [];
             proClientState.customEmail = "";
             localStorage.removeItem("dosimat_pro_email");
             renderDosimatProUI();
@@ -5216,6 +5272,19 @@ function initDosimatProModule() {
 
     // Sincronizar automáticamente en el inicio
     syncDosimatProClient();
+}
+
+// Iniciar módulos al cargar
+if (document.readyState === "loading") {
+    document.addEventListener('DOMContentLoaded', () => {
+        initPoolCalculator();
+        initBidonModule();
+        initDosimatProModule();
+    });
+} else {
+    initPoolCalculator();
+    initBidonModule();
+    initDosimatProModule();
 }
 
 

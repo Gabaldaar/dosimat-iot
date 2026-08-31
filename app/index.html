@@ -96,7 +96,7 @@
     <header>
         <div class="header-title" style="align-items: flex-start; margin-top: 5px;">
             <div style="display: flex; flex-direction: column;">
-                <h1 style="margin-bottom: 0;"><span id="lblHeaderTitle">Dosimat IoT CB</span> <span style="font-size: 0.7rem; color: var(--accent); margin-left: 5px;">v6.98</span></h1>
+                <h1 style="margin-bottom: 0;"><span id="lblHeaderTitle">Dosimat IoT CB</span> <span style="font-size: 0.7rem; color: var(--accent); margin-left: 5px;">v7.01</span></h1>
                 <div id="lblUserName" style="font-size: 0.85rem; font-weight: 300; color: var(--text-muted); display: none;"></div>
             </div>
         </div>
@@ -724,18 +724,20 @@
                 <span class="material-symbols-outlined btn-help" data-help="portal-reposicion">help</span>
             </h2>
 
-            <!-- Estado: Cliente No Vinculado / No Encontrado -->
+            <!-- Estado: Cliente No Vinculado / Iniciar Sesión en Pro -->
             <div id="proClientNotLinked" style="display: none; text-align: center; padding: 1rem 0.5rem;">
-                <span class="material-symbols-outlined" style="font-size: 3rem; color: var(--text-muted);">person_search</span>
-                <h3 style="margin: 0.5rem 0 0.2rem; font-size: 1rem;">¿Estás adherido al Sistema de Reposición?</h3>
+                <span class="material-symbols-outlined" style="font-size: 3rem; color: var(--accent);">local_shipping</span>
+                <h3 style="margin: 0.5rem 0 0.2rem; font-size: 1rem;">Acceso al Portal de Reposición</h3>
                 <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1rem;">
-                    Ingresá el correo electrónico con el que te diste de alta en Dosimat para consultar tus fechas de reparto, estado de cuenta y solicitar bidones.
+                    Ingresá tus credenciales del Portal de Clientes de Dosimat para consultar tus fechas de reparto, saldo y gestionar pedidos.
                 </p>
-                <div class="form-group" style="max-width: 320px; margin: 0 auto 0.8rem;">
-                    <input type="email" id="inpProCustomEmail" placeholder="tucorreo@ejemplo.com" style="text-align: center; padding: 0.55rem;">
+                <div style="max-width: 320px; margin: 0 auto 0.8rem; display: flex; flex-direction: column; gap: 0.5rem;">
+                    <input type="email" id="inpProCustomEmail" placeholder="Correo electrónico del Portal" style="text-align: center; padding: 0.55rem;">
+                    <input type="password" id="inpProCustomPassword" placeholder="Contraseña del Portal" style="text-align: center; padding: 0.55rem;">
                 </div>
-                <button class="btn" id="btnVincularProEmail" style="width: auto; padding: 0.55rem 1.5rem; margin: 0 auto;">
-                    <span>Vincular Cuenta de Reposición</span>
+                <div id="lblProLoginError" style="color: var(--danger); font-size: 0.76rem; margin-bottom: 0.6rem; display: none;"></div>
+                <button class="btn" id="btnVincularProEmail" style="width: auto; padding: 0.55rem 1.5rem; margin: 0 auto; background: var(--accent); color: white;">
+                    <span>Conectar con Portal de Clientes</span>
                 </button>
             </div>
 
@@ -1186,6 +1188,6 @@
         </div>
     </div>
 
-    <script type="module" src="app.js?v=7.01"></script>
+    <script type="module" src="app.js?v=7.02"></script>
 </body>
 </html>
