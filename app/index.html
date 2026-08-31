@@ -96,7 +96,7 @@
     <header>
         <div class="header-title" style="align-items: flex-start; margin-top: 5px;">
             <div style="display: flex; flex-direction: column;">
-                <h1 style="margin-bottom: 0;"><span id="lblHeaderTitle">Dosimat IoT CB</span> <span style="font-size: 0.7rem; color: var(--accent); margin-left: 5px;">v6.89</span></h1>
+                <h1 style="margin-bottom: 0;"><span id="lblHeaderTitle">Dosimat IoT CB</span> <span style="font-size: 0.7rem; color: var(--accent); margin-left: 5px;">v6.91</span></h1>
                 <div id="lblUserName" style="font-size: 0.85rem; font-weight: 300; color: var(--text-muted); display: none;"></div>
             </div>
         </div>
@@ -169,6 +169,8 @@
     <!-- 1. Pantalla: Dashboard / Control -->
     <div id="tab-dashboard" class="container active">
 
+        <!-- Centro de Diagnóstico y Alertas Inteligentes -->
+        <div id="systemAlertsContainer" style="display: none; margin-bottom: 0.8rem;"></div>
 
         <!-- Tarjeta de Estado Principal -->
         <div class="card panel-estado" id="panelEstado" style="min-height: 110px; display: flex; flex-direction: column; justify-content: center; position: relative; padding: 0.85rem 1rem; margin-bottom: 0.5rem;">
@@ -706,6 +708,6 @@
         </div>
     </div>
 
-    <script type="module" src="app.js?v=6.91"></script>
+    <script type="module" src="app.js?v=6.92"></script>
 </body>
 </html>

@@ -1264,6 +1264,7 @@ function appendLogToTerminal(logData) {
         const rawMsg = logObj.msg || logObj.mensaje || logObj.tipo || String(logData);
         term.innerText = `${rawMsg}\n` + term.innerText;
     }
+    if (typeof evaluarAlertasSistema === "function") evaluarAlertasSistema();
 }
 
 function calcularDosis15Dias(logs) {
@@ -1384,6 +1385,213 @@ function renderLogsList(logs) {
     if (term) {
         term.innerText = logs.map(item => typeof item === 'string' ? item : (item.msg || JSON.stringify(item))).join('\n');
     }
+    if (typeof evaluarAlertasSistema === "function") evaluarAlertasSistema();
+}
+
+let lastNotifiedAlerts = {};
+
+function dispararNotificacionLocal(titulo, cuerpo, id) {
+    if (lastNotifiedAlerts[id] && Date.now() - lastNotifiedAlerts[id] < 10 * 60 * 1000) {
+        return;
+    }
+    lastNotifiedAlerts[id] = Date.now();
+
+    if ("Notification" in window) {
+        if (Notification.permission === "granted") {
+            try {
+                navigator.serviceWorker.ready.then(registration => {
+                    registration.showNotification(titulo, {
+                        body: cuerpo,
+                        icon: "icon-192.png",
+                        badge: "icon-192.png",
+                        vibrate: [200, 100, 200]
+                    });
+                }).catch(() => {
+                    new Notification(titulo, { body: cuerpo, icon: "icon-192.png" });
+                });
+            } catch (e) {
+                try {
+                    new Notification(titulo, { body: cuerpo, icon: "icon-192.png" });
+                } catch(err) {}
+            }
+        } else if (Notification.permission !== "denied") {
+            Notification.requestPermission();
+        }
+    }
+}
+
+function navigateToTab(targetName) {
+    const navBtn = document.querySelector(`nav [data-target="${targetName}"]`);
+    if (navBtn && typeof switchTab === "function") {
+        switchTab(navBtn, targetName);
+    }
+}
+
+function evaluarAlertasSistema() {
+    const container = document.getElementById('systemAlertsContainer');
+    if (!container) return;
+
+    if (!currentMac || modoConexion === "OFFLINE") {
+        container.style.display = "none";
+        container.innerHTML = "";
+        return;
+    }
+
+    const alerts = [];
+
+    // 1. Sin dosificación programada (comprueba todos los programas de 1 a 10)
+    if (lastProgramasData) {
+        let hayProgramasActivos = false;
+        for (let i = 1; i <= 10; i++) {
+            const dur = lastProgramasData[`PR${i}_duracion_min`];
+            const dos = lastProgramasData[`PR${i}_dosifica`];
+            const dias = lastProgramasData[`PR${i}_dias`];
+            const hasDays = (Array.isArray(dias) && dias.length > 0) || (typeof dias === 'string' && dias.length > 0);
+            if (dur > 0 && dos && hasDays) {
+                hayProgramasActivos = true;
+                break;
+            }
+        }
+        if (!hayProgramasActivos) {
+            alerts.push({
+                id: "sin_cronograma",
+                type: "warning",
+                icon: "event_busy",
+                title: "Sin dosificación programada",
+                desc: "No hay programas de dosificación configurados. Tu piscina no recibirá cloro.",
+                btnText: "Configurar",
+                action: () => navigateToTab("programacion"),
+                notifTitle: "Dosimat",
+                notifBody: "No hay programas de cloro activos. Tu piscina no está recibiendo cloro."
+            });
+        }
+    }
+
+    // 2. Modo Pausa / Mantenimiento activo
+    if (globalEstadoDosificador === "PAUSA" || globalEstadoDosificador === "MANTENIMIENTO" || (typeof isPausaActiva !== "undefined" && isPausaActiva)) {
+        alerts.push({
+            id: "modo_pausa",
+            type: "warning",
+            icon: "pause_circle",
+            title: "Modo Pausa Activo",
+            desc: "El dosificador está detenido manualmente. No se ejecutarán dosis automáticas.",
+            btnText: "Reanudar",
+            action: async () => {
+                if (typeof togglePausa === "function") togglePausa();
+            },
+            notifTitle: "Dosimat",
+            notifBody: "El equipo está en Pausa. Recuerda reanudarlo para proteger la piscina."
+        });
+    }
+
+    // 3. Más de 24h sin dosificar
+    let ultimaDosisExitosaTs = 0;
+    if (Array.isArray(currentLogsCache) && currentLogsCache.length > 0) {
+        for (const item of currentLogsCache) {
+            let msg = "";
+            let ts = 0;
+            let tipo = "";
+            if (typeof item === "string") {
+                msg = item;
+            } else if (item && typeof item === "object") {
+                msg = item.msg || item.mensaje || "";
+                ts = item.ts || item.timestamp || 0;
+                tipo = String(item.tipo || "");
+            }
+            if (tipo === "dosis_ok" || msg.toLowerCase().includes("dosis completada") || msg.toLowerCase().includes("dosis finalizada") || (msg.toLowerCase().includes("dosis") && !msg.toLowerCase().includes("no realizada") && !msg.toLowerCase().includes("bomba apagada"))) {
+                if (!ts || ts === 0) {
+                    try {
+                        const parts = msg.split(" - ");
+                        if (parts.length >= 2 && parts[0].includes("/")) {
+                            const dateParts = parts[0].split("/");
+                            const timeParts = parts[1].split(":");
+                            let year = parseInt(dateParts[2], 10);
+                            if (year < 100) year += 2000;
+                            const d = new Date(year, parseInt(dateParts[1], 10) - 1, parseInt(dateParts[0], 10), parseInt(timeParts[0], 10), parseInt(timeParts[1], 10));
+                            ts = d.getTime();
+                        }
+                    } catch(e) {}
+                }
+                if (ts > ultimaDosisExitosaTs) ultimaDosisExitosaTs = ts;
+            }
+        }
+    }
+
+    const now = Date.now();
+    if (ultimaDosisExitosaTs > 0 && now - ultimaDosisExitosaTs > 24 * 60 * 60 * 1000) {
+        alerts.push({
+            id: "sin_dosis_24h",
+            type: "danger",
+            icon: "warning",
+            title: "Atención: +24h sin dosificar",
+            desc: "Han pasado más de 24 horas desde la última dosis de cloro exitosa.",
+            btnText: "Dosificar Ahora",
+            action: async () => {
+                if (typeof iniciarDosisManual === "function") iniciarDosisManual();
+            },
+            notifTitle: "Dosimat Alerta",
+            notifBody: "Han pasado más de 24h sin aplicar cloro en tu piscina."
+        });
+    }
+
+    // 4. Último log: Dosis no realizada por bomba apagada
+    if (globalUltWarn && (globalUltWarn.includes("Bomba apagada") || globalUltWarn.includes("Dosis no realizada") || globalUltWarn.includes("Ciclo detenido"))) {
+        alerts.push({
+            id: "dosis_fallida_bomba",
+            type: "warning",
+            icon: "power_off",
+            title: "Dosis no realizada: Bomba apagada",
+            desc: "El dosificador intentó dosificar pero la bomba de filtrado estaba apagada.",
+            btnText: "Ver Historial",
+            action: () => navigateToTab("logs"),
+            notifTitle: "Dosimat",
+            notifBody: "Dosis no realizada. La bomba de filtrado estaba apagada."
+        });
+    }
+
+    // 5. Refuerzo por Temperatura Activo
+    if (globalTempBoostActivo || (typeof globalRefuerzo !== "undefined" && globalRefuerzo === "ON")) {
+        alerts.push({
+            id: "refuerzo_temp",
+            type: "info",
+            icon: "thermostat",
+            title: "Refuerzo por Temperatura Activo",
+            desc: "La temperatura superó el umbral. Se aplicará automáticamente una dosis con refuerzo.",
+            btnText: "Ver Ajustes",
+            action: () => navigateToTab("ajustes"),
+            notifTitle: "Dosimat",
+            notifBody: "Ajuste automático por alta temperatura activo."
+        });
+    }
+
+    // Renderizar
+    if (alerts.length === 0) {
+        container.style.display = "none";
+        container.innerHTML = "";
+        return;
+    }
+
+    container.innerHTML = "";
+    container.style.display = "block";
+
+    alerts.forEach(item => {
+        dispararNotificacionLocal(item.notifTitle, item.notifBody, item.id);
+
+        const card = document.createElement('div');
+        card.className = `system-alert-card ${item.type}`;
+        card.innerHTML = `
+            <div class="system-alert-icon">
+                <span class="material-symbols-outlined">${item.icon}</span>
+            </div>
+            <div class="system-alert-content">
+                <div class="system-alert-title">${escapeHtml(item.title)}</div>
+                <div class="system-alert-desc">${escapeHtml(item.desc)}</div>
+            </div>
+            <button class="system-alert-btn">${escapeHtml(item.btnText)}</button>
+        `;
+        card.querySelector('.system-alert-btn').onclick = item.action;
+        container.appendChild(card);
+    });
 }
 
 function listenLogsCollection() {
@@ -2036,6 +2244,7 @@ function updateSubtexto() {
             lblEstadoSubtexto.innerHTML = `<div>${lblEstadoSubtexto.innerText}</div>` + compHTML;
         }
     }
+    if (typeof evaluarAlertasSistema === "function") evaluarAlertasSistema();
 }
 
 setInterval(() => {
