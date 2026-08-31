@@ -1654,14 +1654,14 @@ function evaluarAlertasSistema() {
                 type: "danger",
                 icon: "water_bottle",
                 title: "Nivel de Cloro Bajo en el Bidón",
-                desc: `Quedan aproximadamente ${restantes.toFixed(1)} Litros (${percent}% · ~${diasEstimados} días). Registra una recarga para no quedarte sin cloro.`,
-                btnText: "Registrar Recarga",
+                desc: `Quedan aproximadamente ${restantes.toFixed(1)} Litros (${percent}% · ~${diasEstimados} días de autonomía).`,
+                btnText: "Solicitar Cloro",
                 action: () => {
-                    const btnRec = document.getElementById('btnOpenModalRecarga');
-                    if (btnRec) btnRec.click();
+                    const btnSol = document.getElementById('btnOpenModalSolicitarCloro');
+                    if (btnSol) btnSol.click();
                 },
                 notifTitle: "Dosimat: Cloro Bajo",
-                notifBody: `Nivel de cloro bajo (${restantes.toFixed(1)}L restantes · ~${diasEstimados} días). Se recomienda reponer bidón.`
+                notifBody: `Nivel de cloro bajo (${restantes.toFixed(1)}L restantes · ~${diasEstimados} días). Se recomienda solicitar reposición.`
             });
         }
     }
@@ -4668,6 +4668,99 @@ function initBidonModule() {
             renderBidonUI();
             modalAjustar.style.display = 'none';
             showToast(`Nivel ajustado: ${pct}% (${litrosRestantesDeseados.toFixed(1)} L)`);
+        };
+    }
+
+    // Modal Solicitar Reposición de Cloro
+    const modalSolicitar = document.getElementById('modalSolicitarReposicion');
+    const btnOpenSolicitar = document.getElementById('btnOpenModalSolicitarCloro');
+    const btnCloseSolicitar = document.getElementById('btnCloseModalSolicitarCloro');
+    const inpSolCant = document.getElementById('inpSolCantBidones');
+    const lblSolLitrosTotal = document.getElementById('lblSolLitrosTotal');
+    const lblSolNivelActual = document.getElementById('lblSolNivelActual');
+    const lblSolAutonomia = document.getElementById('lblSolAutonomia');
+    const btnSolWsp = document.getElementById('btnSolWsp');
+    const btnSolEmail = document.getElementById('btnSolEmail');
+    const btnSolPortal = document.getElementById('btnSolPortal');
+
+    const updateSolPreview = () => {
+        const cant = parseInt(inpSolCant ? inpSolCant.value : 1) || 1;
+        if (lblSolLitrosTotal) lblSolLitrosTotal.innerText = `= ${(cant * 27.0).toFixed(1)} Litros`;
+    };
+
+    if (inpSolCant) inpSolCant.oninput = updateSolPreview;
+
+    if (btnOpenSolicitar && modalSolicitar) {
+        btnOpenSolicitar.onclick = () => {
+            const capTotal = (bidonConfig.totalBidones || 1) * (bidonConfig.litrosPorBidon || 27.0);
+            const consumidos = (bidonConfig.dosisAcumuladasHardware || 0.0) * (bidonConfig.dosisLitros || 2.0);
+            const restantes = Math.max(0, capTotal - consumidos);
+            const percent = Math.round((restantes / capTotal) * 100);
+
+            let totalDosisPorSemana = 0;
+            try {
+                const progs = (typeof obtenerListaProgramas === "function") ? obtenerListaProgramas() : [];
+                progs.forEach(p => {
+                    if (p.dosifica && p.duracion > 0 && p.dias) {
+                        totalDosisPorSemana += (p.dias.length || 0);
+                    }
+                });
+            } catch(e) {}
+            const dosisPorDia = totalDosisPorSemana > 0 ? (totalDosisPorSemana / 7.0) : 1.0;
+            const consumoDiarioLitros = dosisPorDia * (bidonConfig.dosisLitros || 2.0);
+            const diasEstimados = (consumoDiarioLitros > 0) ? Math.round(restantes / consumoDiarioLitros) : 0;
+
+            if (lblSolNivelActual) lblSolNivelActual.innerText = `${restantes.toFixed(1)} L (${percent}%)`;
+            if (lblSolAutonomia) lblSolAutonomia.innerText = diasEstimados > 0 ? `~${diasEstimados} días` : (restantes === 0 ? "0 días" : "-- días");
+            if (inpSolCant) inpSolCant.value = bidonConfig.totalBidones || 1;
+            updateSolPreview();
+
+            modalSolicitar.style.display = 'flex';
+        };
+    }
+
+    if (btnCloseSolicitar && modalSolicitar) {
+        btnCloseSolicitar.onclick = () => { modalSolicitar.style.display = 'none'; };
+    }
+
+    if (btnSolWsp) {
+        btnSolWsp.onclick = () => {
+            const cant = parseInt(inpSolCant ? inpSolCant.value : 1) || 1;
+            const litros = (cant * 27.0).toFixed(1);
+            const capTotal = (bidonConfig.totalBidones || 1) * (bidonConfig.litrosPorBidon || 27.0);
+            const consumidos = (bidonConfig.dosisAcumuladasHardware || 0.0) * (bidonConfig.dosisLitros || 2.0);
+            const restantes = Math.max(0, capTotal - consumidos).toFixed(1);
+            const percent = Math.round((restantes / capTotal) * 100);
+            const mac = currentMac || "No vinculada";
+            const userEmail = (typeof auth !== "undefined" && auth.currentUser && auth.currentUser.email) ? auth.currentUser.email : "Cliente Dosimat";
+            const wspNum = globalSoporteWsp || "5491153074195";
+
+            const texto = `Hola! Quisiera solicitar la reposición de *${cant} bidón(es)* (${litros} Litros de cloro) para mi equipo Dosimat.\n\n📍 *Datos del equipo:*\n• MAC: ${mac}\n• Usuario: ${userEmail}\n• Nivel actual: ${restantes} L (${percent}%)\n\nMuchas gracias!`;
+            window.open(`https://wa.me/${wspNum}?text=${encodeURIComponent(texto)}`, '_blank');
+        };
+    }
+
+    if (btnSolEmail) {
+        btnSolEmail.onclick = () => {
+            const cant = parseInt(inpSolCant ? inpSolCant.value : 1) || 1;
+            const litros = (cant * 27.0).toFixed(1);
+            const capTotal = (bidonConfig.totalBidones || 1) * (bidonConfig.litrosPorBidon || 27.0);
+            const consumidos = (bidonConfig.dosisAcumuladasHardware || 0.0) * (bidonConfig.dosisLitros || 2.0);
+            const restantes = Math.max(0, capTotal - consumidos).toFixed(1);
+            const percent = Math.round((restantes / capTotal) * 100);
+            const mac = currentMac || "No vinculada";
+            const userEmail = (typeof auth !== "undefined" && auth.currentUser && auth.currentUser.email) ? auth.currentUser.email : "Cliente Dosimat";
+            const mailAddr = globalSoporteMail || "soporte@dosimat.com";
+
+            const subject = encodeURIComponent(`Solicitud de Reposición de Cloro - Dosimat (${mac})`);
+            const body = encodeURIComponent(`Hola equipo de Dosimat,\n\nQuisiera solicitar la reposición de ${cant} bidón(es) de 27 Litros (${litros} Litros en total) para mi equipo Dosimat.\n\nDatos del equipo:\n- MAC: ${mac}\n- Usuario/Email: ${userEmail}\n- Nivel actual estimado: ${restantes} Litros (${percent}%)\n\nMuchas gracias.\nSaludos cordiales.`);
+            window.location.href = `mailto:${mailAddr}?subject=${subject}&body=${body}`;
+        };
+    }
+
+    if (btnSolPortal) {
+        btnSolPortal.onclick = () => {
+            window.open("https://dosimat-pro.netlify.app", "_blank");
         };
     }
 

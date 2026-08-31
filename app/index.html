@@ -96,7 +96,7 @@
     <header>
         <div class="header-title" style="align-items: flex-start; margin-top: 5px;">
             <div style="display: flex; flex-direction: column;">
-                <h1 style="margin-bottom: 0;"><span id="lblHeaderTitle">Dosimat IoT CB</span> <span style="font-size: 0.7rem; color: var(--accent); margin-left: 5px;">v6.97</span></h1>
+                <h1 style="margin-bottom: 0;"><span id="lblHeaderTitle">Dosimat IoT CB</span> <span style="font-size: 0.7rem; color: var(--accent); margin-left: 5px;">v6.98</span></h1>
                 <div id="lblUserName" style="font-size: 0.85rem; font-weight: 300; color: var(--text-muted); display: none;"></div>
             </div>
         </div>
@@ -299,15 +299,20 @@
 
             <!-- Botones de Acción del Bidón -->
             <div style="display: flex; gap: 0.5rem; margin-top: 0.8rem;">
-                <button class="btn" id="btnOpenModalRecarga" style="flex: 1; padding: 0.5rem 0.8rem; font-size: 0.85rem; display: flex; align-items: center; justify-content: center; gap: 0.3rem;">
+                <button class="btn" id="btnOpenModalRecarga" style="flex: 1; padding: 0.5rem 0.6rem; font-size: 0.82rem; display: flex; align-items: center; justify-content: center; gap: 0.3rem;">
                     <span class="material-symbols-outlined" style="font-size: 1.1rem;">local_gas_station</span>
                     <span>Registrar Recarga</span>
                 </button>
-                <button class="btn outline" id="btnOpenModalAjustarBidon" style="flex: 1; padding: 0.5rem 0.8rem; font-size: 0.85rem; display: flex; align-items: center; justify-content: center; gap: 0.3rem;">
+                <button class="btn outline" id="btnOpenModalAjustarBidon" style="flex: 1; padding: 0.5rem 0.6rem; font-size: 0.82rem; display: flex; align-items: center; justify-content: center; gap: 0.3rem;">
                     <span class="material-symbols-outlined" style="font-size: 1.1rem;">tune</span>
                     <span>Ajustar Nivel</span>
                 </button>
             </div>
+            
+            <button class="btn" id="btnOpenModalSolicitarCloro" style="width: 100%; margin-top: 0.5rem; padding: 0.55rem 0.8rem; font-size: 0.85rem; background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); color: white; display: flex; align-items: center; justify-content: center; gap: 0.4rem;">
+                <span class="material-symbols-outlined" style="font-size: 1.15rem;">local_shipping</span>
+                <span>Solicitar Reposición de Cloro</span>
+            </button>
 
             <!-- Separador / Acordeón para Calculadora de Dimensiones de Piscina -->
             <div class="pool-calc-accordion" style="margin-top: 1rem; border-top: 1px solid var(--card-border); padding-top: 0.8rem;">
@@ -1007,6 +1012,64 @@
         </div>
     </div>
 
-    <script type="module" src="app.js?v=6.98"></script>
+    <!-- Modal Solicitar Reposición de Cloro -->
+    <div id="modalSolicitarReposicion" class="overlay">
+        <div class="overlay-content" style="max-width: 380px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.8rem;">
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <span class="material-symbols-outlined" style="color: var(--accent); font-size: 1.6rem;">local_shipping</span>
+                    <h3 style="margin: 0; font-size: 1.1rem;">Solicitar Reposición</h3>
+                </div>
+                <button class="icon-header-btn" id="btnCloseModalSolicitarCloro" style="width: 32px; height: 32px;">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+
+            <div style="background: var(--bg-color); border: 1px solid var(--card-border); border-radius: 8px; padding: 0.7rem 0.9rem; margin-bottom: 1rem; font-size: 0.82rem;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 0.2rem;">
+                    <span style="color: var(--text-muted);">Nivel actual estimado:</span>
+                    <strong id="lblSolNivelActual">-- L (--%)</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <span style="color: var(--text-muted);">Autonomía restante:</span>
+                    <strong id="lblSolAutonomia" style="color: var(--accent);">~-- días</strong>
+                </div>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 1rem;">
+                <label style="font-size: 0.8rem; font-weight: 600;">Cantidad de Bidones a Solicitar (27 L c/u):</label>
+                <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.3rem;">
+                    <input type="number" id="inpSolCantBidones" min="1" max="100" value="1" style="width: 75px; text-align: center; font-weight: bold; font-size: 1rem;">
+                    <span id="lblSolLitrosTotal" style="font-size: 0.88rem; font-weight: 700; color: var(--accent);">= 27.0 Litros</span>
+                </div>
+            </div>
+
+            <p style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 0.8rem;">
+                Seleccioná el canal para enviar la solicitud con el mensaje pre-cargado:
+            </p>
+
+            <div style="display: flex; flex-direction: column; gap: 0.6rem;">
+                <!-- Botón WhatsApp -->
+                <button class="btn" id="btnSolWsp" style="background-color: #25d366; color: white; display: flex; align-items: center; justify-content: center; gap: 0.5rem; padding: 0.65rem 1rem;">
+                    <span class="material-symbols-outlined" style="font-size: 1.25rem;">chat</span>
+                    <span>Enviar por WhatsApp</span>
+                </button>
+
+                <!-- Botón Email -->
+                <button class="btn outline" id="btnSolEmail" style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; padding: 0.65rem 1rem;">
+                    <span class="material-symbols-outlined" style="font-size: 1.25rem;">mail</span>
+                    <span>Enviar por Email</span>
+                </button>
+
+                <!-- Botón Portal Clientes -->
+                <button class="btn outline" id="btnSolPortal" style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; padding: 0.65rem 1rem; border-color: var(--accent); color: var(--accent);">
+                    <span class="material-symbols-outlined" style="font-size: 1.25rem;">dashboard</span>
+                    <span>Abrir Portal de Clientes</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="app.js?v=6.99"></script>
 </body>
 </html>
