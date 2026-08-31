@@ -1152,14 +1152,27 @@ function formatLogDate(ts) {
     return `${dd}/${mm}/${aa} - ${hh}:${min}:${ss}`;
 }
 
-function appendLogToTerminal(logText) {
+let currentLogsCache = [];
+
+function appendLogToTerminal(logData) {
     const term = document.getElementById('logsTerminal');
     if (!term) return;
-    if (term.innerText.includes("Esperando eventos...")) {
+    if (term.innerText.includes("Esperando eventos...") || term.innerText.includes("Esperando actualización...")) {
         term.innerText = "";
     }
-    const prefix = formatLogDate(Date.now());
-    term.innerText = prefix ? `${prefix} - ${logText}\n` + term.innerText : `${logText}\n` + term.innerText;
+    const logObj = (typeof logData === 'object') ? logData : { msg: String(logData), ts: Date.now() };
+    const rawMsg = logObj.msg || logObj.mensaje || logObj.tipo || String(logData);
+
+    let formattedLine = rawMsg;
+    if (!(rawMsg.includes(" - ") && rawMsg.includes("/"))) {
+        const pfx = formatLogDate(logObj.ts || Date.now());
+        formattedLine = pfx ? `${pfx} - ${rawMsg}` : rawMsg;
+    }
+    term.innerText = `${formattedLine}\n` + term.innerText;
+
+    currentLogsCache.unshift(logObj);
+    if (currentLogsCache.length > 50) currentLogsCache.pop();
+    calcularDosis15Dias(currentLogsCache);
 }
 
 function calcularDosis15Dias(logs) {
@@ -1216,10 +1229,28 @@ function calcularDosis15Dias(logs) {
 
         if (now - ts <= limitMs && now >= ts - 86400000) {
             const msgLower = msg.toLowerCase();
-            const esDosis = (msgLower.includes("dosis automática") || msgLower.includes("dosis manual") || msgLower.includes("dosificando") || (msgLower.includes("dosis") && !msgLower.includes("salteada") && !msgLower.includes("pausada") && !msgLower.includes("anulada") && !msgLower.includes("suspendida") && !msgLower.includes("cancelada")));
+            const tipoLower = String(item.tipo || "").toLowerCase();
+
+            // Comprobar estrictamente si fue una dosis completada con éxito
+            const esDosisExitosa = (
+                tipoLower === "dosis_ok" ||
+                msgLower.includes("dosis completada") ||
+                msgLower.includes("dosis finalizada") ||
+                (
+                    (msgLower.includes("dosis automática") || msgLower.includes("dosis manual") || msgLower.includes("dosificando")) &&
+                    !msgLower.includes("no realizada") &&
+                    !msgLower.includes("bomba apagada") &&
+                    !msgLower.includes("detenido") &&
+                    !msgLower.includes("salteada") &&
+                    !msgLower.includes("pausada") &&
+                    !msgLower.includes("anulada") &&
+                    !msgLower.includes("suspendida") &&
+                    !msgLower.includes("cancelada")
+                )
+            );
             
-            if (esDosis) {
-                if (isRef || msgLower.includes("refuerzo activo") || msgLower.includes("refuerzo: si") || msgLower.includes("con refuerzo")) {
+            if (esDosisExitosa) {
+                if (isRef || msgLower.includes("refuerzo activo") || msgLower.includes("refuerzo: si") || msgLower.includes("con refuerzo") || msgLower.includes("refuerzo")) {
                     refCount++;
                 } else {
                     normCount++;
@@ -1236,7 +1267,8 @@ function renderLogsList(logs) {
     const term = document.getElementById('logsTerminal');
     if (!term) return;
     if (!logs || !Array.isArray(logs)) return;
-    calcularDosis15Dias(logs);
+    currentLogsCache = [...logs];
+    calcularDosis15Dias(currentLogsCache);
     let linesArr = logs.map(item => {
         if (typeof item === 'string') {
             if (item.includes(" - ") && item.includes("/")) return item;
@@ -1251,7 +1283,7 @@ function renderLogsList(logs) {
         const pfx = formatLogDate(ts);
         return pfx ? `${pfx} - ${msg}` : msg;
     });
-    term.innerText = linesArr.slice(0, 20).join('\n');
+    term.innerText = linesArr.slice(0, 25).join('\n');
 }
 
 function listenLogsCollection() {
