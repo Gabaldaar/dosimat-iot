@@ -1,9 +1,19 @@
 // bridge.js - Puente MQTT a Firebase Cloud Functions 24/7
 const mqtt = require('mqtt');
 const https = require('https');
+const http = require('http');
 
 const MQTT_BROKER = 'mqtt://broker.hivemq.com:1883';
 const WEBHOOK_URL = 'https://us-central1-dosimat-iot-v2.cloudfunctions.net/mqttWebhook';
+const PORT = process.env.PORT || 3000;
+
+// Servidor HTTP simple para cumplir el health-check del plan Free (Web Service) de Render
+http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('Dosimat MQTT Bridge OK\n');
+}).listen(PORT, () => {
+    console.log(`[BRIDGE] Servidor HTTP activo en puerto ${PORT}`);
+});
 
 console.log('[BRIDGE] Iniciando puente MQTT 24/7 hacia Firebase Cloud Functions...');
 
