@@ -4812,6 +4812,7 @@ function initBidonModule() {
 let proClientState = {
     isLinked: false,
     clientDoc: null,
+    searchedEmail: "",
     upcomingDelivery: null,
     openOrders: [],
     transactions: [],
@@ -4837,7 +4838,8 @@ async function syncDosimatProClient() {
     await ensureProAuth();
 
     const emailToSearch = (proClientState.customEmail || (proAuth?.currentUser?.email) || (auth.currentUser ? auth.currentUser.email : "") || "").trim().toLowerCase();
-    
+    proClientState.searchedEmail = emailToSearch;
+
     if (!emailToSearch) {
         proClientState.isLinked = false;
         proClientState.clientDoc = null;
@@ -5050,22 +5052,41 @@ function renderDosimatProUI() {
 
     // 2. Pantalla Exclusiva: Tab Portal de Clientes
     const notLinkedView = document.getElementById('proPortalNotLinked');
+    const notClientView = document.getElementById('proPortalNotAClient');
     const linkedView = document.getElementById('proPortalLinked');
 
-    if (!proClientState.isLinked) {
+    if (!proClientState.searchedEmail) {
+        // No hay correo configurado
         if (notLinkedView) notLinkedView.style.display = 'block';
+        if (notClientView) notClientView.style.display = 'none';
         if (linkedView) linkedView.style.display = 'none';
         const inpEmail = document.getElementById('inpProTabEmail');
         if (inpEmail && !inpEmail.value) {
-            inpEmail.value = proClientState.customEmail || (auth.currentUser ? auth.currentUser.email : "");
+            inpEmail.value = (auth.currentUser ? auth.currentUser.email : "");
+        }
+    } else if (!proClientState.isLinked) {
+        // Hay un correo ingresado pero NO figura como cliente de reposición
+        if (notLinkedView) notLinkedView.style.display = 'none';
+        if (notClientView) notClientView.style.display = 'block';
+        if (linkedView) linkedView.style.display = 'none';
+        
+        const lblNotClientEmail = document.getElementById('lblProNotAClientEmail');
+        if (lblNotClientEmail) lblNotClientEmail.innerText = proClientState.searchedEmail;
+
+        const inpNotClientEmail = document.getElementById('inpProNotClientEmail');
+        if (inpNotClientEmail && !inpNotClientEmail.value) {
+            inpNotClientEmail.value = "";
         }
     } else {
+        // Cliente activo y verificado en la colección clients
         if (notLinkedView) notLinkedView.style.display = 'none';
+        if (notClientView) notClientView.style.display = 'none';
         if (linkedView) linkedView.style.display = 'block';
 
         const c = proClientState.clientDoc;
         const lblNom = document.getElementById('lblProTabNombre');
         const lblDir = document.getElementById('lblProTabDireccion');
+        const lblLinkedEmail = document.getElementById('lblProTabLinkedEmail');
         const lblSaldoARS = document.getElementById('lblProTabSaldoARS');
         const lblSubSaldoARS = document.getElementById('lblProTabSubSaldoARS');
         const cardSaldoARS = document.getElementById('cardProSaldoARS');
@@ -5075,6 +5096,7 @@ function renderDosimatProUI() {
 
         if (lblNom) lblNom.innerText = `¡Hola, ${c.nombre || 'Cliente'}!`;
         if (lblDir) lblDir.innerText = `${c.apellido || ''} ${c.nombre || ''} • ${c.direccion || c.localidad || 'Sin dirección'}`.trim();
+        if (lblLinkedEmail) lblLinkedEmail.innerText = proClientState.searchedEmail || c.mail || '--';
         
         // Saldos
         const saldoARS = Number(c.saldoActual ?? c.saldo ?? 0);
@@ -5330,7 +5352,7 @@ function initDosimatProModule() {
         };
     }
 
-    // 3. Login en Tab Portal
+    // 3. Login en Tab Portal (Estado No Conectado)
     const btnTabLogin = document.getElementById('btnProTabLogin');
     const inpTabEmail = document.getElementById('inpProTabEmail');
     const inpTabPassword = document.getElementById('inpProTabPassword');
@@ -5343,7 +5365,7 @@ function initDosimatProModule() {
             if (lblTabError) lblTabError.style.display = 'none';
 
             if (!email) {
-                showToast("Ingresá tu correo electrónico.");
+                showToast("Ingresá tu correo electrónico de reposición.");
                 return;
             }
 
@@ -5362,10 +5384,7 @@ function initDosimatProModule() {
                 await syncDosimatProClient();
 
                 if (!proClientState.isLinked) {
-                    if (lblTabError) {
-                        lblTabError.innerText = "No se encontró un cliente con este correo en el sistema de reposición.";
-                        lblTabError.style.display = 'block';
-                    }
+                    showToast("Atención: Este correo no figura como cliente activo de reposición.");
                 } else {
                     showToast("¡Bienvenido a tu Portal de Clientes!");
                 }
@@ -5383,31 +5402,124 @@ function initDosimatProModule() {
                 }
             } finally {
                 btnTabLogin.disabled = false;
-                btnTabLogin.innerText = "Ingresar al Portal";
+                btnTabLogin.innerText = "Conectar con Portal de Clientes";
             }
         };
     }
 
-    // 4. Logout en Tab Portal
+    // 4. Vincular otro correo desde Estado No Cliente (proPortalNotAClient)
+    const btnNotClientVincular = document.getElementById('btnProNotClientVincular');
+    const inpNotClientEmail = document.getElementById('inpProNotClientEmail');
+    const inpNotClientPassword = document.getElementById('inpProNotClientPassword');
+    const lblNotClientError = document.getElementById('lblProNotClientError');
+
+    if (btnNotClientVincular && inpNotClientEmail) {
+        btnNotClientVincular.onclick = async () => {
+            const email = inpNotClientEmail.value.trim().toLowerCase();
+            const password = inpNotClientPassword ? inpNotClientPassword.value.trim() : "";
+            if (lblNotClientError) lblNotClientError.style.display = 'none';
+
+            if (!email) {
+                showToast("Ingresá el correo electrónico de reposición.");
+                return;
+            }
+
+            btnNotClientVincular.disabled = true;
+            btnNotClientVincular.innerText = "Vinculando...";
+
+            try {
+                if (proAuth && password) {
+                    await signInWithEmailAndPassword(proAuth, email, password);
+                } else {
+                    await ensureProAuth();
+                }
+
+                proClientState.customEmail = email;
+                localStorage.setItem("dosimat_pro_email", email);
+                await syncDosimatProClient();
+
+                if (!proClientState.isLinked) {
+                    if (lblNotClientError) {
+                        lblNotClientError.innerText = `El correo ${email} tampoco figura registrado en el sistema de reposición.`;
+                        lblNotClientError.style.display = 'block';
+                    }
+                } else {
+                    showToast("¡Cuenta de Reposición vinculada con éxito!");
+                }
+            } catch (err) {
+                console.error("Error vinculando cuenta en Pro:", err);
+                if (lblNotClientError) {
+                    let msg = "No se pudo conectar. Verificá tu correo y contraseña.";
+                    if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+                        msg = "Contraseña incorrecta del Portal.";
+                    }
+                    lblNotClientError.innerText = msg;
+                    lblNotClientError.style.display = 'block';
+                }
+            } finally {
+                btnNotClientVincular.disabled = false;
+                btnNotClientVincular.innerText = "Vincular Cuenta de Reposición";
+            }
+        };
+    }
+
+    // Botones de consulta de alta para nuevos clientes
+    const btnNotClientWsp = document.getElementById('btnProNotClientWsp');
+    const btnNotClientMail = document.getElementById('btnProNotClientMail');
+
+    if (btnNotClientWsp) {
+        btnNotClientWsp.onclick = () => {
+            const email = proClientState.searchedEmail || "";
+            const num = globalSoporteWsp || "5491153074195";
+            const txt = `Hola! Quisiera consultar para darme de alta en el *Servicio de Reposición de Cloro a Domicilio* de Dosimat.\n\n📧 *Mi Email:* ${email}`;
+            window.open(`https://wa.me/${num}?text=${encodeURIComponent(txt)}`, '_blank');
+        };
+    }
+
+    if (btnNotClientMail) {
+        btnNotClientMail.onclick = () => {
+            const email = proClientState.searchedEmail || "";
+            const mailAddr = globalSoporteMail || "soporte@dosimat.com";
+            const sub = encodeURIComponent(`Consulta Alta Servicio de Reposición - ${email}`);
+            const body = encodeURIComponent(`Hola equipo de Dosimat,\n\nQuisiera solicitar información para contratar el servicio de entrega y reposición periódica de bidones de cloro a domicilio.\n\nEmail de contacto: ${email}\n\nMuchas gracias.`);
+            window.location.href = `mailto:${mailAddr}?subject=${sub}&body=${body}`;
+        };
+    }
+
+    // 5. Logout y Cambiar Email en Tab Portal
     const btnTabLogout = document.getElementById('btnProTabLogout');
+    const btnTabCambiarEmail = document.getElementById('btnProTabCambiarEmail');
+
+    const cerrarSesionPro = async () => {
+        if (proAuth) {
+            try { await signOut(proAuth); } catch(e){}
+        }
+        proClientState.isLinked = false;
+        proClientState.clientDoc = null;
+        proClientState.upcomingDelivery = null;
+        proClientState.openOrders = [];
+        proClientState.transactions = [];
+        proClientState.customEmail = "";
+        proClientState.searchedEmail = "";
+        localStorage.removeItem("dosimat_pro_email");
+        renderDosimatProUI();
+    };
+
     if (btnTabLogout) {
         btnTabLogout.onclick = async () => {
-            if (proAuth) {
-                try { await signOut(proAuth); } catch(e){}
-            }
-            proClientState.isLinked = false;
-            proClientState.clientDoc = null;
-            proClientState.upcomingDelivery = null;
-            proClientState.openOrders = [];
-            proClientState.transactions = [];
-            proClientState.customEmail = "";
-            localStorage.removeItem("dosimat_pro_email");
-            renderDosimatProUI();
+            await cerrarSesionPro();
             showToast("Sesión cerrada del portal.");
         };
     }
 
-    // 5. Enviar Pedido desde Tab Portal
+    if (btnTabCambiarEmail) {
+        btnTabCambiarEmail.onclick = async () => {
+            await cerrarSesionPro();
+            showToast("Ingresá el nuevo correo de reposición.");
+        };
+    }
+
+    // 6. Enviar Pedido desde Tab Portal
     const btnTabEnviar = document.getElementById('btnProTabEnviarPedido');
     const inpTabCloro = document.getElementById('inpProTabOrderCloro');
     const inpTabAcido = document.getElementById('inpProTabOrderAcido');
@@ -5429,7 +5541,7 @@ function initDosimatProModule() {
         };
     }
 
-    // 6. Refresh Transacciones
+    // 7. Refresh Transacciones
     const btnRefreshTx = document.getElementById('btnProTabRefreshTx');
     if (btnRefreshTx) {
         btnRefreshTx.onclick = async () => {
@@ -5441,7 +5553,7 @@ function initDosimatProModule() {
         };
     }
 
-    // 7. Modales de Edición y Anulación
+    // 8. Modales de Edición y Anulación
     const modalEdit = document.getElementById('modalEditarPedidoPro');
     const btnCloseEdit = document.getElementById('btnCloseModalEditarPro');
     const btnCancelEdit = document.getElementById('btnCancelEditPro');
