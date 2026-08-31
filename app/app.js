@@ -1561,10 +1561,54 @@ function evaluarAlertasSistema() {
             title: "Refuerzo por Temperatura Activo",
             desc: "La temperatura superó el umbral. Se aplicará automáticamente una dosis con refuerzo.",
             btnText: "Ver Ajustes",
-            action: () => navigateToTab("ajustes"),
+            action: () => navigateToTab("configuracion"),
             notifTitle: "Dosimat",
             notifBody: "Ajuste automático por alta temperatura activo."
         });
+    }
+
+    // 6. Sugerencias Inteligentes de Clima (Calor Intenso o Tormentas pronosticadas)
+    const chkWeather = document.getElementById('chkWeatherAlerts');
+    const weatherAlertsEnabled = chkWeather ? chkWeather.checked : true;
+
+    if (weatherAlertsEnabled && currentWeatherData && currentWeatherData.daily && !isRefuerzoOn) {
+        const todayMax = currentWeatherData.daily.temperature_2m_max ? currentWeatherData.daily.temperature_2m_max[0] : 0;
+        const todayRainProb = currentWeatherData.daily.precipitation_probability_max ? currentWeatherData.daily.precipitation_probability_max[0] : 0;
+        const todayRainMm = currentWeatherData.daily.precipitation_sum ? currentWeatherData.daily.precipitation_sum[0] : 0;
+
+        if (todayMax >= 30) {
+            alerts.push({
+                id: "alerta_clima_calor",
+                type: "warning",
+                icon: "sunny",
+                title: "Sugerencia Meteorológica: Calor Intenso",
+                desc: `Se pronostican temperaturas de hasta ${Math.round(todayMax)}°C. Se sugiere activar el refuerzo de cloro para evitar algas.`,
+                btnText: "Activar Refuerzo",
+                action: () => {
+                    const pRef = document.getElementById('panelRefuerzo');
+                    if (pRef) pRef.click();
+                    else sendCommand({ comando: "SET_REFUERZO", valor: 1 });
+                },
+                notifTitle: "Dosimat Clima",
+                notifBody: `Calor intenso pronosticado (${Math.round(todayMax)}°C). Sugerencia: Reforzar dosis de cloro.`
+            });
+        } else if (todayRainProb >= 60 || todayRainMm >= 10) {
+            alerts.push({
+                id: "alerta_clima_lluvia",
+                type: "warning",
+                icon: "thunderstorm",
+                title: "Sugerencia Meteorológica: Lluvias Fuertes",
+                desc: `Se pronostican precipitaciones (${todayRainProb}% prob. · ${todayRainMm}mm). El agua de lluvia alterará el balance de cloro.`,
+                btnText: "Activar Refuerzo",
+                action: () => {
+                    const pRef = document.getElementById('panelRefuerzo');
+                    if (pRef) pRef.click();
+                    else sendCommand({ comando: "SET_REFUERZO", valor: 1 });
+                },
+                notifTitle: "Dosimat Clima",
+                notifBody: `Lluvias intensas previstas (${todayRainProb}% prob). Sugerencia: Reforzar dosis de cloro.`
+            });
+        }
     }
 
     // Renderizar
@@ -3914,5 +3958,253 @@ function showUpdateBanner(reg) {
         }
     }
 }
+
+// ==========================================
+// === MÓDULO DE CLIMA LOCAL (OPEN-METEO) ===
+// ==========================================
+let currentWeatherData = null;
+let userLocation = {
+    name: "San Fernando",
+    lat: -34.4433,
+    lon: -58.5570
+};
+
+function getWeatherCodeInfo(code) {
+    if (code === 0) return { text: "Despejado", icon: "sunny" };
+    if (code === 1) return { text: "Mayormente despejado", icon: "sunny" };
+    if (code === 2) return { text: "Parcialmente nublado", icon: "partly_cloudy_day" };
+    if (code === 3) return { text: "Nublado", icon: "cloud" };
+    if (code === 45 || code === 48) return { text: "Niebla", icon: "foggy" };
+    if (code >= 51 && code <= 57) return { text: "Llovizna", icon: "rainy" };
+    if (code >= 61 && code <= 67) return { text: "Lluvia", icon: "rainy" };
+    if (code >= 71 && code <= 77) return { text: "Nieve", icon: "weather_snowy" };
+    if (code >= 80 && code <= 82) return { text: "Chubascos", icon: "rainy" };
+    if (code >= 95 && code <= 99) return { text: "Tormenta", icon: "thunderstorm" };
+    return { text: "Variable", icon: "cloud" };
+}
+
+function getDayNameShort(dateStr, index) {
+    if (index === 0) return "HOY";
+    const d = new Date(dateStr + "T12:00:00");
+    const days = ["DOM", "LUN", "MAR", "MIÉ", "JUE", "VIE", "SÁB"];
+    return days[d.getDay()] || "DÍA";
+}
+
+async function fetchWeatherData(lat, lon, cityName) {
+    try {
+        const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max&timezone=auto`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        currentWeatherData = data;
+
+        renderWeatherUI(data, cityName);
+        if (typeof evaluarAlertasSistema === "function") evaluarAlertasSistema();
+    } catch (err) {
+        console.warn("Error cargando clima Open-Meteo:", err);
+        const cond = document.getElementById('lblWeatherCond');
+        if (cond) cond.innerText = "Clima no disponible";
+    }
+}
+
+function renderWeatherUI(data, cityName) {
+    if (!data || !data.current) return;
+
+    const lblCity = document.getElementById('lblWeatherCity');
+    const lblCond = document.getElementById('lblWeatherCond');
+    const lblTemp = document.getElementById('lblWeatherTemp');
+    const lblHum = document.getElementById('lblWeatherHum');
+    const iconCurr = document.getElementById('iconWeatherCurrent');
+    const forecastGrid = document.getElementById('weatherForecastGrid');
+
+    const currInfo = getWeatherCodeInfo(data.current.weather_code);
+
+    if (lblCity) lblCity.innerText = cityName || userLocation.name;
+    if (lblCond) lblCond.innerText = currInfo.text;
+    if (lblTemp) lblTemp.innerText = `${Math.round(data.current.temperature_2m)}°C`;
+    if (lblHum) lblHum.innerText = `Hum: ${data.current.relative_humidity_2m}%`;
+    if (iconCurr) iconCurr.innerText = currInfo.icon;
+
+    if (forecastGrid && data.daily && Array.isArray(data.daily.time)) {
+        forecastGrid.innerHTML = "";
+        const count = Math.min(3, data.daily.time.length);
+        for (let i = 0; i < count; i++) {
+            const dayName = getDayNameShort(data.daily.time[i], i);
+            const wInfo = getWeatherCodeInfo(data.daily.weather_code[i]);
+            const tMax = Math.round(data.daily.temperature_2m_max[i]);
+            const tMin = Math.round(data.daily.temperature_2m_min[i]);
+            const rainProb = data.daily.precipitation_probability_max ? data.daily.precipitation_probability_max[i] : 0;
+            const rainMm = data.daily.precipitation_sum ? data.daily.precipitation_sum[i] : 0;
+
+            let rainText = `${rainProb}%`;
+            if (rainMm > 0) rainText += ` (${rainMm}mm)`;
+
+            const itemEl = document.createElement('div');
+            itemEl.className = "forecast-item";
+            itemEl.innerHTML = `
+                <div class="forecast-day-title">${dayName}</div>
+                <span class="material-symbols-outlined forecast-icon">${wInfo.icon}</span>
+                <div class="forecast-temps">${tMax}° <span class="forecast-temps-min">/ ${tMin}°</span></div>
+                <div class="forecast-rain">
+                    <span class="material-symbols-outlined" style="font-size: 0.82rem;">water_drop</span>
+                    <span>${rainText}</span>
+                </div>
+            `;
+            forecastGrid.appendChild(itemEl);
+        }
+    }
+}
+
+function updateLocationDisplay() {
+    const lblName = document.getElementById('lblCurrentLocationName');
+    const lblCoords = document.getElementById('lblCurrentLocationCoords');
+    if (lblName) lblName.innerText = userLocation.name || "San Fernando";
+    if (lblCoords) lblCoords.innerText = `${userLocation.lat}°, ${userLocation.lon}°`;
+}
+
+function initWeatherModule() {
+    try {
+        const saved = localStorage.getItem("dosimat_location");
+        if (saved) {
+            userLocation = JSON.parse(saved);
+        }
+    } catch(e) {}
+
+    updateLocationDisplay();
+    fetchWeatherData(userLocation.lat, userLocation.lon, userLocation.name);
+
+    // Botón refrescar clima
+    const btnRef = document.getElementById('btnRefreshWeather');
+    if (btnRef) {
+        btnRef.onclick = () => {
+            showToast("Actualizando pronóstico...");
+            fetchWeatherData(userLocation.lat, userLocation.lon, userLocation.name);
+        };
+    }
+
+    // Botón GPS
+    const btnGps = document.getElementById('btnDetectGPS');
+    if (btnGps) {
+        btnGps.onclick = () => {
+            if (!("geolocation" in navigator)) {
+                customAlert("Geolocalización no soportada en este navegador.");
+                return;
+            }
+            showToast("Detectando ubicación GPS...");
+            navigator.geolocation.getCurrentPosition(async (pos) => {
+                const lat = pos.coords.latitude;
+                const lon = pos.coords.longitude;
+                let foundName = "Mi Ubicación";
+                try {
+                    const rev = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=es`);
+                    const revJson = await rev.json();
+                    if (revJson.city || revJson.locality) {
+                        foundName = revJson.city || revJson.locality;
+                    }
+                } catch(err) {}
+
+                userLocation = {
+                    name: foundName,
+                    lat: parseFloat(lat.toFixed(4)),
+                    lon: parseFloat(lon.toFixed(4))
+                };
+                localStorage.setItem("dosimat_location", JSON.stringify(userLocation));
+                updateLocationDisplay();
+                fetchWeatherData(userLocation.lat, userLocation.lon, userLocation.name);
+                showToast(`Ubicación establecida: ${foundName}`);
+            }, (err) => {
+                customAlert("No se pudo obtener la ubicación GPS: " + err.message, "GPS Error");
+            }, { timeout: 10000 });
+        };
+    }
+
+    // Buscador manual de ciudades
+    const inpSearch = document.getElementById('inpSearchCity');
+    const btnSearch = document.getElementById('btnSearchCity');
+    const dropResults = document.getElementById('citySearchResults');
+
+    const doSearch = async () => {
+        const query = (inpSearch ? inpSearch.value : "").trim();
+        if (!query || query.length < 2) {
+            customAlert("Ingresa al menos 2 letras para buscar una ciudad.");
+            return;
+        }
+        try {
+            showToast("Buscando ciudades...");
+            const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=6&language=es&format=json`);
+            const data = await res.json();
+            if (!data.results || data.results.length === 0) {
+                if (dropResults) {
+                    dropResults.innerHTML = `<div class="city-search-item" style="color: var(--text-muted);">No se encontraron resultados para "${escapeHtml(query)}"</div>`;
+                    dropResults.style.display = "block";
+                }
+                return;
+            }
+
+            if (dropResults) {
+                dropResults.innerHTML = "";
+                data.results.forEach(city => {
+                    const item = document.createElement('div');
+                    item.className = "city-search-item";
+                    const admin = city.admin1 ? `${city.admin1}, ` : "";
+                    const country = city.country || "";
+                    item.innerHTML = `
+                        <span class="city-search-name">${escapeHtml(city.name)}</span>
+                        <span class="city-search-country">${escapeHtml(admin + country)} (${city.latitude.toFixed(2)}°, ${city.longitude.toFixed(2)}°)</span>
+                    `;
+                    item.onclick = () => {
+                        userLocation = {
+                            name: city.name,
+                            lat: parseFloat(city.latitude.toFixed(4)),
+                            lon: parseFloat(city.longitude.toFixed(4))
+                        };
+                        localStorage.setItem("dosimat_location", JSON.stringify(userLocation));
+                        updateLocationDisplay();
+                        fetchWeatherData(userLocation.lat, userLocation.lon, userLocation.name);
+                        dropResults.style.display = "none";
+                        if (inpSearch) inpSearch.value = "";
+                        showToast(`Ciudad seleccionada: ${city.name}`);
+                    };
+                    dropResults.appendChild(item);
+                });
+                dropResults.style.display = "block";
+            }
+        } catch(err) {
+            console.error("Error buscando ciudad:", err);
+            customAlert("Error al buscar la ciudad en Open-Meteo.");
+        }
+    };
+
+    if (btnSearch) btnSearch.onclick = doSearch;
+    if (inpSearch) {
+        inpSearch.onkeydown = (e) => {
+            if (e.key === "Enter") {
+                e.preventDefault();
+                doSearch();
+            }
+        };
+    }
+
+    document.addEventListener('click', (e) => {
+        if (dropResults && !dropResults.contains(e.target) && e.target !== inpSearch && e.target !== btnSearch) {
+            dropResults.style.display = "none";
+        }
+    });
+
+    const chkWeather = document.getElementById('chkWeatherAlerts');
+    if (chkWeather) {
+        chkWeather.onchange = () => {
+            if (typeof evaluarAlertasSistema === "function") evaluarAlertasSistema();
+        };
+    }
+}
+
+// Iniciar módulo de clima al cargar
+if (document.readyState === "loading") {
+    document.addEventListener('DOMContentLoaded', initWeatherModule);
+} else {
+    initWeatherModule();
+}
+
 
 
