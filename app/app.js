@@ -4814,6 +4814,9 @@ let proClientState = {
     clientDoc: null,
     upcomingDelivery: null,
     openOrders: [],
+    transactions: [],
+    deliveryLocked: false,
+    staffReviewNotices: [],
     customEmail: localStorage.getItem("dosimat_pro_email") || ""
 };
 
@@ -4833,13 +4836,15 @@ async function syncDosimatProClient() {
 
     await ensureProAuth();
 
-    const emailToSearch = (proClientState.customEmail || (auth.currentUser ? auth.currentUser.email : "") || "").trim().toLowerCase();
+    const emailToSearch = (proClientState.customEmail || (proAuth?.currentUser?.email) || (auth.currentUser ? auth.currentUser.email : "") || "").trim().toLowerCase();
     
     if (!emailToSearch) {
         proClientState.isLinked = false;
         proClientState.clientDoc = null;
         proClientState.upcomingDelivery = null;
         proClientState.openOrders = [];
+        proClientState.transactions = [];
+        proClientState.deliveryLocked = false;
         renderDosimatProUI();
         return;
     }
@@ -4853,7 +4858,6 @@ async function syncDosimatProClient() {
         if (!snapDirect.empty) {
             matchedDoc = snapDirect.docs[0];
         } else {
-            // Buscar si coincide en la lista completa
             const allClientsSnap = await getDocs(collection(proDb, "clients"));
             for (const docSnap of allClientsSnap.docs) {
                 const data = docSnap.data();
@@ -4880,11 +4884,16 @@ async function syncDosimatProClient() {
 
             // 3. Cargar Pedidos Activos del Cliente
             await loadProClientOrders(matchedDoc.id);
+
+            // 4. Cargar Historial de Transacciones
+            await loadProTransactions(matchedDoc.id);
         } else {
             proClientState.isLinked = false;
             proClientState.clientDoc = null;
             proClientState.upcomingDelivery = null;
             proClientState.openOrders = [];
+            proClientState.transactions = [];
+            proClientState.deliveryLocked = false;
         }
     } catch (err) {
         console.error("Error sincronizando cliente con DosimatPro:", err);
@@ -4909,6 +4918,8 @@ async function loadProDeliverySheet(clientId) {
                 return new Date(b.date + 'T12:00:00').getTime() - new Date(a.date + 'T12:00:00').getTime();
             });
 
+            proClientState.deliveryLocked = sorted.some(s => s.status === 'active');
+
             const sheet = sorted[0];
             const item = sheet.items?.find(i => i.clientId === clientId);
             
@@ -4919,6 +4930,7 @@ async function loadProDeliverySheet(clientId) {
                 acido: Number(item?.plannedAcid || 0)
             };
         } else {
+            proClientState.deliveryLocked = false;
             const qGlobal = query(collection(proDb, "route_sheets"), where("status", "==", "planned"));
             const snapGlobal = await getDocs(qGlobal);
             const future = snapGlobal.docs
@@ -4940,6 +4952,7 @@ async function loadProDeliverySheet(clientId) {
     } catch (err) {
         console.error("Error cargando hojas de ruta de DosimatPro:", err);
         proClientState.upcomingDelivery = null;
+        proClientState.deliveryLocked = false;
     }
 }
 
@@ -4949,16 +4962,46 @@ async function loadProClientOrders(clientId) {
         await ensureProAuth();
         const qOrders = query(
             collection(proDb, "client_requests"),
-            where("clientId", "==", clientId),
-            where("status", "in", ["pending", "scheduled"])
+            where("clientId", "==", clientId)
         );
         const snap = await getDocs(qOrders);
-        proClientState.openOrders = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const allOrders = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        
+        proClientState.openOrders = allOrders
+            .filter(o => o.status === 'pending' || o.status === 'scheduled')
+            .sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
     } catch (err) {
         console.error("Error cargando pedidos de DosimatPro:", err);
         proClientState.openOrders = [];
     }
 }
+
+async function loadProTransactions(clientId) {
+    if (!proDb || !clientId) return;
+    try {
+        await ensureProAuth();
+        const qTx = query(
+            collection(proDb, "transactions"),
+            where("clientId", "==", clientId)
+        );
+        const snap = await getDocs(qTx);
+        proClientState.transactions = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => {
+            return new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime();
+        });
+    } catch (err) {
+        console.error("Error cargando transacciones de DosimatPro:", err);
+        proClientState.transactions = [];
+    }
+}
+
+const proTxTypeMap = {
+    sale: { label: "Venta de Producto", icon: "shopping_cart", color: "#2563eb" },
+    refill: { label: "Reposición de Bidones", icon: "water_drop", color: "#0284c7" },
+    "Reposición": { label: "Reposición de Bidones", icon: "water_drop", color: "#0284c7" },
+    service: { label: "Servicio Técnico", icon: "build", color: "#7c3aed" },
+    cobro: { label: "Pago Realizado", icon: "check_circle", color: "#10b981" },
+    adjustment: { label: "Ajuste de Saldo", icon: "tune", color: "#64748b" }
+};
 
 function formatProDate(isoDateStr) {
     if (!isoDateStr) return "--";
@@ -4980,7 +5023,6 @@ function renderDosimatProUI() {
     const lblRepartoTit = document.getElementById('lblProRepartoTitulo');
     const lblRepartoDet = document.getElementById('lblProRepartoDetalle');
     const badgeReparto = document.getElementById('badgeProRepartoEstado');
-    const btnSolSistema = document.getElementById('btnSolSistemaPro');
 
     if (proClientState.isLinked && proClientState.upcomingDelivery) {
         if (bannerReparto) bannerReparto.style.display = 'block';
@@ -5006,19 +5048,14 @@ function renderDosimatProUI() {
         if (bannerReparto) bannerReparto.style.display = 'none';
     }
 
-    // Botón de Confirmar Pedido en el Sistema Pro dentro del modal de reposición
-    if (btnSolSistema) {
-        btnSolSistema.style.display = proClientState.isLinked ? 'flex' : 'none';
-    }
-
-    // 2. Portal en la solapa Soporte
-    const notLinkedView = document.getElementById('proClientNotLinked');
-    const linkedView = document.getElementById('proClientLinked');
+    // 2. Pantalla Exclusiva: Tab Portal de Clientes
+    const notLinkedView = document.getElementById('proPortalNotLinked');
+    const linkedView = document.getElementById('proPortalLinked');
 
     if (!proClientState.isLinked) {
         if (notLinkedView) notLinkedView.style.display = 'block';
         if (linkedView) linkedView.style.display = 'none';
-        const inpEmail = document.getElementById('inpProCustomEmail');
+        const inpEmail = document.getElementById('inpProTabEmail');
         if (inpEmail && !inpEmail.value) {
             inpEmail.value = proClientState.customEmail || (auth.currentUser ? auth.currentUser.email : "");
         }
@@ -5027,33 +5064,66 @@ function renderDosimatProUI() {
         if (linkedView) linkedView.style.display = 'block';
 
         const c = proClientState.clientDoc;
-        const lblNom = document.getElementById('lblProClientNombre');
-        const lblDir = document.getElementById('lblProClientDireccion');
-        const lblSaldo = document.getElementById('lblProClientSaldo');
-        const lblEmail = document.getElementById('lblProLinkedEmail');
+        const lblNom = document.getElementById('lblProTabNombre');
+        const lblDir = document.getElementById('lblProTabDireccion');
+        const lblSaldoARS = document.getElementById('lblProTabSaldoARS');
+        const lblSubSaldoARS = document.getElementById('lblProTabSubSaldoARS');
+        const cardSaldoARS = document.getElementById('cardProSaldoARS');
+        const lblSaldoUSD = document.getElementById('lblProTabSaldoUSD');
+        const lblSubSaldoUSD = document.getElementById('lblProTabSubSaldoUSD');
+        const cardSaldoUSD = document.getElementById('cardProSaldoUSD');
 
-        if (lblNom) lblNom.innerText = `${c.apellido || ''}, ${c.nombre || ''}`.trim() || 'Cliente Dosimat';
-        if (lblDir) lblDir.innerText = c.direccion || c.localidad || 'Sin dirección registrada';
+        if (lblNom) lblNom.innerText = `¡Hola, ${c.nombre || 'Cliente'}!`;
+        if (lblDir) lblDir.innerText = `${c.apellido || ''} ${c.nombre || ''} • ${c.direccion || c.localidad || 'Sin dirección'}`.trim();
         
-        if (lblSaldo) {
-            const saldo = Number(c.saldo || 0);
-            lblSaldo.innerText = `$${saldo.toLocaleString('es-AR')}`;
-            lblSaldo.style.color = saldo < 0 ? 'var(--danger)' : '#10b981';
+        // Saldos
+        const saldoARS = Number(c.saldoActual ?? c.saldo ?? 0);
+        const saldoUSD = Number(c.saldoUSD ?? 0);
+
+        if (lblSaldoARS) {
+            lblSaldoARS.innerText = `$ ${Math.abs(saldoARS).toLocaleString('es-AR')}`;
+            lblSaldoARS.style.color = saldoARS < 0 ? '#e11d48' : '#10b981';
         }
-        if (lblEmail) lblEmail.innerText = proClientState.customEmail || c.mail || '--';
+        if (lblSubSaldoARS) {
+            lblSubSaldoARS.innerText = saldoARS < 0 ? 'Saldo Pendiente' : 'Saldo a Favor';
+            lblSubSaldoARS.style.color = saldoARS < 0 ? '#e11d48' : '#10b981';
+        }
+        if (cardSaldoARS) {
+            cardSaldoARS.style.borderLeftColor = saldoARS < 0 ? '#e11d48' : '#10b981';
+        }
+
+        if (lblSaldoUSD) {
+            lblSaldoUSD.innerText = `u$s ${Math.abs(saldoUSD).toLocaleString('es-AR')}`;
+            lblSaldoUSD.style.color = saldoUSD < 0 ? '#e11d48' : '#10b981';
+        }
+        if (lblSubSaldoUSD) {
+            lblSubSaldoUSD.innerText = saldoUSD < 0 ? 'Saldo Pendiente' : 'Saldo a Favor';
+            lblSubSaldoUSD.style.color = saldoUSD < 0 ? '#e11d48' : '#10b981';
+        }
+        if (cardSaldoUSD) {
+            cardSaldoUSD.style.borderLeftColor = saldoUSD < 0 ? '#e11d48' : '#10b981';
+        }
+
+        // Alerta de Delivery Locked
+        const bannerLocked = document.getElementById('proTabBannerDeliveryLocked');
+        if (bannerLocked) {
+            bannerLocked.style.display = proClientState.deliveryLocked ? 'block' : 'none';
+        }
 
         // Próxima entrega en el portal
-        const lblFechaPortal = document.getElementById('lblProPortalFechaEntrega');
-        const lblDetallePortal = document.getElementById('lblProPortalDetalleItems');
-        const badgePortal = document.getElementById('badgeProPortalEstado');
+        const lblFechaPortal = document.getElementById('lblProTabEntregaFecha');
+        const lblDetallePortal = document.getElementById('lblProTabEntregaDetalle');
+        const badgePortal = document.getElementById('badgeProTabEntregaEstado');
+        const cardEntrega = document.getElementById('cardProTabProximaEntrega');
 
         if (proClientState.upcomingDelivery) {
             const d = proClientState.upcomingDelivery;
+            if (cardEntrega) cardEntrega.style.display = 'block';
             if (lblFechaPortal) lblFechaPortal.innerText = formatProDate(d.date);
             if (lblDetallePortal) {
                 lblDetallePortal.innerText = (d.cloro > 0 || d.acido > 0)
-                    ? `Entrega asignada: ${d.cloro} Bidón(es) de Cloro${d.acido > 0 ? ', ' + d.acido + ' de Ácido' : ''}`
-                    : 'Fecha planificada en el cronograma de repartos';
+                    ? `Entrega asignada en planilla: ${d.cloro} Bidón(es) de Cloro${d.acido > 0 ? ', ' + d.acido + ' de Ácido' : ''}`
+                    : 'Fecha planificada en el cronograma de repartos de la zona';
             }
             if (badgePortal) {
                 badgePortal.innerText = d.status === "active" ? "En Reparto" : "Planificado";
@@ -5070,32 +5140,80 @@ function renderDosimatProUI() {
             }
         }
 
-        // Lista de pedidos
-        const listContainer = document.getElementById('proPedidosList');
-        const lblCount = document.getElementById('lblProCountPedidos');
+        // Mis Pedidos Activos
+        const listPedidos = document.getElementById('proTabPedidosList');
+        const lblCount = document.getElementById('lblProTabPedidosCount');
         if (lblCount) lblCount.innerText = `${proClientState.openOrders.length} pedido(s)`;
 
-        if (listContainer) {
+        if (listPedidos) {
             if (proClientState.openOrders.length === 0) {
-                listContainer.innerHTML = `<div style="font-size: 0.76rem; color: var(--text-muted); font-style: italic; padding: 0.3rem 0;">No tenés pedidos pendientes actualmente.</div>`;
+                listPedidos.innerHTML = `<div style="font-size: 0.82rem; color: var(--text-muted); font-style: italic; padding: 0.5rem 0;">No tenés pedidos pendientes en este momento.</div>`;
             } else {
-                listContainer.innerHTML = proClientState.openOrders.map(p => {
-                    const cantTxt = `${p.cloro > 0 ? p.cloro + ' Cloro' : ''}${p.cloro > 0 && p.acido > 0 ? ' · ' : ''}${p.acido > 0 ? p.acido + ' Ácido' : ''}`;
+                listPedidos.innerHTML = proClientState.openOrders.map(p => {
+                    const cantTxt = `${p.cloro > 0 ? p.cloro + ' Bidón(es) de Cloro' : ''}${p.cloro > 0 && p.acido > 0 ? ' · ' : ''}${p.acido > 0 ? p.acido + ' Bidón(es) de Ácido' : ''}`;
                     const statusClass = p.status === 'scheduled' ? 'scheduled' : 'pending';
-                    const statusTxt = p.status === 'scheduled' ? 'Programado' : 'Pendiente';
+                    const statusTxt = p.status === 'scheduled' ? 'En planilla de ruta' : 'Pendiente de programar';
+                    
                     return `
-                        <div class="pro-pedido-item">
-                            <div class="pro-pedido-info">
-                                <div class="pro-pedido-title">${cantTxt || 'Pedido'}</div>
-                                <div class="pro-pedido-sub">${p.notes ? `"${p.notes}"` : 'Sin notas adicionales'}</div>
+                        <div class="pro-pedido-item" style="padding: 0.75rem 0.9rem; flex-wrap: wrap; gap: 0.6rem;">
+                            <div class="pro-pedido-info" style="flex: 1; min-width: 180px;">
+                                <div style="display: flex; align-items: center; gap: 0.4rem; margin-bottom: 2px;">
+                                    <span class="pro-badge ${statusClass}">${statusTxt}</span>
+                                </div>
+                                <div class="pro-pedido-title" style="font-size: 0.9rem;">${cantTxt || 'Pedido'}</div>
+                                ${p.notes ? `<div class="pro-pedido-sub" style="font-style: italic; margin-top: 2px;">"${p.notes}"</div>` : ''}
                             </div>
-                            <div style="display: flex; align-items: center; gap: 0.4rem;">
-                                <span class="pro-badge ${statusClass}">${statusTxt}</span>
-                                ${p.status === 'pending' ? `
-                                    <button class="btn-pro-cancel-order" onclick="cancelarPedidoPro('${p.id}')" title="Cancelar Pedido">
-                                        <span class="material-symbols-outlined" style="font-size: 1.1rem;">delete</span>
+                            ${!proClientState.deliveryLocked ? `
+                                <div style="display: flex; align-items: center; gap: 0.4rem;">
+                                    <button class="btn outline" onclick="abrirModalEditarPedidoPro('${p.id}')" style="padding: 0.35rem 0.65rem; font-size: 0.75rem; display: flex; align-items: center; gap: 0.3rem;">
+                                        <span class="material-symbols-outlined" style="font-size: 1rem;">edit</span>
+                                        <span>Editar</span>
                                     </button>
-                                ` : ''}
+                                    <button class="btn outline" onclick="abrirModalConfirmAnularPro('${p.id}')" style="padding: 0.35rem 0.65rem; font-size: 0.75rem; display: flex; align-items: center; gap: 0.3rem; border-color: #fecdd3; color: #e11d48;">
+                                        <span class="material-symbols-outlined" style="font-size: 1rem;">delete</span>
+                                        <span>Anular</span>
+                                    </button>
+                                </div>
+                            ` : ''}
+                        </div>
+                    `;
+                }).join('');
+            }
+        }
+
+        // Historial de Operaciones
+        const listTx = document.getElementById('proTabTxList');
+        if (listTx) {
+            if (proClientState.transactions.length === 0) {
+                listTx.innerHTML = `<div style="font-size: 0.82rem; color: var(--text-muted); font-style: italic; padding: 0.6rem 0; text-align: center;">No hay movimientos registrados todavía.</div>`;
+            } else {
+                listTx.innerHTML = proClientState.transactions.map(tx => {
+                    const info = proTxTypeMap[tx.type] || { label: tx.description || tx.type || "Operación", icon: "receipt", color: "#64748b" };
+                    const isPayment = tx.type === 'cobro';
+                    const dateRaw = tx.date || "";
+                    let dateFormatted = "--";
+                    try {
+                        const dObj = new Date(dateRaw.includes('T') ? dateRaw : dateRaw + 'T12:00:00');
+                        dateFormatted = dObj.toLocaleDateString('es-AR', { day: 'numeric', month: 'short', year: 'numeric' });
+                    } catch(e){}
+                    const currSym = tx.currency === 'USD' ? 'u$s ' : '$ ';
+                    const amountVal = Math.abs(Number(tx.amount || 0)).toLocaleString('es-AR');
+
+                    return `
+                        <div style="display: flex; align-items: center; justify-content: space-between; background: var(--bg-color); border: 1px solid var(--card-border); border-radius: 8px; padding: 0.65rem 0.85rem;">
+                            <div style="display: flex; align-items: center; gap: 0.65rem;">
+                                <div style="width: 36px; height: 36px; border-radius: 8px; background: rgba(2, 132, 199, 0.1); color: ${info.color}; display: flex; align-items: center; justify-content: center;">
+                                    <span class="material-symbols-outlined" style="font-size: 1.2rem;">${info.icon}</span>
+                                </div>
+                                <div>
+                                    <div style="font-weight: 700; font-size: 0.82rem; color: var(--text-color);">${info.label}</div>
+                                    <div style="font-size: 0.72rem; color: var(--text-muted);">${dateFormatted}</div>
+                                </div>
+                            </div>
+                            <div style="text-align: right;">
+                                <div style="font-weight: 900; font-size: 0.95rem; color: ${isPayment ? '#10b981' : 'var(--text-color)'};">
+                                    ${isPayment ? '+' : ''}${currSym}${amountVal}
+                                </div>
                             </div>
                         </div>
                     `;
@@ -5139,39 +5257,98 @@ async function enviarNuevoPedidoPro(cloro, acido, notas) {
     }
 }
 
-window.cancelarPedidoPro = async function(requestId) {
-    if (!proDb || !requestId) return;
+async function guardarEdicionPedidoPro(requestId, cloro, acido, notas) {
+    if (!proDb || !requestId) return false;
+    if (cloro <= 0 && acido <= 0) {
+        showToast("Indicá al menos 1 bidón de cloro o ácido.");
+        return false;
+    }
+
     try {
         await ensureProAuth();
-        await deleteDoc(doc(proDb, "client_requests", requestId));
-        showToast("Pedido cancelado.");
+        await updateDoc(doc(proDb, "client_requests", requestId), {
+            cloro: Number(cloro),
+            acido: Number(acido),
+            notes: notas || "",
+            updatedAt: new Date().toISOString()
+        });
+
+        showToast("Pedido actualizado correctamente.");
         await syncDosimatProClient();
+        return true;
     } catch (e) {
-        console.error("Error cancelando pedido:", e);
-        showToast("No se pudo cancelar el pedido.");
+        console.error("Error actualizando pedido:", e);
+        showToast("No se pudo actualizar el pedido.");
+        return false;
     }
+}
+
+window.abrirModalEditarPedidoPro = function(requestId) {
+    const p = proClientState.openOrders.find(o => o.id === requestId);
+    if (!p) return;
+    const modal = document.getElementById('modalEditarPedidoPro');
+    const inpId = document.getElementById('inpEditProRequestId');
+    const inpC = document.getElementById('inpEditProCloro');
+    const inpA = document.getElementById('inpEditProAcido');
+    const inpN = document.getElementById('inpEditProNotas');
+
+    if (inpId) inpId.value = p.id;
+    if (inpC) inpC.value = p.cloro || 0;
+    if (inpA) inpA.value = p.acido || 0;
+    if (inpN) inpN.value = p.notes || "";
+    if (modal) modal.style.display = 'flex';
+};
+
+window.abrirModalConfirmAnularPro = function(requestId) {
+    const modal = document.getElementById('modalConfirmAnularPedidoPro');
+    const inpId = document.getElementById('inpCancelProRequestId');
+    if (inpId) inpId.value = requestId;
+    if (modal) modal.style.display = 'flex';
 };
 
 function initDosimatProModule() {
-    // Botón Vincular / Iniciar Sesión en Pro
-    const btnVincular = document.getElementById('btnVincularProEmail');
-    const inpCustomEmail = document.getElementById('inpProCustomEmail');
-    const inpCustomPassword = document.getElementById('inpProCustomPassword');
-    const lblError = document.getElementById('lblProLoginError');
+    // 1. Click en Banner del Dashboard -> Navegar al Portal
+    const bannerReparto = document.getElementById('bannerProReparto');
+    if (bannerReparto) {
+        bannerReparto.style.cursor = 'pointer';
+        bannerReparto.onclick = () => {
+            const navPortal = document.getElementById('navPortal') || document.querySelector('nav [data-target="portal"]');
+            if (navPortal && typeof switchTab === "function") {
+                switchTab(navPortal, 'portal');
+            }
+        };
+    }
 
-    if (btnVincular && inpCustomEmail) {
-        btnVincular.onclick = async () => {
-            const email = inpCustomEmail.value.trim().toLowerCase();
-            const password = inpCustomPassword ? inpCustomPassword.value.trim() : "";
-            if (lblError) lblError.style.display = 'none';
+    // 2. Click en Botón "Solicitar Reposición" del Dashboard -> Navegar al Portal
+    const btnSolDashboard = document.getElementById('btnOpenModalSolicitarCloro');
+    if (btnSolDashboard) {
+        btnSolDashboard.onclick = () => {
+            const navPortal = document.getElementById('navPortal') || document.querySelector('nav [data-target="portal"]');
+            if (navPortal && typeof switchTab === "function") {
+                switchTab(navPortal, 'portal');
+            }
+        };
+    }
+
+    // 3. Login en Tab Portal
+    const btnTabLogin = document.getElementById('btnProTabLogin');
+    const inpTabEmail = document.getElementById('inpProTabEmail');
+    const inpTabPassword = document.getElementById('inpProTabPassword');
+    const lblTabError = document.getElementById('lblProTabLoginError');
+
+    if (btnTabLogin && inpTabEmail) {
+        btnTabLogin.onclick = async () => {
+            const email = inpTabEmail.value.trim().toLowerCase();
+            const password = inpTabPassword ? inpTabPassword.value.trim() : "";
+            if (lblTabError) lblTabError.style.display = 'none';
 
             if (!email) {
                 showToast("Ingresá tu correo electrónico.");
                 return;
             }
 
-            btnVincular.disabled = true;
-            btnVincular.innerText = "Conectando...";
+            btnTabLogin.disabled = true;
+            btnTabLogin.innerText = "Ingresando...";
 
             try {
                 if (proAuth && password) {
@@ -5185,36 +5362,36 @@ function initDosimatProModule() {
                 await syncDosimatProClient();
 
                 if (!proClientState.isLinked) {
-                    if (lblError) {
-                        lblError.innerText = "No se encontró un cliente con este correo en el sistema de reposición.";
-                        lblError.style.display = 'block';
+                    if (lblTabError) {
+                        lblTabError.innerText = "No se encontró un cliente con este correo en el sistema de reposición.";
+                        lblTabError.style.display = 'block';
                     }
                 } else {
-                    showToast("¡Portal de Clientes conectado exitosamente!");
+                    showToast("¡Bienvenido a tu Portal de Clientes!");
                 }
             } catch (err) {
                 console.error("Error conectando con Portal Pro:", err);
-                if (lblError) {
+                if (lblTabError) {
                     let msg = "No se pudo conectar. Verificá tu correo y contraseña del Portal.";
                     if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
                         msg = "Contraseña incorrecta del Portal de Clientes.";
                     } else if (err.code === 'auth/user-not-found') {
                         msg = "No se encontró una cuenta registrada con este correo.";
                     }
-                    lblError.innerText = msg;
-                    lblError.style.display = 'block';
+                    lblTabError.innerText = msg;
+                    lblTabError.style.display = 'block';
                 }
             } finally {
-                btnVincular.disabled = false;
-                btnVincular.innerText = "Conectar con Portal de Clientes";
+                btnTabLogin.disabled = false;
+                btnTabLogin.innerText = "Ingresar al Portal";
             }
         };
     }
 
-    // Botón Cambiar Email / Desconectar
-    const btnCambiar = document.getElementById('btnProCambiarEmail');
-    if (btnCambiar) {
-        btnCambiar.onclick = async () => {
+    // 4. Logout en Tab Portal
+    const btnTabLogout = document.getElementById('btnProTabLogout');
+    if (btnTabLogout) {
+        btnTabLogout.onclick = async () => {
             if (proAuth) {
                 try { await signOut(proAuth); } catch(e){}
             }
@@ -5222,51 +5399,119 @@ function initDosimatProModule() {
             proClientState.clientDoc = null;
             proClientState.upcomingDelivery = null;
             proClientState.openOrders = [];
+            proClientState.transactions = [];
             proClientState.customEmail = "";
             localStorage.removeItem("dosimat_pro_email");
             renderDosimatProUI();
+            showToast("Sesión cerrada del portal.");
         };
     }
 
-    // Formulario de Pedido en Solapa Soporte
-    const btnEnviar = document.getElementById('btnProEnviarPedido');
-    const inpCloro = document.getElementById('inpProOrderCloro');
-    const inpAcido = document.getElementById('inpProOrderAcido');
-    const inpNotas = document.getElementById('inpProOrderNotas');
+    // 5. Enviar Pedido desde Tab Portal
+    const btnTabEnviar = document.getElementById('btnProTabEnviarPedido');
+    const inpTabCloro = document.getElementById('inpProTabOrderCloro');
+    const inpTabAcido = document.getElementById('inpProTabOrderAcido');
+    const inpTabNotas = document.getElementById('inpProTabOrderNotas');
 
-    if (btnEnviar) {
-        btnEnviar.onclick = async () => {
-            const c = parseInt(inpCloro ? inpCloro.value : 1) || 0;
-            const a = parseInt(inpAcido ? inpAcido.value : 0) || 0;
-            const n = inpNotas ? inpNotas.value.trim() : "";
+    if (btnTabEnviar) {
+        btnTabEnviar.onclick = async () => {
+            const c = parseInt(inpTabCloro ? inpTabCloro.value : 1) || 0;
+            const a = parseInt(inpTabAcido ? inpTabAcido.value : 0) || 0;
+            const n = inpTabNotas ? inpTabNotas.value.trim() : "";
 
-            btnEnviar.disabled = true;
-            btnEnviar.innerText = "Enviando pedido...";
+            btnTabEnviar.disabled = true;
+            btnTabEnviar.innerText = "Enviando pedido...";
             const ok = await enviarNuevoPedidoPro(c, a, n);
-            btnEnviar.disabled = false;
-            btnEnviar.innerText = "Confirmar y Enviar Pedido";
+            btnTabEnviar.disabled = false;
+            btnTabEnviar.innerText = "Enviar Pedido al Sistema";
 
-            if (ok && inpNotas) inpNotas.value = "";
+            if (ok && inpTabNotas) inpTabNotas.value = "";
         };
     }
 
-    // Botón de Enviar Pedido al Sistema desde el Modal de Reposición del Dashboard
-    const btnSolSistema = document.getElementById('btnSolSistemaPro');
-    const inpSolCant = document.getElementById('inpSolCantBidones');
-    const modalSolicitar = document.getElementById('modalSolicitarReposicion');
-
-    if (btnSolSistema) {
-        btnSolSistema.onclick = async () => {
-            const cant = parseInt(inpSolCant ? inpSolCant.value : 1) || 1;
-            btnSolSistema.disabled = true;
-            btnSolSistema.innerText = "Enviando pedido...";
-            const ok = await enviarNuevoPedidoPro(cant, 0, "Solicitado desde el Dashboard de Dosimat IoT");
-            btnSolSistema.disabled = false;
-            btnSolSistema.innerText = "Confirmar Pedido en el Sistema";
-
-            if (ok && modalSolicitar) {
-                modalSolicitar.style.display = 'none';
+    // 6. Refresh Transacciones
+    const btnRefreshTx = document.getElementById('btnProTabRefreshTx');
+    if (btnRefreshTx) {
+        btnRefreshTx.onclick = async () => {
+            if (proClientState.clientDoc) {
+                showToast("Actualizando movimientos...");
+                await loadProTransactions(proClientState.clientDoc.id);
+                renderDosimatProUI();
             }
+        };
+    }
+
+    // 7. Modales de Edición y Anulación
+    const modalEdit = document.getElementById('modalEditarPedidoPro');
+    const btnCloseEdit = document.getElementById('btnCloseModalEditarPro');
+    const btnCancelEdit = document.getElementById('btnCancelEditPro');
+    const btnSaveEdit = document.getElementById('btnSaveEditPro');
+
+    const cerrarEdit = () => { if (modalEdit) modalEdit.style.display = 'none'; };
+    if (btnCloseEdit) btnCloseEdit.onclick = cerrarEdit;
+    if (btnCancelEdit) btnCancelEdit.onclick = cerrarEdit;
+
+    if (btnSaveEdit) {
+        btnSaveEdit.onclick = async () => {
+            const reqId = document.getElementById('inpEditProRequestId')?.value;
+            const c = parseInt(document.getElementById('inpEditProCloro')?.value || 0);
+            const a = parseInt(document.getElementById('inpEditProAcido')?.value || 0);
+            const n = document.getElementById('inpEditProNotas')?.value.trim() || "";
+
+            btnSaveEdit.disabled = true;
+            btnSaveEdit.innerText = "Guardando...";
+            const ok = await guardarEdicionPedidoPro(reqId, c, a, n);
+            btnSaveEdit.disabled = false;
+            btnSaveEdit.innerText = "Guardar Cambios";
+            if (ok) cerrarEdit();
+        };
+    }
+
+    const modalCancel = document.getElementById('modalConfirmAnularPedidoPro');
+    const btnCancelAnular = document.getElementById('btnCancelAnularPro');
+    const btnConfirmAnular = document.getElementById('btnConfirmAnularPro');
+
+    const cerrarCancel = () => { if (modalCancel) modalCancel.style.display = 'none'; };
+    if (btnCancelAnular) btnCancelAnular.onclick = cerrarCancel;
+
+    if (btnConfirmAnular) {
+        btnConfirmAnular.onclick = async () => {
+            const reqId = document.getElementById('inpCancelProRequestId')?.value;
+            btnConfirmAnular.disabled = true;
+            btnConfirmAnular.innerText = "Anulando...";
+            await cancelarPedidoPro(reqId);
+            btnConfirmAnular.disabled = false;
+            btnConfirmAnular.innerText = "Sí, Anular";
+            cerrarCancel();
+        };
+    }
+
+    // Contacto por WhatsApp / Mail en Portal
+    const btnWspContact = document.getElementById('btnProTabWspContact');
+    const btnLockedWsp = document.getElementById('btnProLockedWsp');
+    const btnMailContact = document.getElementById('btnProTabMailContact');
+
+    const triggerWsp = () => {
+        const c = proClientState.clientDoc;
+        const nombre = c ? `${c.apellido || ''}, ${c.nombre || ''}`.trim() : "Cliente";
+        const email = proClientState.customEmail || "";
+        const num = globalSoporteWsp || "5491153074195";
+        const txt = `Hola! Te contacto desde el Portal Dosimat.\n\n👤 *Cliente:* ${nombre}\n📧 *Email:* ${email}\n\nQuería consultar sobre mi pedido / reposición de bidones.`;
+        window.open(`https://wa.me/${num}?text=${encodeURIComponent(txt)}`, '_blank');
+    };
+
+    if (btnWspContact) btnWspContact.onclick = triggerWsp;
+    if (btnLockedWsp) btnLockedWsp.onclick = triggerWsp;
+
+    if (btnMailContact) {
+        btnMailContact.onclick = () => {
+            const c = proClientState.clientDoc;
+            const nombre = c ? `${c.apellido || ''}, ${c.nombre || ''}`.trim() : "Cliente";
+            const email = proClientState.customEmail || "";
+            const mailAddr = globalSoporteMail || "soporte@dosimat.com";
+            const sub = encodeURIComponent(`Consulta Portal Reposición - ${nombre}`);
+            const body = encodeURIComponent(`Hola equipo de Dosimat,\n\nQuería consultar sobre mi cuenta y pedidos de reposición.\n\nCliente: ${nombre}\nEmail: ${email}\n\nMuchas gracias.`);
+            window.location.href = `mailto:${mailAddr}?subject=${sub}&body=${body}`;
         };
     }
 

@@ -96,7 +96,7 @@
     <header>
         <div class="header-title" style="align-items: flex-start; margin-top: 5px;">
             <div style="display: flex; flex-direction: column;">
-                <h1 style="margin-bottom: 0;"><span id="lblHeaderTitle">Dosimat IoT CB</span> <span style="font-size: 0.7rem; color: var(--accent); margin-left: 5px;">v7.01</span></h1>
+                <h1 style="margin-bottom: 0;"><span id="lblHeaderTitle">Dosimat IoT CB</span> <span style="font-size: 0.7rem; color: var(--accent); margin-left: 5px;">v7.03</span></h1>
                 <div id="lblUserName" style="font-size: 0.85rem; font-weight: 300; color: var(--text-muted); display: none;"></div>
             </div>
         </div>
@@ -713,109 +713,178 @@
         </div>
     </div>
 
-    <!-- 5. Pantalla: Soporte y Portal de Clientes -->
-    <div id="tab-soporte" class="container">
-        
-        <!-- Portal de Clientes DosimatPro Integrado -->
-        <div class="card" id="cardPortalProWrapper" style="padding: 1.1rem;">
-            <h2 style="display: flex; align-items: center; width: 100%; margin-bottom: 0.8rem;">
-                <span class="material-symbols-outlined" style="color: var(--accent); margin-right: 0.4rem;">local_shipping</span>
-                <span>Sistema de Reposición de Cloro</span>
-                <span class="material-symbols-outlined btn-help" data-help="portal-reposicion">help</span>
-            </h2>
+    <!-- 5. Pantalla: Portal de Clientes y Reposición -->
+    <div id="tab-portal" class="container">
 
-            <!-- Estado: Cliente No Vinculado / Iniciar Sesión en Pro -->
-            <div id="proClientNotLinked" style="display: none; text-align: center; padding: 1rem 0.5rem;">
-                <span class="material-symbols-outlined" style="font-size: 3rem; color: var(--accent);">local_shipping</span>
-                <h3 style="margin: 0.5rem 0 0.2rem; font-size: 1rem;">Acceso al Portal de Reposición</h3>
-                <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1rem;">
-                    Ingresá tus credenciales del Portal de Clientes de Dosimat para consultar tus fechas de reparto, saldo y gestionar pedidos.
-                </p>
-                <div style="max-width: 320px; margin: 0 auto 0.8rem; display: flex; flex-direction: column; gap: 0.5rem;">
-                    <input type="email" id="inpProCustomEmail" placeholder="Correo electrónico del Portal" style="text-align: center; padding: 0.55rem;">
-                    <input type="password" id="inpProCustomPassword" placeholder="Contraseña del Portal" style="text-align: center; padding: 0.55rem;">
+        <!-- Estado: No Vinculado / Iniciar Sesión en DosimatPro -->
+        <div id="proPortalNotLinked" class="card" style="display: none; text-align: center; padding: 2rem 1rem;">
+            <span class="material-symbols-outlined" style="font-size: 3.5rem; color: var(--accent);">local_shipping</span>
+            <h2 style="margin: 0.8rem 0 0.4rem; font-size: 1.3rem; border: none; padding: 0;">Portal de Reposición</h2>
+            <p style="font-size: 0.85rem; color: var(--text-muted); max-width: 400px; margin: 0 auto 1.5rem;">
+                Ingresá tus credenciales del Portal de Clientes Dosimat para consultar tu saldo, fechas de entrega y gestionar tus pedidos de bidones.
+            </p>
+            <div style="max-width: 340px; margin: 0 auto; display: flex; flex-direction: column; gap: 0.7rem;">
+                <div class="form-group" style="text-align: left; margin: 0;">
+                    <label style="font-size: 0.75rem; font-weight: 700;">Correo Electrónico:</label>
+                    <input type="email" id="inpProTabEmail" placeholder="tucorreo@ejemplo.com" style="padding: 0.6rem;">
                 </div>
-                <div id="lblProLoginError" style="color: var(--danger); font-size: 0.76rem; margin-bottom: 0.6rem; display: none;"></div>
-                <button class="btn" id="btnVincularProEmail" style="width: auto; padding: 0.55rem 1.5rem; margin: 0 auto; background: var(--accent); color: white;">
-                    <span>Conectar con Portal de Clientes</span>
+                <div class="form-group" style="text-align: left; margin: 0;">
+                    <label style="font-size: 0.75rem; font-weight: 700;">Contraseña del Portal:</label>
+                    <input type="password" id="inpProTabPassword" placeholder="••••••••" style="padding: 0.6rem;">
+                </div>
+                <div id="lblProTabLoginError" style="color: var(--danger); font-size: 0.78rem; text-align: center; display: none;"></div>
+                <button class="btn" id="btnProTabLogin" style="width: 100%; padding: 0.7rem; font-weight: 700; background: var(--accent); color: white; margin-top: 0.5rem;">
+                    <span>Ingresar al Portal</span>
                 </button>
-            </div>
-
-            <!-- Estado: Cliente Vinculado y Activo -->
-            <div id="proClientLinked" style="display: none;">
-                <!-- Header Perfil del Cliente & Saldo -->
-                <div style="display: flex; align-items: center; justify-content: space-between; background: var(--bg-color); border: 1px solid var(--card-border); border-radius: 10px; padding: 0.8rem 1rem; margin-bottom: 0.8rem;">
-                    <div>
-                        <div id="lblProClientNombre" style="font-weight: 800; font-size: 0.98rem; color: var(--text-color);">Cargando...</div>
-                        <div id="lblProClientDireccion" style="font-size: 0.76rem; color: var(--text-muted);">--</div>
-                    </div>
-                    <div style="text-align: right;">
-                        <div style="font-size: 0.72rem; color: var(--text-muted);">Estado de Cuenta</div>
-                        <div id="lblProClientSaldo" style="font-weight: 900; font-size: 1.1rem; color: #10b981;">$0</div>
-                    </div>
-                </div>
-
-                <!-- Tarjeta de Próxima Entrega / Reparto -->
-                <div style="background: linear-gradient(135deg, rgba(2, 132, 199, 0.08) 0%, rgba(16, 185, 129, 0.08) 100%); border: 1px solid rgba(2, 132, 199, 0.3); border-radius: 10px; padding: 0.85rem 1rem; margin-bottom: 0.8rem;">
-                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.3rem;">
-                        <div style="display: flex; align-items: center; gap: 0.4rem;">
-                            <span class="material-symbols-outlined" style="color: var(--accent); font-size: 1.2rem;">event</span>
-                            <span style="font-weight: 700; font-size: 0.85rem;">Próxima Hoja de Reparto</span>
-                        </div>
-                        <span id="badgeProPortalEstado" style="font-size: 0.7rem; font-weight: 800; padding: 0.15rem 0.5rem; border-radius: 20px; background: #e0f2fe; color: #0284c7;">Planificado</span>
-                    </div>
-                    <div id="lblProPortalFechaEntrega" style="font-size: 1.05rem; font-weight: 800; color: var(--text-color); margin-top: 2px;">--</div>
-                    <div id="lblProPortalDetalleItems" style="font-size: 0.78rem; color: var(--text-muted); margin-top: 2px;">--</div>
-                </div>
-
-                <!-- Lista de Pedidos Pendientes / Activos -->
-                <div style="margin-bottom: 0.8rem;">
-                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.4rem;">
-                        <span style="font-size: 0.82rem; font-weight: 700; color: var(--text-color);">Mis Pedidos Activos</span>
-                        <span id="lblProCountPedidos" style="font-size: 0.72rem; color: var(--text-muted);">0 pedidos</span>
-                    </div>
-                    <div id="proPedidosList" style="display: flex; flex-direction: column; gap: 0.4rem;">
-                        <!-- Se llena dinámicamente -->
-                    </div>
-                </div>
-
-                <!-- Formulario Rápido de Nuevo Pedido -->
-                <div style="border-top: 1px dashed var(--card-border); padding-top: 0.8rem; margin-top: 0.8rem;">
-                    <div style="font-size: 0.85rem; font-weight: 700; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.3rem;">
-                        <span class="material-symbols-outlined" style="color: var(--accent); font-size: 1.1rem;">add_shopping_cart</span>
-                        <span>Hacer un Nuevo Pedido</span>
-                    </div>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.5rem;">
-                        <div class="form-group" style="margin-bottom: 0;">
-                            <label style="font-size: 0.72rem;">Bidones de Cloro (27L):</label>
-                            <input type="number" id="inpProOrderCloro" min="0" max="50" value="1" style="text-align: center; padding: 0.4rem;">
-                        </div>
-                        <div class="form-group" style="margin-bottom: 0;">
-                            <label style="font-size: 0.72rem;">Bidones de Ácido (10L):</label>
-                            <input type="number" id="inpProOrderAcido" min="0" max="50" value="0" style="text-align: center; padding: 0.4rem;">
-                        </div>
-                    </div>
-                    <div class="form-group" style="margin-bottom: 0.6rem;">
-                        <label style="font-size: 0.72rem;">Notas para el chofer / entrega (opcional):</label>
-                        <input type="text" id="inpProOrderNotas" placeholder="Ej: Dejar al lado del portón..." style="padding: 0.45rem; font-size: 0.8rem;">
-                    </div>
-                    <button class="btn" id="btnProEnviarPedido" style="width: 100%; padding: 0.6rem; font-weight: 700; background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
-                        <span>Confirmar y Enviar Pedido</span>
-                    </button>
-                </div>
-
-                <!-- Footer: Email Vinculado y Cambio -->
-                <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--card-border); margin-top: 0.9rem; padding-top: 0.6rem;">
-                    <div style="font-size: 0.72rem; color: var(--text-muted);">
-                        Email: <strong id="lblProLinkedEmail">--</strong>
-                    </div>
-                    <button id="btnProCambiarEmail" style="background: none; border: none; color: var(--accent); font-size: 0.72rem; cursor: pointer; text-decoration: underline; font-weight: 600;">
-                        Cambiar correo
-                    </button>
-                </div>
             </div>
         </div>
 
+        <!-- Estado: Vinculado y Cargando / Activo -->
+        <div id="proPortalLinked" style="display: none;">
+            
+            <!-- Header Cliente y Saldos -->
+            <div class="card" style="padding: 1.2rem; margin-bottom: 1rem;">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem; border-bottom: 1px solid var(--card-border); padding-bottom: 0.8rem;">
+                    <div>
+                        <div style="font-size: 0.72rem; font-weight: 800; text-transform: uppercase; color: var(--accent); letter-spacing: 0.5px;">Mi Cuenta Dosimat</div>
+                        <h2 style="margin: 0.2rem 0 0; font-size: 1.3rem; border: none; padding: 0;" id="lblProTabNombre">¡Hola, Cliente!</h2>
+                        <div id="lblProTabDireccion" style="font-size: 0.8rem; color: var(--text-muted); margin-top: 2px;">--</div>
+                    </div>
+                    <button class="btn outline" id="btnProTabLogout" style="width: auto; padding: 0.35rem 0.7rem; font-size: 0.75rem; display: flex; align-items: center; gap: 0.3rem; border-color: var(--card-border); color: var(--text-muted);">
+                        <span class="material-symbols-outlined" style="font-size: 1rem;">logout</span>
+                        <span>Cerrar Sesión</span>
+                    </button>
+                </div>
+
+                <!-- Grilla de Saldos ARS / USD -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem;">
+                    <div style="background: var(--bg-color); border: 1px solid var(--card-border); border-left: 5px solid #10b981; border-radius: 8px; padding: 0.8rem 1rem;" id="cardProSaldoARS">
+                        <div style="font-size: 0.7rem; font-weight: 800; text-transform: uppercase; color: var(--text-muted);">Saldo en Pesos (ARS)</div>
+                        <div id="lblProTabSaldoARS" style="font-size: 1.35rem; font-weight: 900; margin-top: 2px; color: #10b981;">$0</div>
+                        <div id="lblProTabSubSaldoARS" style="font-size: 0.68rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-top: 2px;">Saldo al día</div>
+                    </div>
+                    <div style="background: var(--bg-color); border: 1px solid var(--card-border); border-left: 5px solid #10b981; border-radius: 8px; padding: 0.8rem 1rem;" id="cardProSaldoUSD">
+                        <div style="font-size: 0.7rem; font-weight: 800; text-transform: uppercase; color: var(--text-muted);">Saldo en Dólares (USD)</div>
+                        <div id="lblProTabSaldoUSD" style="font-size: 1.35rem; font-weight: 900; margin-top: 2px; color: #10b981;">u$s 0</div>
+                        <div id="lblProTabSubSaldoUSD" style="font-size: 0.68rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-top: 2px;">Saldo al día</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Banner Alerta de Reparto en Curso (Locked) -->
+            <div id="proTabBannerDeliveryLocked" class="card" style="display: none; background: #fff1f2; border: 1px solid #fecdd3; border-left: 6px solid #f43f5e; padding: 1rem; margin-bottom: 1rem;">
+                <div style="display: flex; gap: 0.8rem; align-items: flex-start;">
+                    <span class="material-symbols-outlined" style="font-size: 2rem; color: #e11d48;">lock</span>
+                    <div>
+                        <div style="font-weight: 800; font-size: 0.95rem; color: #9f1239;">Reparto en curso</div>
+                        <div style="font-size: 0.82rem; color: #881337; margin: 0.2rem 0 0.6rem;">
+                            Tu pedido ya está en camino con el chofer. Para modificaciones urgentes, comunicate directamente por WhatsApp.
+                        </div>
+                        <button class="btn" id="btnProLockedWsp" style="width: auto; padding: 0.4rem 0.9rem; font-size: 0.8rem; background: #25d366; color: white; display: inline-flex; align-items: center; gap: 0.4rem;">
+                            <span class="material-symbols-outlined" style="font-size: 1.1rem;">chat</span>
+                            <span>Contactar por WhatsApp</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tarjeta de Próxima Entrega / Hoja de Ruta -->
+            <div class="card" id="cardProTabProximaEntrega" style="padding: 1.1rem; margin-bottom: 1rem; background: linear-gradient(135deg, rgba(2, 132, 199, 0.08) 0%, rgba(16, 185, 129, 0.08) 100%); border: 1px solid rgba(2, 132, 199, 0.3); border-left: 6px solid #0284c7;">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem;">
+                    <div style="display: flex; align-items: center; gap: 0.4rem;">
+                        <span class="material-symbols-outlined" style="color: var(--accent); font-size: 1.3rem;">local_shipping</span>
+                        <span style="font-weight: 800; font-size: 0.95rem;" id="lblProTabEntregaTitulo">Próxima Entrega Programada</span>
+                    </div>
+                    <span id="badgeProTabEntregaEstado" style="font-size: 0.72rem; font-weight: 800; padding: 0.2rem 0.6rem; border-radius: 20px; background: #e0f2fe; color: #0284c7;">Planificado</span>
+                </div>
+                <div id="lblProTabEntregaFecha" style="font-size: 1.15rem; font-weight: 900; color: var(--text-color); margin-bottom: 0.4rem;">--</div>
+                <div id="lblProTabEntregaDetalle" style="font-size: 0.82rem; color: var(--text-muted);">--</div>
+            </div>
+
+            <!-- Sección: Mis Pedidos y Entregas -->
+            <div class="card" style="padding: 1.1rem; margin-bottom: 1rem;">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.8rem;">
+                    <div style="display: flex; align-items: center; gap: 0.4rem;">
+                        <span class="material-symbols-outlined" style="color: var(--accent); font-size: 1.2rem;">inventory_2</span>
+                        <h3 style="margin: 0; font-size: 0.95rem; font-weight: 800;">Mis Pedidos Activos</h3>
+                    </div>
+                    <span id="lblProTabPedidosCount" style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">0 pedidos</span>
+                </div>
+
+                <div id="proTabPedidosList" style="display: flex; flex-direction: column; gap: 0.6rem;">
+                    <!-- Se llena dinámicamente -->
+                </div>
+            </div>
+
+            <!-- Sección: Nuevo Pedido Rápido -->
+            <div class="card" id="cardProTabNuevoPedido" style="padding: 1.2rem; margin-bottom: 1rem; border-top: 4px solid var(--accent);">
+                <div style="display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.8rem;">
+                    <span class="material-symbols-outlined" style="color: var(--accent); font-size: 1.3rem;">add_shopping_cart</span>
+                    <h3 style="margin: 0; font-size: 1rem; font-weight: 800;">Solicitar Reposición de Bidones</h3>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; margin-bottom: 0.8rem;">
+                    <div class="form-group" style="margin: 0;">
+                        <label style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase;">Bidones de Cloro (27L):</label>
+                        <input type="number" id="inpProTabOrderCloro" min="0" max="50" value="1" style="text-align: center; font-size: 1.1rem; font-weight: 800; padding: 0.6rem;">
+                    </div>
+                    <div class="form-group" style="margin: 0;">
+                        <label style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase;">Bidones de Ácido (10L):</label>
+                        <input type="number" id="inpProTabOrderAcido" min="0" max="50" value="0" style="text-align: center; font-size: 1.1rem; font-weight: 800; padding: 0.6rem;">
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase;">Notas o instrucciones para la entrega (opcional):</label>
+                    <textarea id="inpProTabOrderNotas" placeholder="Ej: Dejar bidones junto al portón, tocar timbre..." rows="2" style="padding: 0.6rem; font-size: 0.85rem; width: 100%; border-radius: 6px; border: 1px solid var(--card-border); background: var(--input-bg); color: var(--text-color);"></textarea>
+                </div>
+
+                <button class="btn" id="btnProTabEnviarPedido" style="width: 100%; padding: 0.75rem; font-weight: 800; font-size: 0.92rem; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; display: flex; align-items: center; justify-content: center; gap: 0.4rem;">
+                    <span class="material-symbols-outlined">send</span>
+                    <span>Enviar Pedido al Sistema</span>
+                </button>
+            </div>
+
+            <!-- Sección: Historial de Operaciones y Transacciones -->
+            <div class="card" style="padding: 1.1rem; margin-bottom: 1rem;">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.8rem;">
+                    <div style="display: flex; align-items: center; gap: 0.4rem;">
+                        <span class="material-symbols-outlined" style="color: var(--accent); font-size: 1.2rem;">receipt_long</span>
+                        <h3 style="margin: 0; font-size: 0.95rem; font-weight: 800;">Últimas Operaciones</h3>
+                    </div>
+                    <button id="btnProTabRefreshTx" class="btn-icon" title="Actualizar Historial" style="padding: 4px;">
+                        <span class="material-symbols-outlined" style="font-size: 1.1rem;">refresh</span>
+                    </button>
+                </div>
+
+                <div id="proTabTxList" style="display: flex; flex-direction: column; gap: 0.5rem;">
+                    <!-- Se llena dinámicamente -->
+                </div>
+            </div>
+
+            <!-- Tarjeta de Contacto Directo WhatsApp / Email -->
+            <div class="card" style="background: linear-gradient(135deg, #059669 0%, #047857 100%); color: white; text-align: center; padding: 1.3rem;">
+                <span class="material-symbols-outlined" style="font-size: 2.2rem; margin-bottom: 0.3rem;">chat</span>
+                <h3 style="color: white; margin: 0 0 0.3rem; font-size: 1.05rem;">¿Dudas sobre tu entrega o pagos?</h3>
+                <p style="font-size: 0.8rem; opacity: 0.9; margin-bottom: 1rem;">Escribinos para coordinar pagos, reclamos o enviar comprobantes de transferencia.</p>
+                <div style="display: flex; gap: 0.6rem;">
+                    <button class="btn" id="btnProTabWspContact" style="flex: 1; background: white; color: #047857; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 0.4rem; padding: 0.6rem;">
+                        <span class="material-symbols-outlined" style="font-size: 1.2rem;">chat</span>
+                        <span>WhatsApp</span>
+                    </button>
+                    <button class="btn outline" id="btnProTabMailContact" style="flex: 1; border-color: rgba(255,255,255,0.7); color: white; display: flex; align-items: center; justify-content: center; gap: 0.4rem; padding: 0.6rem;">
+                        <span class="material-symbols-outlined" style="font-size: 1.2rem;">mail</span>
+                        <span>Email</span>
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- 6. Pantalla: Soporte y Ayuda -->
+    <div id="tab-soporte" class="container">
+        
         <!-- Canales de Atención Directa -->
         <div class="card" style="text-align: center;">
             <h2 style="display: flex; align-items: center; width: 100%;">
@@ -1014,6 +1083,10 @@
             <span class="material-symbols-outlined">calendar_today</span>
             <span>Programar</span>
         </button>
+        <button class="nav-btn" data-target="portal" id="navPortal">
+            <span class="material-symbols-outlined">local_shipping</span>
+            <span>Reposición</span>
+        </button>
         <button class="nav-btn" data-target="configuracion">
             <span class="material-symbols-outlined">settings</span>
             <span>Ajustes</span>
@@ -1188,6 +1261,60 @@
         </div>
     </div>
 
-    <script type="module" src="app.js?v=7.02"></script>
+    <!-- Modal: Editar Pedido Pro -->
+    <div id="modalEditarPedidoPro" class="overlay" style="display: none;">
+        <div class="overlay-content" style="max-width: 380px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <h3 style="margin: 0; font-size: 1.1rem; display: flex; align-items: center; gap: 0.4rem;">
+                    <span class="material-symbols-outlined" style="color: var(--accent);">edit</span>
+                    <span>Editar Pedido</span>
+                </h3>
+                <button class="btn-icon" id="btnCloseModalEditarPro" style="padding: 2px;">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            
+            <input type="hidden" id="inpEditProRequestId">
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; margin-bottom: 0.8rem;">
+                <div class="form-group" style="margin: 0;">
+                    <label style="font-size: 0.75rem; font-weight: 700;">Bidones de Cloro (27L):</label>
+                    <input type="number" id="inpEditProCloro" min="0" max="50" style="text-align: center; font-size: 1.1rem; font-weight: 800; padding: 0.5rem;">
+                </div>
+                <div class="form-group" style="margin: 0;">
+                    <label style="font-size: 0.75rem; font-weight: 700;">Bidones de Ácido (10L):</label>
+                    <input type="number" id="inpEditProAcido" min="0" max="50" style="text-align: center; font-size: 1.1rem; font-weight: 800; padding: 0.5rem;">
+                </div>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 1.2rem;">
+                <label style="font-size: 0.75rem; font-weight: 700;">Notas o instrucciones:</label>
+                <textarea id="inpEditProNotas" rows="2" style="padding: 0.5rem; font-size: 0.85rem; width: 100%; border-radius: 6px; border: 1px solid var(--card-border); background: var(--input-bg); color: var(--text-color);"></textarea>
+            </div>
+
+            <div style="display: flex; gap: 0.6rem;">
+                <button class="btn outline" id="btnCancelEditPro" style="flex: 1;">Cancelar</button>
+                <button class="btn" id="btnSaveEditPro" style="flex: 1; background: var(--accent); color: white; font-weight: 700;">Guardar Cambios</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Confirmar Anulación de Pedido Pro -->
+    <div id="modalConfirmAnularPedidoPro" class="overlay" style="display: none;">
+        <div class="overlay-content" style="max-width: 360px; text-align: center;">
+            <span class="material-symbols-outlined" style="font-size: 3rem; color: var(--danger); margin-bottom: 0.5rem;">delete_forever</span>
+            <h3 style="margin: 0 0 0.5rem; font-size: 1.1rem;">¿Anular este pedido?</h3>
+            <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 1.2rem;">
+                El pedido será eliminado del sistema de reposición y no se incluirá en la próxima hoja de ruta.
+            </p>
+            <input type="hidden" id="inpCancelProRequestId">
+            <div style="display: flex; gap: 0.6rem;">
+                <button class="btn outline" id="btnCancelAnularPro" style="flex: 1;">Volver</button>
+                <button class="btn" id="btnConfirmAnularPro" style="flex: 1; background: var(--danger); color: white; font-weight: 700;">Sí, Anular</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="app.js?v=7.03"></script>
 </body>
 </html>
