@@ -3646,62 +3646,85 @@ async function deleteTecnico(email) {
 }
 
 async function deleteRemoteDevice(mac) {
-    if (await customConfirm(`¿Deseas dar de baja el equipo ${mac}? Esto lo restablecerá a valores de fábrica y borrará sus datos.`, "Baja de Equipo")) {
-        try {
-            // 1. Enviar comando de factory reset (intentamos conectarnos por MQTT si no estamos)
-            if (mqttClient && mqttClient.isConnected() && isTechRemoteActive && currentMac === mac) {
-                sendCommand({ comando: "FACTORY_RESET" });
-            } else {
-                const clientId = "temp_admin_" + Date.now();
-                const tempClient = new Paho.MQTT.Client("broker.hivemq.com", 8000, clientId);
-                tempClient.connect({
-                    onSuccess: () => {
-                        const msg = new Paho.MQTT.Message(JSON.stringify({ comando: "FACTORY_RESET" }));
-                        msg.destinationName = `dosimat/${mac}/cmd`;
-                        tempClient.send(msg);
-                        setTimeout(() => tempClient.disconnect(), 1000);
-                    },
-                    onFailure: () => console.log("No se pudo conectar MQTT temporal para Factory Reset")
-                });
-            }
+    if (!mac) return;
+    const confirmed = await customConfirm(
+        `¿Deseas dar de baja el equipo ${mac}?\n\nEsto eliminará el equipo de la base de datos, desvinculará a sus propietarios y borrará su configuración e historial.`,
+        "Baja de Equipo"
+    );
+    if (!confirmed) return;
 
-            // 2. Eliminar referencias de dueños
+    showToast(`Dando de baja el equipo ${mac}...`);
+
+    try {
+        // 1. Intentar enviar comando de factory reset por MQTT si estamos conectados
+        try {
+            if (mqttClient && mqttClient.isConnected()) {
+                const msg = new Paho.MQTT.Message(JSON.stringify({ comando: "FACTORY_RESET" }));
+                msg.destinationName = `dosimat/${mac}/cmd`;
+                mqttClient.send(msg);
+            }
+        } catch (mqttErr) {
+            console.warn("Aviso MQTT al dar de baja:", mqttErr);
+        }
+
+        // 2. Eliminar referencias en todos los usuarios
+        try {
             const userSnap = await getDocs(collection(db, "usuarios"));
             for (const userDoc of userSnap.docs) {
-                const eqRef = doc(db, "usuarios", userDoc.id, "equipos_asignados", mac);
-                const eqDoc = await getDoc(eqRef);
-                if (eqDoc.exists()) {
+                try {
+                    const eqRef = doc(db, "usuarios", userDoc.id, "equipos_asignados", mac);
                     await deleteDoc(eqRef);
-                }
-                const udata = userDoc.data();
-                if (udata.equipos && udata.equipos.includes(mac)) {
-                    const newEquipos = udata.equipos.filter(e => e !== mac);
-                    await updateDoc(doc(db, "usuarios", userDoc.id), { equipos: newEquipos });
-                }
+                } catch(e) {}
+
+                try {
+                    const udata = userDoc.data();
+                    if (udata.equipos && Array.isArray(udata.equipos) && udata.equipos.includes(mac)) {
+                        const newEquipos = udata.equipos.filter(e => e !== mac);
+                        await updateDoc(doc(db, "usuarios", userDoc.id), { equipos: newEquipos });
+                    }
+                } catch(e) {}
             }
-
-            // 3. Eliminar subcolecciones conocidas y root doc
-            await deleteDoc(doc(db, "equipos", mac, "estado", "actual"));
-            await deleteDoc(doc(db, "equipos", mac, "config", "actual"));
-            await deleteDoc(doc(db, "equipos", mac, "programas", "actual"));
-            
-            try {
-                const logsSnap = await getDocs(collection(db, "equipos", mac, "logs"));
-                for (const d of logsSnap.docs) { await deleteDoc(d.ref); }
-            } catch(e) {}
-            
-            try {
-                const propSnap = await getDocs(collection(db, "equipos", mac, "propietarios"));
-                for (const d of propSnap.docs) { await deleteDoc(d.ref); }
-            } catch(e) {}
-            
-            await deleteDoc(doc(db, "equipos", mac));
-
-            showToast(`Equipo ${mac} dado de baja exitosamente.`);
-            loadAdminGlobal();
-        } catch (e) {
-            showToast("Error al dar de baja: " + e.message, true);
+        } catch(userErr) {
+            console.warn("Aviso eliminando referencias en usuarios:", userErr);
         }
+
+        // 3. Eliminar subcolecciones conocidas y root doc en /equipos/${mac}
+        try { await deleteDoc(doc(db, "equipos", mac, "estado", "actual")); } catch(e) {}
+        try { await deleteDoc(doc(db, "equipos", mac, "config", "actual")); } catch(e) {}
+        try { await deleteDoc(doc(db, "equipos", mac, "programas", "actual")); } catch(e) {}
+
+        try {
+            const logsSnap = await getDocs(collection(db, "equipos", mac, "logs"));
+            for (const d of logsSnap.docs) { await deleteDoc(d.ref); }
+        } catch(e) {}
+
+        try {
+            const propSnap = await getDocs(collection(db, "equipos", mac, "propietarios"));
+            for (const d of propSnap.docs) { await deleteDoc(d.ref); }
+        } catch(e) {}
+
+        try {
+            const cmdSnap = await getDocs(collection(db, "equipos", mac, "comandos"));
+            for (const d of cmdSnap.docs) { await deleteDoc(d.ref); }
+        } catch(e) {}
+
+        try { await deleteDoc(doc(db, "equipos", mac)); } catch(e) {}
+
+        // 4. Si el equipo dado de baja era el activo actualmente, desconectar
+        if (currentMac === mac) {
+            currentMac = "";
+            localStorage.removeItem("dosimat_mac");
+            isTechRemoteActive = false;
+            const headerTech = document.getElementById('headerTechMode');
+            if (headerTech) headerTech.style.display = 'none';
+            setConexionModo("OFFLINE");
+        }
+
+        showToast(`Equipo ${mac} dado de baja exitosamente.`);
+        await loadAdminGlobal();
+    } catch (e) {
+        console.error("Error al dar de baja:", e);
+        showToast("Error al dar de baja: " + e.message, true);
     }
 }
 
