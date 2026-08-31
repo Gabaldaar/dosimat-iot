@@ -4832,6 +4832,75 @@ async function ensureProAuth() {
     }
 }
 
+let proUnsubs = {
+    orders: null,
+    sheets: null,
+    client: null
+};
+
+function setupProRealtimeListeners(clientId) {
+    if (!proDb || !clientId) return;
+
+    // 1. Listener de Pedidos Activos (client_requests)
+    if (proUnsubs.orders) {
+        try { proUnsubs.orders(); } catch(e){}
+    }
+    try {
+        const qOrders = query(
+            collection(proDb, "client_requests"),
+            where("clientId", "==", clientId)
+        );
+        proUnsubs.orders = onSnapshot(qOrders, (snap) => {
+            const allOrders = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            proClientState.openOrders = allOrders
+                .filter(o => o.status === 'pending' || o.status === 'scheduled' || o.status === 'active')
+                .sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
+            renderDosimatProUI();
+        }, (err) => {
+            console.warn("onSnapshot client_requests aviso:", err);
+            // Fallback manual si fallase el snapshot
+            loadProClientOrders(clientId);
+        });
+    } catch (e) {
+        console.warn("setup listener orders err:", e);
+    }
+
+    // 2. Listener de Hojas de Reparto (route_sheets)
+    if (proUnsubs.sheets) {
+        try { proUnsubs.sheets(); } catch(e){}
+    }
+    try {
+        const qSheets = query(
+            collection(proDb, "route_sheets"),
+            where("participantClientIds", "array-contains", clientId),
+            where("status", "in", ["planned", "active"])
+        );
+        proUnsubs.sheets = onSnapshot(qSheets, (snap) => {
+            if (!snap.empty) {
+                const sorted = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => {
+                    return new Date(b.date + 'T12:00:00').getTime() - new Date(a.date + 'T12:00:00').getTime();
+                });
+                proClientState.deliveryLocked = sorted.some(s => s.status === 'active');
+                const sheet = sorted[0];
+                const item = sheet.items?.find(i => i.clientId === clientId);
+                proClientState.upcomingDelivery = {
+                    date: sheet.date,
+                    status: sheet.status,
+                    cloro: Number(item?.plannedChlorine || 0),
+                    acido: Number(item?.plannedAcid || 0)
+                };
+            } else {
+                proClientState.deliveryLocked = false;
+            }
+            renderDosimatProUI();
+        }, (err) => {
+            console.warn("onSnapshot route_sheets aviso:", err);
+        });
+    } catch (e) {
+        console.warn("setup listener sheets err:", e);
+    }
+}
+
 async function syncDosimatProClient() {
     if (!proDb) return;
 
@@ -4881,6 +4950,20 @@ async function syncDosimatProClient() {
                 localStorage.setItem("dosimat_pro_email", emailToSearch);
             }
 
+            // Sincronizar doc en /users/${uid} para asegurar permisos en Firestore rules
+            if (proAuth?.currentUser && matchedDoc.id) {
+                try {
+                    await setDoc(doc(proDb, 'users', proAuth.currentUser.uid), {
+                        clientId: matchedDoc.id,
+                        role: 'Client',
+                        email: emailToSearch,
+                        updatedAt: new Date().toISOString()
+                    }, { merge: true });
+                } catch (userErr) {
+                    console.warn("Aviso setDoc users Pro:", userErr);
+                }
+            }
+
             // 2. Cargar Próxima Entrega / Hojas de ruta
             await loadProDeliverySheet(matchedDoc.id);
 
@@ -4889,6 +4972,9 @@ async function syncDosimatProClient() {
 
             // 4. Cargar Historial de Transacciones
             await loadProTransactions(matchedDoc.id);
+
+            // 5. Configurar listeners en tiempo real
+            setupProRealtimeListeners(matchedDoc.id);
         } else {
             proClientState.isLinked = false;
             proClientState.clientDoc = null;
@@ -4970,7 +5056,7 @@ async function loadProClientOrders(clientId) {
         const allOrders = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         
         proClientState.openOrders = allOrders
-            .filter(o => o.status === 'pending' || o.status === 'scheduled')
+            .filter(o => o.status === 'pending' || o.status === 'scheduled' || o.status === 'active')
             .sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
     } catch (err) {
         console.error("Error cargando pedidos de DosimatPro:", err);
@@ -5173,26 +5259,29 @@ function renderDosimatProUI() {
             } else {
                 listPedidos.innerHTML = proClientState.openOrders.map(p => {
                     const cantTxt = `${p.cloro > 0 ? p.cloro + ' Bidón(es) de Cloro' : ''}${p.cloro > 0 && p.acido > 0 ? ' · ' : ''}${p.acido > 0 ? p.acido + ' Bidón(es) de Ácido' : ''}`;
-                    const statusClass = p.status === 'scheduled' ? 'scheduled' : 'pending';
-                    const statusTxt = p.status === 'scheduled' ? 'En planilla de ruta' : 'Pendiente de programar';
+                    const statusClass = p.status === 'scheduled' ? 'scheduled' : (p.status === 'active' ? 'active' : 'pending');
+                    let statusTxt = 'Pendiente de programar';
+                    if (p.status === 'scheduled') statusTxt = 'En planilla de ruta';
+                    if (p.status === 'active') statusTxt = 'En camino con chofer';
                     
                     return `
-                        <div class="pro-pedido-item" style="padding: 0.75rem 0.9rem; flex-wrap: wrap; gap: 0.6rem;">
+                        <div class="pro-pedido-item" style="padding: 0.75rem 0.9rem; border: 1px solid var(--card-border); border-radius: 8px; background: var(--bg-color); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.6rem;">
                             <div class="pro-pedido-info" style="flex: 1; min-width: 180px;">
                                 <div style="display: flex; align-items: center; gap: 0.4rem; margin-bottom: 2px;">
-                                    <span class="pro-badge ${statusClass}">${statusTxt}</span>
+                                    <span class="pro-badge ${statusClass}" style="font-size: 0.72rem; padding: 2px 8px; border-radius: 20px; font-weight: 800; background: ${p.status === 'scheduled' ? '#e0f2fe' : (p.status === 'active' ? '#dcfce7' : '#fef3c7')}; color: ${p.status === 'scheduled' ? '#0284c7' : (p.status === 'active' ? '#16a34a' : '#b45309')};">${statusTxt}</span>
+                                    <span style="font-size: 0.7rem; color: var(--text-muted);">${formatProDate(p.date ? p.date.split('T')[0] : '')}</span>
                                 </div>
-                                <div class="pro-pedido-title" style="font-size: 0.9rem;">${cantTxt || 'Pedido'}</div>
-                                ${p.notes ? `<div class="pro-pedido-sub" style="font-style: italic; margin-top: 2px;">"${p.notes}"</div>` : ''}
+                                <div class="pro-pedido-title" style="font-size: 0.92rem; font-weight: 800; color: var(--text-color);">${cantTxt || 'Pedido'}</div>
+                                ${p.notes ? `<div class="pro-pedido-sub" style="font-style: italic; margin-top: 2px; font-size: 0.78rem; color: var(--text-muted);">"${p.notes}"</div>` : ''}
                             </div>
-                            ${!proClientState.deliveryLocked ? `
+                            ${!proClientState.deliveryLocked && p.status !== 'active' ? `
                                 <div style="display: flex; align-items: center; gap: 0.4rem;">
-                                    <button class="btn outline" onclick="abrirModalEditarPedidoPro('${p.id}')" style="padding: 0.35rem 0.65rem; font-size: 0.75rem; display: flex; align-items: center; gap: 0.3rem;">
-                                        <span class="material-symbols-outlined" style="font-size: 1rem;">edit</span>
+                                    <button class="btn outline" onclick="abrirModalEditarPedidoPro('${p.id}')" style="width: auto; padding: 0.35rem 0.65rem; font-size: 0.75rem; display: flex; align-items: center; gap: 0.3rem; border-color: var(--card-border);">
+                                        <span class="material-symbols-outlined" style="font-size: 1rem; color: var(--accent);">edit</span>
                                         <span>Editar</span>
                                     </button>
-                                    <button class="btn outline" onclick="abrirModalConfirmAnularPro('${p.id}')" style="padding: 0.35rem 0.65rem; font-size: 0.75rem; display: flex; align-items: center; gap: 0.3rem; border-color: #fecdd3; color: #e11d48;">
-                                        <span class="material-symbols-outlined" style="font-size: 1rem;">delete</span>
+                                    <button class="btn outline" onclick="abrirModalConfirmAnularPro('${p.id}')" style="width: auto; padding: 0.35rem 0.65rem; font-size: 0.75rem; display: flex; align-items: center; gap: 0.3rem; border-color: #fecdd3; color: #e11d48;">
+                                        <span class="material-symbols-outlined" style="font-size: 1rem; color: #e11d48;">delete</span>
                                         <span>Anular</span>
                                     </button>
                                 </div>
@@ -5288,12 +5377,47 @@ async function guardarEdicionPedidoPro(requestId, cloro, acido, notas) {
 
     try {
         await ensureProAuth();
-        await updateDoc(doc(proDb, "client_requests", requestId), {
-            cloro: Number(cloro),
-            acido: Number(acido),
-            notes: notas || "",
-            updatedAt: new Date().toISOString()
-        });
+
+        let apiSuccess = false;
+        if (proAuth?.currentUser) {
+            try {
+                const token = await proAuth.currentUser.getIdToken();
+                const res = await fetch('https://dosimat-pro.netlify.app/api/portal/orders', {
+                    method: 'PATCH',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ requestId, cloro: Number(cloro), acido: Number(acido), notes: String(notas || '') })
+                });
+                if (res.ok) {
+                    apiSuccess = true;
+                }
+            } catch (apiErr) {
+                console.warn("API PATCH fallo, intentando Firestore directo:", apiErr);
+            }
+        }
+
+        if (!apiSuccess) {
+            const req = proClientState.openOrders.find(o => o.id === requestId);
+            const now = new Date().toISOString();
+            const isScheduled = req?.status === 'scheduled' && !!req?.routeSheetId;
+
+            const updateData = {
+                cloro: Number(cloro),
+                acido: Number(acido),
+                notes: notas || "",
+                updatedAt: now
+            };
+
+            if (isScheduled) {
+                updateData.needsStaffReview = true;
+                updateData.clientRevisionType = 'updated';
+                updateData.clientRevisionAt = now;
+            }
+
+            await updateDoc(doc(proDb, "client_requests", requestId), updateData);
+        }
 
         showToast("Pedido actualizado correctamente.");
         await syncDosimatProClient();
@@ -5302,6 +5426,54 @@ async function guardarEdicionPedidoPro(requestId, cloro, acido, notas) {
         console.error("Error actualizando pedido:", e);
         showToast("No se pudo actualizar el pedido.");
         return false;
+    }
+}
+
+async function cancelarPedidoPro(requestId) {
+    if (!proDb || !requestId) return;
+    try {
+        await ensureProAuth();
+
+        let apiSuccess = false;
+        if (proAuth?.currentUser) {
+            try {
+                const token = await proAuth.currentUser.getIdToken();
+                const res = await fetch(`https://dosimat-pro.netlify.app/api/portal/orders?requestId=${encodeURIComponent(requestId)}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                if (res.ok) {
+                    apiSuccess = true;
+                }
+            } catch (apiErr) {
+                console.warn("API DELETE fallo, intentando Firestore directo:", apiErr);
+            }
+        }
+
+        if (!apiSuccess) {
+            const req = proClientState.openOrders.find(o => o.id === requestId);
+            const isScheduled = req?.status === 'scheduled' && !!req?.routeSheetId;
+
+            if (isScheduled) {
+                await updateDoc(doc(proDb, "client_requests", requestId), {
+                    status: 'cancelled',
+                    needsStaffReview: true,
+                    clientRevisionType: 'cancelled',
+                    clientRevisionAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                });
+            } else {
+                await deleteDoc(doc(proDb, "client_requests", requestId));
+            }
+        }
+
+        showToast("Pedido anulado correctamente.");
+        await syncDosimatProClient();
+    } catch (e) {
+        console.error("Error cancelando pedido:", e);
+        showToast("No se pudo anular el pedido.");
     }
 }
 
