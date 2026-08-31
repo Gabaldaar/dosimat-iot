@@ -4918,6 +4918,114 @@ let proUnsubs = {
     tx: null
 };
 
+function extractChlorineFromTx(tx) {
+    if (!tx) return 0;
+    
+    // 1. Si vino directo en campo cloro / cantBidones
+    if (tx.cloro !== undefined && tx.cloro !== null && !isNaN(Number(tx.cloro))) {
+        const val = Number(tx.cloro);
+        if (val > 0) return val;
+    }
+    if (tx.chlorine !== undefined && tx.chlorine !== null && !isNaN(Number(tx.chlorine))) {
+        const val = Number(tx.chlorine);
+        if (val > 0) return val;
+    }
+    if (tx.cantBidones !== undefined && tx.cantBidones !== null && !isNaN(Number(tx.cantBidones))) {
+        const val = Number(tx.cantBidones);
+        if (val > 0) return val;
+    }
+
+    // 2. Si vino en tx.items
+    if (Array.isArray(tx.items) && tx.items.length > 0) {
+        let totalCloro = 0;
+        for (const it of tx.items) {
+            const name = (it.name || it.description || it.title || "").toLowerCase();
+            const qty = Number(it.qty ?? it.quantity ?? it.cant ?? it.count ?? 1);
+            if (name.includes("cloro") || (!name.includes("ácido") && !name.includes("acido"))) {
+                totalCloro += qty;
+            }
+        }
+        if (totalCloro > 0) return totalCloro;
+    }
+
+    // 3. Si vino en la descripción
+    const desc = (tx.description || "").toLowerCase();
+    const match = desc.match(/(\d+)\s*(?:bidon|bidón|b\.|u\.|cloro)/i);
+    if (match && match[1]) {
+        return Number(match[1]);
+    }
+
+    return 0;
+}
+
+function processRouteSheetsForClient(docsArray, clientId) {
+    if (!docsArray || docsArray.length === 0) {
+        proClientState.upcomingDelivery = null;
+        proClientState.deliverySheetItem = null;
+        proClientState.deliveryLocked = false;
+        return;
+    }
+
+    const allSheets = docsArray.map(d => ({ id: d.id, ...(typeof d.data === 'function' ? d.data() : d) }));
+
+    // A. Buscar si hay entregas realizadas para este cliente
+    const deliveredSheets = allSheets.filter(s => {
+        const it = s.items?.find(i => i.clientId === clientId);
+        return it && (it.isDelivered === true || it.processed === true || Number(it.realChlorine || 0) > 0);
+    }).sort((a, b) => new Date(b.date + 'T12:00:00').getTime() - new Date(a.date + 'T12:00:00').getTime());
+
+    if (deliveredSheets.length > 0) {
+        const dSheet = deliveredSheets[0];
+        const dItem = dSheet.items.find(i => i.clientId === clientId);
+        proClientState.deliverySheetItem = {
+            sheetId: dSheet.id,
+            sheetDate: dSheet.date,
+            isDelivered: true,
+            realChlorine: Number(dItem.realChlorine || dItem.plannedChlorine || 0),
+            realAcid: Number(dItem.realAcid || dItem.plannedAcid || 0)
+        };
+    } else {
+        proClientState.deliverySheetItem = null;
+    }
+
+    // B. Buscar la próxima entrega PENDIENTE (no entregada todavía)
+    const pendingClientSheets = allSheets.filter(s => {
+        const it = s.items?.find(i => i.clientId === clientId);
+        if (!it) return false;
+        if (s.status === 'completed') return false;
+        if (it.isDelivered === true) return false;
+        return true;
+    }).sort((a, b) => new Date(a.date + 'T12:00:00').getTime() - new Date(b.date + 'T12:00:00').getTime());
+
+    if (pendingClientSheets.length > 0) {
+        const nextSheet = pendingClientSheets[0];
+        const item = nextSheet.items.find(i => i.clientId === clientId);
+        proClientState.deliveryLocked = (nextSheet.status === 'active');
+        proClientState.upcomingDelivery = {
+            date: nextSheet.date,
+            status: nextSheet.status,
+            cloro: Number(item?.plannedChlorine || 0),
+            acido: Number(item?.plannedAcid || 0)
+        };
+    } else {
+        proClientState.deliveryLocked = false;
+        // Si no hay hoja asignada pendiente, buscar una fecha planificada futura general
+        const futurePlanned = allSheets.filter(s => s.status === 'planned' && new Date(s.date + 'T12:00:00') >= new Date())
+            .sort((a, b) => new Date(a.date + 'T12:00:00').getTime() - new Date(b.date + 'T12:00:00').getTime());
+
+        if (futurePlanned.length > 0) {
+            proClientState.upcomingDelivery = {
+                date: futurePlanned[0].date,
+                status: 'planned',
+                cloro: 0,
+                acido: 0
+            };
+        } else {
+            proClientState.upcomingDelivery = null;
+        }
+    }
+}
+
 function setupProRealtimeListeners(clientId) {
     if (!proDb || !clientId) return;
 
@@ -4955,31 +5063,7 @@ function setupProRealtimeListeners(clientId) {
             where("status", "in", ["planned", "active", "completed"])
         );
         proUnsubs.sheets = onSnapshot(qSheets, (snap) => {
-            if (!snap.empty) {
-                const sorted = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => {
-                    return new Date(b.date + 'T12:00:00').getTime() - new Date(a.date + 'T12:00:00').getTime();
-                });
-                proClientState.deliveryLocked = sorted.some(s => s.status === 'active');
-                const sheet = sorted[0];
-                const item = sheet.items?.find(i => i.clientId === clientId);
-                proClientState.upcomingDelivery = {
-                    date: sheet.date,
-                    status: sheet.status,
-                    cloro: Number(item?.plannedChlorine || 0),
-                    acido: Number(item?.plannedAcid || 0)
-                };
-
-                if (item && item.isDelivered) {
-                    proClientState.deliverySheetItem = {
-                        sheetId: sheet.id,
-                        sheetDate: sheet.date,
-                        isDelivered: true,
-                        realChlorine: Number(item.realChlorine || item.plannedChlorine || 0)
-                    };
-                }
-            } else {
-                proClientState.deliveryLocked = false;
-            }
+            processRouteSheetsForClient(snap.docs, clientId);
             renderDosimatProUI();
             checkAndSyncProRefillToBidon();
         }, (err) => {
@@ -5022,7 +5106,7 @@ function checkAndSyncProRefillToBidon() {
         const refillTx = proClientState.transactions.find(t => t.type === 'refill' || t.type === 'Reposición');
         if (refillTx && refillTx.date) {
             const dateOnly = String(refillTx.date).split('T')[0];
-            const cantCloro = Number(refillTx.cloro ?? refillTx.chlorine ?? refillTx.cantBidones ?? 0);
+            const cantCloro = extractChlorineFromTx(refillTx);
             latestDelivery = {
                 id: refillTx.id || `tx_${dateOnly}`,
                 date: dateOnly,
@@ -5052,10 +5136,10 @@ function checkAndSyncProRefillToBidon() {
     const currentRecargaDate = bidonConfig.fechaRecarga || "2000-01-01";
     const lastAppliedId = localStorage.getItem("dosimat_last_applied_pro_delivery_id") || "";
 
-    const isNewerDate = new Date(latestDelivery.date + 'T12:00:00') > new Date(currentRecargaDate + 'T12:00:00');
+    const isNewerOrEqualDate = new Date(latestDelivery.date + 'T12:00:00') >= new Date(currentRecargaDate + 'T12:00:00');
     const isDifferentId = lastAppliedId !== latestDelivery.id;
 
-    if (isNewerDate && isDifferentId) {
+    if (isNewerOrEqualDate && isDifferentId) {
         console.log(`[Auto-Refill] Aplicando reposición automática: ${latestDelivery.cloro} bidón(es) del ${latestDelivery.date}`);
 
         const res = aplicarRecargaCloro(latestDelivery.cloro, latestDelivery.date, latestDelivery.id);
@@ -5169,52 +5253,7 @@ async function loadProDeliverySheet(clientId) {
             where("status", "in", ["planned", "active", "completed"])
         );
         const snap = await getDocs(qSheets);
-        
-        if (!snap.empty) {
-            const sorted = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => {
-                return new Date(b.date + 'T12:00:00').getTime() - new Date(a.date + 'T12:00:00').getTime();
-            });
-
-            proClientState.deliveryLocked = sorted.some(s => s.status === 'active');
-
-            const sheet = sorted[0];
-            const item = sheet.items?.find(i => i.clientId === clientId);
-            
-            proClientState.upcomingDelivery = {
-                date: sheet.date,
-                status: sheet.status,
-                cloro: Number(item?.plannedChlorine || 0),
-                acido: Number(item?.plannedAcid || 0)
-            };
-
-            if (item && item.isDelivered) {
-                proClientState.deliverySheetItem = {
-                    sheetId: sheet.id,
-                    sheetDate: sheet.date,
-                    isDelivered: true,
-                    realChlorine: Number(item.realChlorine || item.plannedChlorine || 0)
-                };
-            }
-        } else {
-            proClientState.deliveryLocked = false;
-            const qGlobal = query(collection(proDb, "route_sheets"), where("status", "==", "planned"));
-            const snapGlobal = await getDocs(qGlobal);
-            const future = snapGlobal.docs
-                .map(d => ({ id: d.id, ...d.data() }))
-                .filter(s => new Date(s.date) >= new Date())
-                .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
-            if (future.length > 0) {
-                proClientState.upcomingDelivery = {
-                    date: future[0].date,
-                    status: 'planned',
-                    cloro: 0,
-                    acido: 0
-                };
-            } else {
-                proClientState.upcomingDelivery = null;
-            }
-        }
+        processRouteSheetsForClient(snap.docs, clientId);
     } catch (err) {
         console.error("Error cargando hojas de ruta de DosimatPro:", err);
         proClientState.upcomingDelivery = null;
