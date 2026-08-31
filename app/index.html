@@ -96,7 +96,7 @@
     <header>
         <div class="header-title" style="align-items: flex-start; margin-top: 5px;">
             <div style="display: flex; flex-direction: column;">
-                <h1 style="margin-bottom: 0;"><span id="lblHeaderTitle">Dosimat IoT CB</span> <span style="font-size: 0.7rem; color: var(--accent); margin-left: 5px;">v6.75</span></h1>
+                <h1 style="margin-bottom: 0;"><span id="lblHeaderTitle">Dosimat IoT CB</span> <span style="font-size: 0.7rem; color: var(--accent); margin-left: 5px;">v6.89</span></h1>
                 <div id="lblUserName" style="font-size: 0.85rem; font-weight: 300; color: var(--text-muted); display: none;"></div>
             </div>
         </div>
@@ -422,22 +422,29 @@
     <!-- 4. Pantalla: Logs e Historial -->
     <div id="tab-logs" class="container">
         <div class="card">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                <h2 style="margin: 0; border: none; padding: 0;">Historial de Eventos del sistema</h2>
-                <div style="display: flex; gap: 0.5rem;">
-                    <button class="btn outline" id="btnLimpiarHistorial" style="width: auto; padding: 0.4rem 0.8rem; font-size: 0.85rem; display: none; color: var(--danger); border-color: var(--danger);">Limpiar</button>
-                    <button class="btn outline" id="btnPedirHistorial" style="width: auto; padding: 0.4rem 0.8rem; font-size: 0.85rem;">Actualizar</button>
+            <div class="historial-header">
+                <div class="historial-title">
+                    <span class="material-symbols-outlined">receipt_long</span>
+                    <span>HISTORIAL DE EVENTOS</span>
+                </div>
+                <div class="historial-actions">
+                    <button class="icon-header-btn danger" id="btnLimpiarHistorial" title="Limpiar Historial" style="display: none;">
+                        <span class="material-symbols-outlined">delete</span>
+                    </button>
+                    <button class="icon-header-btn" id="btnPedirHistorial" title="Actualizar Historial">
+                        <span class="material-symbols-outlined">refresh</span>
+                    </button>
                 </div>
             </div>
 
             <!-- Tarjetas de Métricas: Dosis Últimos 15 Días -->
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; margin-bottom: 1.2rem;">
-                <div style="background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 8px; padding: 0.8rem; text-align: center;">
+                <div style="background: rgba(2, 132, 199, 0.06); border: 1px solid rgba(2, 132, 199, 0.2); border-radius: 10px; padding: 0.8rem; text-align: center;">
                     <div style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase;">Dosis Normales (15d)</div>
                     <div id="valDosisNormales" style="font-size: 1.8rem; font-weight: 800; color: var(--accent); margin: 0.2rem 0;">0</div>
                     <div style="font-size: 0.7rem; color: var(--text-muted);">Sin refuerzo</div>
                 </div>
-                <div style="background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 8px; padding: 0.8rem; text-align: center;">
+                <div style="background: rgba(245, 158, 11, 0.06); border: 1px solid rgba(245, 158, 11, 0.2); border-radius: 10px; padding: 0.8rem; text-align: center;">
                     <div style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase;">Dosis Refuerzo (15d)</div>
                     <div id="valDosisRefuerzo" style="font-size: 1.8rem; font-weight: 800; color: var(--warning); margin: 0.2rem 0;">0</div>
                     <div style="font-size: 0.7rem; color: var(--text-muted);">Doble dosis</div>
@@ -449,9 +456,17 @@
                 <span style="font-weight: bold; color: var(--accent);">Herramienta Técnica: Válvula de Cloro</span>
                 <button class="btn outline" id="btnTechValve" style="width: auto; font-size: 0.85rem; padding: 0.4rem 1rem;">ABRIR</button>
             </div>
-            <div id="logsTerminal" class="logs-terminal">
-                Esperando actualización... Presiona "Actualizar" para cargar los registros del equipo.
+
+            <!-- Lista visual de tarjetas de eventos -->
+            <div id="logsCardsContainer" class="historial-list">
+                <div class="historial-empty">
+                    <span class="material-symbols-outlined">receipt_long</span>
+                    <div>Esperando actualización...</div>
+                    <div style="font-size: 0.75rem;">Presiona el botón de actualizar arriba para cargar los registros.</div>
+                </div>
             </div>
+            
+            <div id="logsTerminal" style="display: none;"></div>
         </div>
     </div>
 
@@ -691,6 +706,6 @@
         </div>
     </div>
 
-    <script type="module" src="app.js?v=6.89"></script>
+    <script type="module" src="app.js?v=6.90"></script>
 </body>
 </html>

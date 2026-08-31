@@ -633,17 +633,171 @@ nav {
     color: white;
 }
 
-.logs-terminal {
-    background-color: #0f172a;
-    color: #38bdf8;
-    font-family: monospace;
-    font-size: 0.8rem;
-    padding: 0.75rem;
+/* === ESTILOS DEL HISTORIAL DE EVENTOS (Estilo Smart Riego) === */
+.historial-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.historial-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 700;
+    color: var(--accent, #0284c7);
+    font-size: 0.92rem;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+
+.historial-title .material-symbols-outlined {
+    font-size: 1.3rem;
+}
+
+.historial-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.icon-header-btn {
+    width: 36px;
+    height: 36px;
     border-radius: 8px;
-    height: 200px;
+    border: 1px solid var(--card-border, #e2e8f0);
+    background: var(--bg-color, #f8fafc);
+    color: var(--text-color, #334155);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    padding: 0;
+}
+
+.icon-header-btn:hover {
+    background: rgba(2, 132, 199, 0.1);
+    color: var(--accent, #0284c7);
+    border-color: var(--accent, #0284c7);
+}
+
+.icon-header-btn.danger:hover {
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--danger, #ef4444);
+    border-color: var(--danger, #ef4444);
+}
+
+.icon-header-btn .material-symbols-outlined {
+    font-size: 1.25rem;
+}
+
+.historial-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+    max-height: 480px;
     overflow-y: auto;
-    white-space: pre-wrap;
-    border: 1px solid var(--card-border);
+    padding-right: 2px;
+}
+
+.event-card {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    padding: 0.85rem 1rem;
+    background: var(--card-bg, #ffffff);
+    border: 1px solid var(--card-border, #e2e8f0);
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.event-card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.05);
+}
+
+.event-icon-box {
+    width: 38px;
+    height: 38px;
+    min-width: 38px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(2, 132, 199, 0.08);
+    color: var(--accent, #0284c7);
+}
+
+.event-icon-box.dosis {
+    background: rgba(14, 165, 233, 0.12);
+    color: #0284c7;
+}
+
+.event-icon-box.warning {
+    background: rgba(245, 158, 11, 0.12);
+    color: #f59e0b;
+}
+
+.event-icon-box.error {
+    background: rgba(239, 68, 68, 0.12);
+    color: #ef4444;
+}
+
+.event-icon-box.pausa {
+    background: rgba(99, 102, 241, 0.12);
+    color: #6366f1;
+}
+
+.event-icon-box.system {
+    background: rgba(100, 116, 139, 0.12);
+    color: #64748b;
+}
+
+.event-icon-box.temp {
+    background: rgba(249, 115, 22, 0.12);
+    color: #f97316;
+}
+
+.event-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.event-main-text {
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--text-color, #1e293b);
+    line-height: 1.3;
+    word-break: break-word;
+}
+
+.event-sub-text {
+    font-size: 0.74rem;
+    color: var(--text-muted, #64748b);
+    margin-top: 0.2rem;
+}
+
+.historial-empty {
+    text-align: center;
+    padding: 2.5rem 1rem;
+    color: var(--text-muted, #64748b);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.historial-empty .material-symbols-outlined {
+    font-size: 2.5rem;
+    opacity: 0.5;
+    color: var(--accent);
+}
+
+.logs-terminal {
+    display: none;
 }
 
 /* Time/Date inputs custom styling */

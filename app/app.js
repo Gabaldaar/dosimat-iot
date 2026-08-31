@@ -1152,27 +1152,118 @@ function formatLogDate(ts) {
     return `${dd}/${mm}/${aa} - ${hh}:${min}:${ss}`;
 }
 
+function escapeHtml(str) {
+    if (!str) return "";
+    return String(str).replace(/[&<>"']/g, m => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+    }[m]));
+}
+
 let currentLogsCache = [];
 
+function parseLogDetails(logItem) {
+    let rawMsg = "";
+    let ts = 0;
+    let tipo = "";
+
+    if (typeof logItem === 'string') {
+        rawMsg = logItem;
+    } else if (logItem && typeof logItem === 'object') {
+        rawMsg = logItem.msg || logItem.mensaje || logItem.log || logItem.tipo || JSON.stringify(logItem);
+        ts = logItem.ts || logItem.timestamp || 0;
+        tipo = String(logItem.tipo || "").toLowerCase();
+    }
+
+    let timeStr = "";
+    let titleStr = rawMsg;
+
+    // Si viene en formato "31/08/26 - 11:05:01 - Dosis no realizada: Bomba apagada"
+    const parts = rawMsg.split(" - ");
+    if (parts.length >= 3 && parts[0].includes("/")) {
+        timeStr = `${parts[0]} - ${parts[1]}`;
+        titleStr = parts.slice(2).join(" - ");
+    } else if (parts.length === 2 && parts[0].includes("/")) {
+        timeStr = parts[0];
+        titleStr = parts[1];
+    } else {
+        timeStr = formatLogDate(ts || Date.now());
+        titleStr = rawMsg;
+    }
+
+    const lowTitle = titleStr.toLowerCase();
+    let iconName = "info";
+    let iconClass = "system";
+
+    if (tipo === "warning" || lowTitle.includes("bomba apagada") || lowTitle.includes("no realizada") || lowTitle.includes("detenido") || lowTitle.includes("error")) {
+        iconName = "warning";
+        iconClass = "warning";
+    } else if (tipo === "dosis_ok" || lowTitle.includes("dosis completada") || lowTitle.includes("dosis finalizada") || lowTitle.includes("dosis automática") || lowTitle.includes("dosis manual") || lowTitle.includes("dosificando")) {
+        iconName = "water_drop";
+        iconClass = "dosis";
+    } else if (lowTitle.includes("pausa") || lowTitle.includes("mantenimiento")) {
+        iconName = "pause_circle";
+        iconClass = "pausa";
+    } else if (lowTitle.includes("reinicio") || lowTitle.includes("iniciado")) {
+        iconName = "restart_alt";
+        iconClass = "system";
+    } else if (lowTitle.includes("temperatura") || lowTitle.includes("refuerzo")) {
+        iconName = "device_thermostat";
+        iconClass = "temp";
+    }
+
+    return {
+        title: titleStr,
+        time: timeStr,
+        icon: iconName,
+        iconClass: iconClass
+    };
+}
+
+function createLogCardElement(parsed) {
+    const card = document.createElement('div');
+    card.className = "event-card";
+    card.innerHTML = `
+        <div class="event-icon-box ${parsed.iconClass}">
+            <span class="material-symbols-outlined">${parsed.icon}</span>
+        </div>
+        <div class="event-body">
+            <div class="event-main-text">${escapeHtml(parsed.title)}</div>
+            <div class="event-sub-text">${escapeHtml(parsed.time)}</div>
+        </div>
+    `;
+    return card;
+}
+
 function appendLogToTerminal(logData) {
+    const container = document.getElementById('logsCardsContainer');
     const term = document.getElementById('logsTerminal');
-    if (!term) return;
-    if (term.innerText.includes("Esperando eventos...") || term.innerText.includes("Esperando actualización...")) {
-        term.innerText = "";
-    }
+
     const logObj = (typeof logData === 'object') ? logData : { msg: String(logData), ts: Date.now() };
-    const rawMsg = logObj.msg || logObj.mensaje || logObj.tipo || String(logData);
-
-    let formattedLine = rawMsg;
-    if (!(rawMsg.includes(" - ") && rawMsg.includes("/"))) {
-        const pfx = formatLogDate(logObj.ts || Date.now());
-        formattedLine = pfx ? `${pfx} - ${rawMsg}` : rawMsg;
-    }
-    term.innerText = `${formattedLine}\n` + term.innerText;
-
     currentLogsCache.unshift(logObj);
     if (currentLogsCache.length > 50) currentLogsCache.pop();
     calcularDosis15Dias(currentLogsCache);
+
+    if (container) {
+        const emptyEl = container.querySelector('.historial-empty');
+        if (emptyEl) container.innerHTML = "";
+
+        const parsed = parseLogDetails(logObj);
+        const cardEl = createLogCardElement(parsed);
+        container.insertBefore(cardEl, container.firstChild);
+
+        while (container.children.length > 30) {
+            container.removeChild(container.lastChild);
+        }
+    }
+
+    if (term) {
+        const rawMsg = logObj.msg || logObj.mensaje || logObj.tipo || String(logData);
+        term.innerText = `${rawMsg}\n` + term.innerText;
+    }
 }
 
 function calcularDosis15Dias(logs) {
@@ -1264,26 +1355,35 @@ function calcularDosis15Dias(logs) {
 }
 
 function renderLogsList(logs) {
+    const container = document.getElementById('logsCardsContainer');
     const term = document.getElementById('logsTerminal');
-    if (!term) return;
     if (!logs || !Array.isArray(logs)) return;
+
     currentLogsCache = [...logs];
     calcularDosis15Dias(currentLogsCache);
-    let linesArr = logs.map(item => {
-        if (typeof item === 'string') {
-            if (item.includes(" - ") && item.includes("/")) return item;
-            const pfx = formatLogDate(Date.now());
-            return pfx ? `${pfx} - ${item}` : item;
+
+    if (container) {
+        container.innerHTML = "";
+        if (logs.length === 0) {
+            container.innerHTML = `
+                <div class="historial-empty">
+                    <span class="material-symbols-outlined">receipt_long</span>
+                    <div>No hay registros recientes.</div>
+                </div>
+            `;
+            return;
         }
-        const ts = item.ts ? item.ts : (item.timestamp || Date.now());
-        const msg = item.msg || item.mensaje || item.tipo || JSON.stringify(item);
-        if (msg.includes(" - ") && msg.split(" - ").length >= 2 && msg.includes("/")) {
-            return msg;
-        }
-        const pfx = formatLogDate(ts);
-        return pfx ? `${pfx} - ${msg}` : msg;
-    });
-    term.innerText = linesArr.slice(0, 25).join('\n');
+
+        logs.slice(0, 30).forEach(item => {
+            const parsed = parseLogDetails(item);
+            const cardEl = createLogCardElement(parsed);
+            container.appendChild(cardEl);
+        });
+    }
+
+    if (term) {
+        term.innerText = logs.map(item => typeof item === 'string' ? item : (item.msg || JSON.stringify(item))).join('\n');
+    }
 }
 
 function listenLogsCollection() {
