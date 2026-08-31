@@ -1492,21 +1492,18 @@ function connectNube() {
     if (modoConexion !== "BLE") {
         const progRef = doc(db, "equipos", currentMac, "programas", "actual");
         unsubscribeProgramas = onSnapshot(progRef, (docSnap) => {
-        if (docSnap.exists()) {
-            if (pendingCronogramaTimeoutId) {
-                clearTimeout(pendingCronogramaTimeoutId);
-                pendingCronogramaTimeoutId = null;
-                setCronogramaInputsDisabled(false);
+            if (docSnap.exists()) {
+                if (pendingCronogramaTimeoutId) {
+                    clearTimeout(pendingCronogramaTimeoutId);
+                    pendingCronogramaTimeoutId = null;
+                    setCronogramaInputsDisabled(false);
+                    showToast("🎉 Cronograma confirmado por el dosificador.");
+                }
                 updateProgramasUI(docSnap.data());
             }
         }, (err) => {
             console.warn("Firestore snapshot programas:", err.message);
         });
-
-        // Pedir logs frescos al ESP32 al conectar
-        setTimeout(() => {
-            sendCommand({ comando: "GET_LOGS" }, true);
-        }, 1200);
     }
 }
 
