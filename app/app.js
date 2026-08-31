@@ -4913,10 +4913,14 @@ async function ensureProAuth() {
 
 let proUnsubs = {
     orders: null,
-    sheets: null,
+    sheetsClient: null,
+    sheetsGlobal: null,
     client: null,
     tx: null
 };
+
+let cachedClientSheetsDocs = [];
+let cachedGlobalSheetsDocs = [];
 
 function extractChlorineFromTx(tx) {
     if (!tx) return 0;
@@ -4958,18 +4962,14 @@ function extractChlorineFromTx(tx) {
     return 0;
 }
 
-function processRouteSheetsForClient(docsArray, clientId) {
-    if (!docsArray || docsArray.length === 0) {
-        proClientState.upcomingDelivery = null;
-        proClientState.deliverySheetItem = null;
-        proClientState.deliveryLocked = false;
-        return;
-    }
+function updateUpcomingDeliveryAndRefill(clientId) {
+    const clientSheets = (cachedClientSheetsDocs || []).map(d => ({ id: d.id, ...(typeof d.data === 'function' ? d.data() : d) }));
+    const globalSheets = (cachedGlobalSheetsDocs || []).map(d => ({ id: d.id, ...(typeof d.data === 'function' ? d.data() : d) }));
 
-    const allSheets = docsArray.map(d => ({ id: d.id, ...(typeof d.data === 'function' ? d.data() : d) }));
+    const todayStr = new Date().toISOString().split('T')[0];
 
     // A. Buscar si hay entregas realizadas para este cliente
-    const deliveredSheets = allSheets.filter(s => {
+    const deliveredSheets = clientSheets.filter(s => {
         const it = s.items?.find(i => i.clientId === clientId);
         return it && (it.isDelivered === true || it.processed === true || Number(it.realChlorine || 0) > 0);
     }).sort((a, b) => new Date(b.date + 'T12:00:00').getTime() - new Date(a.date + 'T12:00:00').getTime());
@@ -4988,8 +4988,8 @@ function processRouteSheetsForClient(docsArray, clientId) {
         proClientState.deliverySheetItem = null;
     }
 
-    // B. Buscar la próxima entrega PENDIENTE (no entregada todavía)
-    const pendingClientSheets = allSheets.filter(s => {
+    // B. Buscar si el cliente tiene una entrega asignada PENDIENTE (no entregada todavía)
+    const pendingClientSheets = clientSheets.filter(s => {
         const it = s.items?.find(i => i.clientId === clientId);
         if (!it) return false;
         if (s.status === 'completed') return false;
@@ -5009,16 +5009,25 @@ function processRouteSheetsForClient(docsArray, clientId) {
         };
     } else {
         proClientState.deliveryLocked = false;
-        // Si no hay hoja asignada pendiente, buscar una fecha planificada futura general
-        const futurePlanned = allSheets.filter(s => s.status === 'planned' && new Date(s.date + 'T12:00:00') >= new Date())
+
+        // C. Si el cliente no está en una hoja específica pendiente, buscar la próxima hoja abierta / planificada de la zona
+        const allOpenSheets = [...clientSheets, ...globalSheets].filter(s => {
+            if (s.status !== 'planned' && s.status !== 'active') return false;
+            const sDate = String(s.date || '').split('T')[0];
+            return sDate >= todayStr;
+        });
+
+        const uniqueSheets = Array.from(new Map(allOpenSheets.map(s => [s.id, s])).values())
             .sort((a, b) => new Date(a.date + 'T12:00:00').getTime() - new Date(b.date + 'T12:00:00').getTime());
 
-        if (futurePlanned.length > 0) {
+        if (uniqueSheets.length > 0) {
+            const nextSheet = uniqueSheets[0];
+            const item = nextSheet.items?.find(i => i.clientId === clientId);
             proClientState.upcomingDelivery = {
-                date: futurePlanned[0].date,
-                status: 'planned',
-                cloro: 0,
-                acido: 0
+                date: nextSheet.date,
+                status: nextSheet.status,
+                cloro: Number(item?.plannedChlorine || 0),
+                acido: Number(item?.plannedAcid || 0)
             };
         } else {
             proClientState.upcomingDelivery = null;
@@ -5052,25 +5061,46 @@ function setupProRealtimeListeners(clientId) {
         console.warn("setup listener orders err:", e);
     }
 
-    // 2. Listener de Hojas de Reparto (route_sheets)
-    if (proUnsubs.sheets) {
-        try { proUnsubs.sheets(); } catch(e){}
+    // 2. Listener de Hojas de Reparto del Cliente
+    if (proUnsubs.sheetsClient) {
+        try { proUnsubs.sheetsClient(); } catch(e){}
     }
     try {
-        const qSheets = query(
+        const qSheetsClient = query(
             collection(proDb, "route_sheets"),
             where("participantClientIds", "array-contains", clientId),
             where("status", "in", ["planned", "active", "completed"])
         );
-        proUnsubs.sheets = onSnapshot(qSheets, (snap) => {
-            processRouteSheetsForClient(snap.docs, clientId);
+        proUnsubs.sheetsClient = onSnapshot(qSheetsClient, (snap) => {
+            cachedClientSheetsDocs = snap.docs;
+            updateUpcomingDeliveryAndRefill(clientId);
             renderDosimatProUI();
             checkAndSyncProRefillToBidon();
         }, (err) => {
-            console.warn("onSnapshot route_sheets aviso:", err);
+            console.warn("onSnapshot route_sheets client aviso:", err);
         });
     } catch (e) {
-        console.warn("setup listener sheets err:", e);
+        console.warn("setup listener sheets client err:", e);
+    }
+
+    // 2b. Listener de Hojas de Reparto Globales Abiertas/Planificadas
+    if (proUnsubs.sheetsGlobal) {
+        try { proUnsubs.sheetsGlobal(); } catch(e){}
+    }
+    try {
+        const qSheetsGlobal = query(
+            collection(proDb, "route_sheets"),
+            where("status", "in", ["planned", "active"])
+        );
+        proUnsubs.sheetsGlobal = onSnapshot(qSheetsGlobal, (snap) => {
+            cachedGlobalSheetsDocs = snap.docs;
+            updateUpcomingDeliveryAndRefill(clientId);
+            renderDosimatProUI();
+        }, (err) => {
+            console.warn("onSnapshot route_sheets global aviso:", err);
+        });
+    } catch (e) {
+        console.warn("setup listener sheets global err:", e);
     }
 
     // 3. Listener de Transacciones (transactions)
@@ -5257,13 +5287,22 @@ async function loadProDeliverySheet(clientId) {
     if (!proDb || !clientId) return;
     try {
         await ensureProAuth();
-        const qSheets = query(
+        const qSheetsClient = query(
             collection(proDb, "route_sheets"),
             where("participantClientIds", "array-contains", clientId),
             where("status", "in", ["planned", "active", "completed"])
         );
-        const snap = await getDocs(qSheets);
-        processRouteSheetsForClient(snap.docs, clientId);
+        const snapClient = await getDocs(qSheetsClient);
+        cachedClientSheetsDocs = snapClient.docs;
+
+        const qSheetsGlobal = query(
+            collection(proDb, "route_sheets"),
+            where("status", "in", ["planned", "active"])
+        );
+        const snapGlobal = await getDocs(qSheetsGlobal);
+        cachedGlobalSheetsDocs = snapGlobal.docs;
+
+        updateUpcomingDeliveryAndRefill(clientId);
     } catch (err) {
         console.error("Error cargando hojas de ruta de DosimatPro:", err);
         proClientState.upcomingDelivery = null;
