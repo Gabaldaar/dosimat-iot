@@ -14,6 +14,10 @@
     ],
     "rewrites": [
       {
+        "source": "/api/portal/orders",
+        "function": "proxyProOrders"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

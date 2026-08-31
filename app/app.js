@@ -5368,8 +5368,43 @@ async function enviarNuevoPedidoPro(cloro, acido, notas) {
     }
 }
 
+async function callProOrdersApi(method, options) {
+    if (!proAuth?.currentUser) throw new Error("Sesión no iniciada en el portal.");
+    const token = await proAuth.currentUser.getIdToken();
+    const queryStr = method === 'DELETE' ? `?requestId=${encodeURIComponent(options.requestId || '')}` : '';
+    
+    // Intentar primero por el proxy de Firebase Hosting (/api/portal/orders) y luego directamente por Cloud Function
+    const urls = [
+        `/api/portal/orders${queryStr}`,
+        `https://us-central1-dosimat-iot-v2.cloudfunctions.net/proxyProOrders${queryStr}`
+    ];
+
+    let lastError = null;
+    for (const url of urls) {
+        try {
+            const res = await fetch(url, {
+                method,
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    ...(method === 'PATCH' ? { 'Content-Type': 'application/json' } : {})
+                },
+                ...(method === 'PATCH' ? { body: JSON.stringify(options) } : {})
+            });
+            const data = await res.json().catch(() => ({}));
+            if (res.ok) {
+                return data;
+            } else {
+                lastError = new Error(data.error || "No se pudo procesar el pedido.");
+            }
+        } catch (err) {
+            lastError = err;
+        }
+    }
+    throw lastError || new Error("Error de conexión.");
+}
+
 async function guardarEdicionPedidoPro(requestId, cloro, acido, notas) {
-    if (!proDb || !requestId) return false;
+    if (!requestId) return false;
     if (cloro <= 0 && acido <= 0) {
         showToast("Indicá al menos 1 bidón de cloro o ácido.");
         return false;
@@ -5377,103 +5412,33 @@ async function guardarEdicionPedidoPro(requestId, cloro, acido, notas) {
 
     try {
         await ensureProAuth();
+        const res = await callProOrdersApi('PATCH', {
+            requestId,
+            cloro: Number(cloro),
+            acido: Number(acido),
+            notes: String(notas || '')
+        });
 
-        let apiSuccess = false;
-        if (proAuth?.currentUser) {
-            try {
-                const token = await proAuth.currentUser.getIdToken();
-                const res = await fetch('https://dosimat-pro.netlify.app/api/portal/orders', {
-                    method: 'PATCH',
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ requestId, cloro: Number(cloro), acido: Number(acido), notes: String(notas || '') })
-                });
-                if (res.ok) {
-                    apiSuccess = true;
-                }
-            } catch (apiErr) {
-                console.warn("API PATCH fallo, intentando Firestore directo:", apiErr);
-            }
-        }
-
-        if (!apiSuccess) {
-            const req = proClientState.openOrders.find(o => o.id === requestId);
-            const now = new Date().toISOString();
-            const isScheduled = req?.status === 'scheduled' && !!req?.routeSheetId;
-
-            const updateData = {
-                cloro: Number(cloro),
-                acido: Number(acido),
-                notes: notas || "",
-                updatedAt: now
-            };
-
-            if (isScheduled) {
-                updateData.needsStaffReview = true;
-                updateData.clientRevisionType = 'updated';
-                updateData.clientRevisionAt = now;
-            }
-
-            await updateDoc(doc(proDb, "client_requests", requestId), updateData);
-        }
-
-        showToast("Pedido actualizado correctamente.");
+        showToast(res.message || "Pedido actualizado correctamente.");
         await syncDosimatProClient();
         return true;
     } catch (e) {
         console.error("Error actualizando pedido:", e);
-        showToast("No se pudo actualizar el pedido.");
+        showToast(e.message || "No se pudo actualizar el pedido.");
         return false;
     }
 }
 
 async function cancelarPedidoPro(requestId) {
-    if (!proDb || !requestId) return;
+    if (!requestId) return;
     try {
         await ensureProAuth();
-
-        let apiSuccess = false;
-        if (proAuth?.currentUser) {
-            try {
-                const token = await proAuth.currentUser.getIdToken();
-                const res = await fetch(`https://dosimat-pro.netlify.app/api/portal/orders?requestId=${encodeURIComponent(requestId)}`, {
-                    method: 'DELETE',
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
-                if (res.ok) {
-                    apiSuccess = true;
-                }
-            } catch (apiErr) {
-                console.warn("API DELETE fallo, intentando Firestore directo:", apiErr);
-            }
-        }
-
-        if (!apiSuccess) {
-            const req = proClientState.openOrders.find(o => o.id === requestId);
-            const isScheduled = req?.status === 'scheduled' && !!req?.routeSheetId;
-
-            if (isScheduled) {
-                await updateDoc(doc(proDb, "client_requests", requestId), {
-                    status: 'cancelled',
-                    needsStaffReview: true,
-                    clientRevisionType: 'cancelled',
-                    clientRevisionAt: new Date().toISOString(),
-                    updatedAt: new Date().toISOString()
-                });
-            } else {
-                await deleteDoc(doc(proDb, "client_requests", requestId));
-            }
-        }
-
-        showToast("Pedido anulado correctamente.");
+        const res = await callProOrdersApi('DELETE', { requestId });
+        showToast(res.message || "Pedido anulado correctamente.");
         await syncDosimatProClient();
     } catch (e) {
         console.error("Error cancelando pedido:", e);
-        showToast("No se pudo anular el pedido.");
+        showToast(e.message || "No se pudo anular el pedido.");
     }
 }
 

@@ -514,3 +514,38 @@ exports.onLogCreated = functions.firestore.document("equipos/{chipId}/logs/{logI
         }, "sistema_pausa");
     }
 });
+
+/**
+ * Proxy HTTPS para comunicar de forma segura y sin bloqueo de CORS
+ * con la API de Pedidos de DosimatPro en Netlify.
+ */
+exports.proxyProOrders = functions.https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+
+    if (req.method === "OPTIONS") {
+        return res.status(204).send("");
+    }
+
+    const authHeader = req.headers.authorization;
+    const targetUrl = req.method === "DELETE"
+        ? `https://dosimat-pro.netlify.app/api/portal/orders?requestId=${encodeURIComponent(req.query.requestId || "")}`
+        : "https://dosimat-pro.netlify.app/api/portal/orders";
+
+    try {
+        const response = await fetch(targetUrl, {
+            method: req.method,
+            headers: {
+                ...(authHeader ? { Authorization: authHeader } : {}),
+                ...(req.method === "PATCH" ? { "Content-Type": "application/json" } : {})
+            },
+            ...(req.method === "PATCH" ? { body: JSON.stringify(req.body) } : {})
+        });
+        const data = await response.json().catch(() => ({}));
+        return res.status(response.status).json(data);
+    } catch (err) {
+        console.error("Error proxying to DosimatPro:", err);
+        return res.status(500).json({ error: "Error en el servidor proxy de pedidos." });
+    }
+});
