@@ -1611,6 +1611,31 @@ function evaluarAlertasSistema() {
         }
     }
 
+    // 7. Alerta de Nivel de Cloro Bajo en el Bidón
+    if (typeof bidonConfig !== "undefined") {
+        const capTotal = (bidonConfig.totalBidones || 1) * (bidonConfig.litrosPorBidon || 27.0);
+        const consumidos = (bidonConfig.dosisAcumuladasHardware || 0.0) * (bidonConfig.dosisLitros || 2.0);
+        const restantes = Math.max(0, capTotal - consumidos);
+        const percent = Math.round((restantes / capTotal) * 100);
+
+        if (percent <= 15 || restantes <= 4.0) {
+            alerts.push({
+                id: "alerta_bidon_bajo",
+                type: "danger",
+                icon: "water_bottle",
+                title: "Nivel de Cloro Bajo en el Bidón",
+                desc: `Quedan aproximadamente ${restantes.toFixed(1)} Litros (${percent}%). Registra una recarga para no quedarte sin cloro.`,
+                btnText: "Registrar Recarga",
+                action: () => {
+                    const btnRec = document.getElementById('btnOpenModalRecarga');
+                    if (btnRec) btnRec.click();
+                },
+                notifTitle: "Dosimat: Cloro Bajo",
+                notifBody: `Nivel de cloro bajo (${restantes.toFixed(1)}L restantes). Se recomienda reponer bidón.`
+            });
+        }
+    }
+
     // Renderizar
     if (alerts.length === 0) {
         container.style.display = "none";
@@ -2135,6 +2160,14 @@ function updateUI(raw_data) {
     const lblAnuladasControl = document.getElementById('lblAnuladasControl');
     if (lblAnuladas) lblAnuladas.innerText = globalDosisAnuladas;
     if (lblAnuladasControl) lblAnuladasControl.innerText = globalDosisAnuladas;
+
+    if (data.dosis_acum !== undefined || data.dosis_acumuladas !== undefined) {
+        const dVal = parseFloat(data.dosis_acum !== undefined ? data.dosis_acum : data.dosis_acumuladas);
+        if (!isNaN(dVal) && typeof bidonConfig !== "undefined") {
+            bidonConfig.dosisAcumuladasHardware = dVal;
+            if (typeof renderBidonUI === "function") renderBidonUI();
+        }
+    }
 
     renderModeloUI();
 }
@@ -4348,6 +4381,263 @@ if (document.readyState === "loading") {
     document.addEventListener('DOMContentLoaded', initWeatherModule);
 } else {
     initWeatherModule();
+}
+
+// =========================================================================
+// === MÓDULO DE CALCULADORA DE PISCINA Y ESTIMADOR DE NIVEL DE BIDÓN ===
+// =========================================================================
+
+let bidonConfig = {
+    totalBidones: 1,
+    litrosPorBidon: 27.0,
+    dosisLitros: 2.0,
+    dosisAcumuladasHardware: 0.0,
+    fechaRecarga: new Date().toISOString().split('T')[0],
+    bidonesRecargados: 1
+};
+
+let poolDims = {
+    ancho: 4.0,
+    largo: 8.0,
+    prof: 1.5
+};
+
+function renderBidonUI() {
+    const lblLitros = document.getElementById('lblBidonLitros');
+    const lblDias = document.getElementById('lblBidonDias');
+    const lblDosisAcum = document.getElementById('lblBidonDosisAcum');
+    const lblCapacidad = document.getElementById('lblBidonCapacidad');
+    const lblPercent = document.getElementById('lblBidonPercent');
+    const liquidEl = document.getElementById('bidonLiquid');
+
+    const capTotal = (bidonConfig.totalBidones || 1) * (bidonConfig.litrosPorBidon || 27.0);
+    const dosisAcum = Math.max(0, bidonConfig.dosisAcumuladasHardware || 0.0);
+    const dosisL = bidonConfig.dosisLitros || 2.0;
+
+    const litrosConsumidos = dosisAcum * dosisL;
+    const litrosRestantes = Math.max(0, capTotal - litrosConsumidos);
+    const percent = Math.min(100, Math.max(0, Math.round((litrosRestantes / capTotal) * 100)));
+
+    if (lblLitros) lblLitros.innerText = `${litrosRestantes.toFixed(1)} / ${capTotal.toFixed(1)} L`;
+    if (lblPercent) lblPercent.innerText = `${percent}%`;
+    if (liquidEl) liquidEl.style.height = `${percent}%`;
+    if (lblDosisAcum) lblDosisAcum.innerText = `${dosisAcum.toFixed(1)} dosis`;
+    if (lblCapacidad) lblCapacidad.innerText = `${bidonConfig.totalBidones} ${bidonConfig.totalBidones === 1 ? 'Bidón' : 'Bidones'} (${capTotal.toFixed(0)} L)`;
+
+    // Calcular autonomía en días
+    let totalDosisPorSemana = 0;
+    try {
+        const progs = (typeof obtenerListaProgramas === "function") ? obtenerListaProgramas() : [];
+        progs.forEach(p => {
+            if (p.dosifica && p.duracion > 0 && p.dias) {
+                totalDosisPorSemana += (p.dias.length || 0);
+            }
+        });
+    } catch(e) {}
+
+    const dosisPorDia = totalDosisPorSemana > 0 ? (totalDosisPorSemana / 7.0) : 1.0;
+    const consumoDiarioLitros = dosisPorDia * dosisL;
+    const diasEstimados = (consumoDiarioLitros > 0) ? Math.round(litrosRestantes / consumoDiarioLitros) : 0;
+
+    if (lblDias) {
+        lblDias.innerText = diasEstimados > 0 ? `~${diasEstimados} días` : (litrosRestantes === 0 ? "0 días" : "-- días");
+    }
+
+    if (typeof evaluarAlertasSistema === "function") evaluarAlertasSistema();
+}
+
+function initPoolCalculator() {
+    try {
+        const saved = localStorage.getItem("dosimat_pool_dims");
+        if (saved) poolDims = Object.assign(poolDims, JSON.parse(saved));
+        const savedBidon = localStorage.getItem("dosimat_bidon_config");
+        if (savedBidon) bidonConfig = Object.assign(bidonConfig, JSON.parse(savedBidon));
+    } catch(e) {}
+
+    const inpAncho = document.getElementById('inpPoolAncho');
+    const inpLargo = document.getElementById('inpPoolLargo');
+    const inpProf = document.getElementById('inpPoolProf');
+    const inpDosisLitros = document.getElementById('inpDosisConfigLitros');
+    const btnToggleCalc = document.getElementById('btnTogglePoolCalc');
+    const calcBody = document.getElementById('poolCalcBody');
+    const iconToggle = document.getElementById('iconToggleCalc');
+
+    if (inpAncho) inpAncho.value = poolDims.ancho;
+    if (inpLargo) inpLargo.value = poolDims.largo;
+    if (inpProf) inpProf.value = poolDims.prof;
+    if (inpDosisLitros) inpDosisLitros.value = bidonConfig.dosisLitros;
+
+    const recalcularPiscina = () => {
+        const a = parseFloat(inpAncho ? inpAncho.value : 0) || 0;
+        const l = parseFloat(inpLargo ? inpLargo.value : 0) || 0;
+        const p = parseFloat(inpProf ? inpProf.value : 0) || 0;
+        const dL = parseFloat(inpDosisLitros ? inpDosisLitros.value : 2.0) || 2.0;
+
+        poolDims = { ancho: a, largo: l, prof: p };
+        bidonConfig.dosisLitros = dL;
+        localStorage.setItem("dosimat_pool_dims", JSON.stringify(poolDims));
+        localStorage.setItem("dosimat_bidon_config", JSON.stringify(bidonConfig));
+
+        const volM3 = a * l * p;
+        const volLitros = Math.round(volM3 * 1000);
+        const dosisSugeridaVerano = (volLitros / 20000.0).toFixed(1);
+
+        const lblVol = document.getElementById('lblPoolVolumen');
+        const lblSugerida = document.getElementById('lblPoolDosisSugerida');
+        if (lblVol) lblVol.innerText = `${volLitros.toLocaleString('es-AR')} Litros (${volM3.toFixed(1)} m³)`;
+        if (lblSugerida) lblSugerida.innerText = `${dosisSugeridaVerano} L / día`;
+
+        renderBidonUI();
+    };
+
+    if (inpAncho) inpAncho.oninput = recalcularPiscina;
+    if (inpLargo) inpLargo.oninput = recalcularPiscina;
+    if (inpProf) inpProf.oninput = recalcularPiscina;
+    if (inpDosisLitros) inpDosisLitros.oninput = recalcularPiscina;
+
+    if (btnToggleCalc && calcBody) {
+        btnToggleCalc.onclick = () => {
+            const isHidden = (calcBody.style.display === "none");
+            calcBody.style.display = isHidden ? "block" : "none";
+            if (iconToggle) iconToggle.style.transform = isHidden ? "rotate(180deg)" : "rotate(0deg)";
+        };
+    }
+
+    recalcularPiscina();
+}
+
+function initBidonModule() {
+    try {
+        const savedBidon = localStorage.getItem("dosimat_bidon_config");
+        if (savedBidon) bidonConfig = Object.assign(bidonConfig, JSON.parse(savedBidon));
+    } catch(e) {}
+
+    // Modal Recarga
+    const modalRecarga = document.getElementById('modalRecargaBidon');
+    const btnOpenRecarga = document.getElementById('btnOpenModalRecarga');
+    const btnCancelRecarga = document.getElementById('btnCancelRecarga');
+    const btnConfirmRecarga = document.getElementById('btnConfirmRecarga');
+    const inpRecargaBidones = document.getElementById('inpRecargaBidones');
+    const inpRecargaFecha = document.getElementById('inpRecargaFecha');
+    const lblRecargaLitrosCalc = document.getElementById('lblRecargaLitrosCalc');
+
+    if (btnOpenRecarga && modalRecarga) {
+        btnOpenRecarga.onclick = () => {
+            if (inpRecargaBidones) inpRecargaBidones.value = bidonConfig.totalBidones || 1;
+            if (inpRecargaFecha) inpRecargaFecha.value = new Date().toISOString().split('T')[0];
+            if (lblRecargaLitrosCalc) {
+                const bCount = parseFloat(inpRecargaBidones ? inpRecargaBidones.value : 1) || 1;
+                lblRecargaLitrosCalc.innerText = `= ${(bCount * 27.0).toFixed(1)} Litros`;
+            }
+            modalRecarga.style.display = 'flex';
+        };
+    }
+
+    if (inpRecargaBidones && lblRecargaLitrosCalc) {
+        inpRecargaBidones.oninput = () => {
+            const bCount = parseFloat(inpRecargaBidones.value) || 0;
+            lblRecargaLitrosCalc.innerText = `= ${(bCount * 27.0).toFixed(1)} Litros`;
+        };
+    }
+
+    if (btnCancelRecarga && modalRecarga) {
+        btnCancelRecarga.onclick = () => { modalRecarga.style.display = 'none'; };
+    }
+
+    if (btnConfirmRecarga && modalRecarga) {
+        btnConfirmRecarga.onclick = () => {
+            const bRepuestos = parseFloat(inpRecargaBidones ? inpRecargaBidones.value : 1) || 1;
+            const fechaStr = inpRecargaFecha ? inpRecargaFecha.value : new Date().toISOString().split('T')[0];
+
+            bidonConfig.bidonesRecargados = bRepuestos;
+            bidonConfig.fechaRecarga = fechaStr;
+            bidonConfig.dosisAcumuladasHardware = 0.0;
+
+            localStorage.setItem("dosimat_bidon_config", JSON.stringify(bidonConfig));
+
+            // Enviar reset de contador al ESP32
+            sendCommand({ comando: "RESET_CONTADOR_DOSIS" });
+
+            renderBidonUI();
+            modalRecarga.style.display = 'none';
+            showToast(`Recarga registrada: ${(bRepuestos * 27.0).toFixed(1)} Litros`);
+        };
+    }
+
+    // Modal Ajustar Nivel
+    const modalAjustar = document.getElementById('modalAjustarBidon');
+    const btnOpenAjustar = document.getElementById('btnOpenModalAjustarBidon');
+    const btnCancelAjustar = document.getElementById('btnCancelAjustarBidon');
+    const btnConfirmAjustar = document.getElementById('btnConfirmAjustarBidon');
+    const selTotalBidones = document.getElementById('selTotalBidonesInstalados');
+    const rngAjuste = document.getElementById('rngAjusteNivel');
+    const lblAjusteVal = document.getElementById('lblAjusteNivelVal');
+    const lblAjusteLitros = document.getElementById('lblAjusteNivelLitros');
+
+    const updateAjustePreview = () => {
+        const bTotal = parseInt(selTotalBidones ? selTotalBidones.value : 1) || 1;
+        const pct = parseInt(rngAjuste ? rngAjuste.value : 100) || 0;
+        const cap = bTotal * 27.0;
+        const litros = (cap * pct / 100.0).toFixed(1);
+        if (lblAjusteVal) lblAjusteVal.innerText = `${pct}%`;
+        if (lblAjusteLitros) lblAjusteLitros.innerText = `= ${litros} Litros restantes`;
+    };
+
+    if (btnOpenAjustar && modalAjustar) {
+        btnOpenAjustar.onclick = () => {
+            if (selTotalBidones) selTotalBidones.value = String(bidonConfig.totalBidones || 1);
+            const capTotal = (bidonConfig.totalBidones || 1) * (bidonConfig.litrosPorBidon || 27.0);
+            const consumidos = (bidonConfig.dosisAcumuladasHardware || 0.0) * (bidonConfig.dosisLitros || 2.0);
+            const restantes = Math.max(0, capTotal - consumidos);
+            const currentPct = Math.min(100, Math.max(0, Math.round((restantes / capTotal) * 100)));
+
+            if (rngAjuste) rngAjuste.value = currentPct;
+            updateAjustePreview();
+            modalAjustar.style.display = 'flex';
+        };
+    }
+
+    if (selTotalBidones) selTotalBidones.onchange = updateAjustePreview;
+    if (rngAjuste) rngAjuste.oninput = updateAjustePreview;
+
+    if (btnCancelAjustar && modalAjustar) {
+        btnCancelAjustar.onclick = () => { modalAjustar.style.display = 'none'; };
+    }
+
+    if (btnConfirmAjustar && modalAjustar) {
+        btnConfirmAjustar.onclick = () => {
+            const bTotal = parseInt(selTotalBidones ? selTotalBidones.value : 1) || 1;
+            const pct = parseInt(rngAjuste ? rngAjuste.value : 100) || 0;
+            const cap = bTotal * 27.0;
+            const litrosRestantesDeseados = cap * (pct / 100.0);
+            const litrosConsumidos = Math.max(0, cap - litrosRestantesDeseados);
+            const dosisEquiv = Math.round((litrosConsumidos / (bidonConfig.dosisLitros || 2.0)) * 100) / 100;
+
+            bidonConfig.totalBidones = bTotal;
+            bidonConfig.dosisAcumuladasHardware = dosisEquiv;
+            localStorage.setItem("dosimat_bidon_config", JSON.stringify(bidonConfig));
+
+            // Enviar ajuste al ESP32
+            sendCommand({ comando: "SET_CONTADOR_DOSIS", valor: dosisEquiv });
+
+            renderBidonUI();
+            modalAjustar.style.display = 'none';
+            showToast(`Nivel ajustado al ${pct}% (${litrosRestantesDeseados.toFixed(1)} L)`);
+        };
+    }
+
+    renderBidonUI();
+}
+
+// Iniciar módulos al cargar
+if (document.readyState === "loading") {
+    document.addEventListener('DOMContentLoaded', () => {
+        initPoolCalculator();
+        initBidonModule();
+    });
+} else {
+    initPoolCalculator();
+    initBidonModule();
 }
 
 

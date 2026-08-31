@@ -143,7 +143,8 @@ async def enviar_telemetria():
         "temporada": "Alta" if es_temporada_alta() else "Baja",
         "temp_comp": 1 if config_ref.get("temp_comp_activa", False) else 0,
         "temp_offset": float(config_ref.get("temp_offset", 0.0)),
-        "ult_ref_ts": int(config_ref.get("ultimo_refuerzo_temp_ts", 0))
+        "ult_ref_ts": int(config_ref.get("ultimo_refuerzo_temp_ts", 0)),
+        "dosis_acum": float(config_ref.get("dosis_acumuladas", 0.0))
     }
     try:
         if rtc_hw:
@@ -296,6 +297,19 @@ async def procesar_comando(cmd_dict):
             fase_actual_interrumpida = estado_dosimat
             estado_dosimat = "ANTI"
             abort_event.set()
+
+    elif cmd == "RESET_CONTADOR_DOSIS":
+        config_ref["dosis_acumuladas"] = 0.0
+        await config_manager.guardar_configuracion(config_ref)
+        await tx_queue.put({"tipo": "ACK_RESET_DOSIS", "status": "OK", "_destino": origen})
+        await enviar_telemetria()
+
+    elif cmd == "SET_CONTADOR_DOSIS":
+        val = float(cmd_dict.get("valor", 0.0))
+        config_ref["dosis_acumuladas"] = round(val, 2)
+        await config_manager.guardar_configuracion(config_ref)
+        await tx_queue.put({"tipo": "ACK_SET_DOSIS", "status": "OK", "valor": val, "_destino": origen})
+        await enviar_telemetria()
             
     elif cmd in ("config_wifi", "SET_WIFI"):
         ssid = cmd_dict.get("ssid")
@@ -684,6 +698,13 @@ async def dispenser_loop():
             if estado_dosimat == "DOSIS":
                 set_relays(bomba_on=True, valvula_on=False)
                 ultima_dosis_ts = time.time()
+                
+                # Acumular contador de dosis exacto para el bidón
+                factor_refuerzo = 2.0 if refuerzo_activo else 1.0
+                factor_temporada = 1.0 if es_temporada_alta() else (float(config_ref.get("ajuste_baja", 50)) / 100.0)
+                dosis_incremento = round(factor_refuerzo * factor_temporada, 2)
+                config_ref["dosis_acumuladas"] = round(config_ref.get("dosis_acumuladas", 0.0) + dosis_incremento, 2)
+
                 refuerzo_activo = False
                 config_ref["refuerzo_activo"] = False
                 await config_manager.guardar_configuracion(config_ref)

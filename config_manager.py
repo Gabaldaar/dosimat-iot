@@ -16,7 +16,8 @@ DEFAULT_CONFIG = {
     "temporada_alta_fin": "03-30",     # Fin temporada alta (MM-DD)
     "temp_comp_activa": False,         # Compensación automática por altas temperaturas activa
     "temp_offset": 0.0,                # Offset/calibración de temperatura en °C
-    "ultimo_refuerzo_temp_ts": 0       # Timestamp del último refuerzo por temperatura
+    "ultimo_refuerzo_temp_ts": 0,      # Timestamp del último refuerzo por temperatura
+    "dosis_acumuladas": 0.0            # Contador persistente de dosis aplicadas desde la última recarga
 }
 
 config_data = {}

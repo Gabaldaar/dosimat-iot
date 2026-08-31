@@ -255,6 +255,113 @@
             </div>
         </div>
 
+        <!-- Tarjeta Unificada: Calculadora de Piscina y Estimador de Nivel de Bidón -->
+        <div class="card" id="panelBidonYCalculadora" style="padding: 1rem 1.1rem; margin-top: 0.6rem; margin-bottom: 0.6rem;">
+            <h2 style="display: flex; align-items: center; width: 100%; margin-bottom: 0.8rem;">
+                <span class="material-symbols-outlined" style="color: var(--accent); margin-right: 0.4rem;">water_bottle</span>
+                <span>Nivel de Cloro y Calculadora</span>
+                <span class="material-symbols-outlined btn-help" data-help="bidon-calculadora">help</span>
+            </h2>
+
+            <!-- Sección Superior: Nivel de Bidón y Autonomía -->
+            <div class="bidon-main-wrapper">
+                <div class="bidon-visual-container">
+                    <div class="bidon-visual" id="bidonVisual">
+                        <div class="bidon-cap"></div>
+                        <div class="bidon-body">
+                            <div class="bidon-liquid" id="bidonLiquid" style="height: 100%;">
+                                <div class="bidon-wave"></div>
+                            </div>
+                            <div class="bidon-percent" id="lblBidonPercent">100%</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bidon-stats-container">
+                    <div class="bidon-stat-item">
+                        <span class="bidon-stat-label">Litros Restantes:</span>
+                        <span class="bidon-stat-val" id="lblBidonLitros">27.0 / 27.0 L</span>
+                    </div>
+                    <div class="bidon-stat-item">
+                        <span class="bidon-stat-label">Autonomía Estimada:</span>
+                        <span class="bidon-stat-val highlight" id="lblBidonDias">-- días</span>
+                    </div>
+                    <div class="bidon-stat-item">
+                        <span class="bidon-stat-label">Dosis Aplicadas:</span>
+                        <span class="bidon-stat-val" id="lblBidonDosisAcum">0.0 dosis</span>
+                    </div>
+                    <div class="bidon-stat-item">
+                        <span class="bidon-stat-label">Capacidad:</span>
+                        <span class="bidon-stat-sub" id="lblBidonCapacidad">1 Bidón (27 L)</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Botones de Acción del Bidón -->
+            <div style="display: flex; gap: 0.5rem; margin-top: 0.8rem;">
+                <button class="btn" id="btnOpenModalRecarga" style="flex: 1; padding: 0.5rem 0.8rem; font-size: 0.85rem; display: flex; align-items: center; justify-content: center; gap: 0.3rem;">
+                    <span class="material-symbols-outlined" style="font-size: 1.1rem;">local_gas_station</span>
+                    <span>Registrar Recarga</span>
+                </button>
+                <button class="btn outline" id="btnOpenModalAjustarBidon" style="flex: 1; padding: 0.5rem 0.8rem; font-size: 0.85rem; display: flex; align-items: center; justify-content: center; gap: 0.3rem;">
+                    <span class="material-symbols-outlined" style="font-size: 1.1rem;">tune</span>
+                    <span>Ajustar Nivel</span>
+                </button>
+            </div>
+
+            <!-- Separador / Acordeón para Calculadora de Dimensiones de Piscina -->
+            <div class="pool-calc-accordion" style="margin-top: 1rem; border-top: 1px solid var(--card-border); padding-top: 0.8rem;">
+                <div class="calc-header-toggle" id="btnTogglePoolCalc" style="display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none;">
+                    <div style="display: flex; align-items: center; gap: 0.4rem;">
+                        <span class="material-symbols-outlined" style="color: var(--accent); font-size: 1.15rem;">calculate</span>
+                        <span style="font-weight: 700; font-size: 0.88rem; color: var(--text-color);">Calculadora de Piscina y Dosis Sugerida</span>
+                    </div>
+                    <span class="material-symbols-outlined" id="iconToggleCalc" style="color: var(--text-muted); transition: transform 0.2s ease;">expand_more</span>
+                </div>
+
+                <div id="poolCalcBody" style="display: none; margin-top: 0.8rem;">
+                    <p style="font-size: 0.76rem; color: var(--text-muted); margin-bottom: 0.6rem;">
+                        Ingresa las medidas de tu piscina para calcular el volumen de agua y la dosis diaria recomendada para Verano (1 Litro cada 20.000 L).
+                    </p>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.5rem; margin-bottom: 0.6rem;">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label style="font-size: 0.75rem;">Ancho (m)</label>
+                            <input type="number" id="inpPoolAncho" step="0.1" min="1" max="50" placeholder="Ej: 4.0" style="padding: 0.45rem; text-align: center;">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label style="font-size: 0.75rem;">Largo (m)</label>
+                            <input type="number" id="inpPoolLargo" step="0.1" min="1" max="50" placeholder="Ej: 8.0" style="padding: 0.45rem; text-align: center;">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label style="font-size: 0.75rem;">Prof. Prom (m)</label>
+                            <input type="number" id="inpPoolProf" step="0.1" min="0.5" max="10" placeholder="Ej: 1.5" style="padding: 0.45rem; text-align: center;">
+                        </div>
+                    </div>
+
+                    <!-- Resultados de la Calculadora -->
+                    <div class="calc-results-box" style="background: var(--bg-color); border: 1px solid var(--card-border); border-radius: 8px; padding: 0.65rem 0.85rem; margin-top: 0.5rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.3rem;">
+                            <span style="font-size: 0.78rem; color: var(--text-muted);">Volumen de la Piscina:</span>
+                            <span id="lblPoolVolumen" style="font-size: 0.88rem; font-weight: 700; color: var(--text-color);">0 Litros (0 m³)</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px dashed var(--card-border); padding-top: 0.3rem;">
+                            <span style="font-size: 0.78rem; color: var(--text-muted);">Dosis Diaria Sugerida (Verano):</span>
+                            <span id="lblPoolDosisSugerida" style="font-size: 0.92rem; font-weight: 800; color: var(--accent);">0.0 L / día</span>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group" style="margin-top: 0.8rem; margin-bottom: 0.2rem;">
+                        <label style="font-size: 0.78rem; font-weight: 600;">Dosis por ciclo configurada (en Litros):</label>
+                        <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.2rem;">
+                            <input type="number" id="inpDosisConfigLitros" step="0.1" min="0.1" max="20" value="2.0" style="width: 90px; padding: 0.45rem; text-align: center;">
+                            <span style="font-size: 0.8rem; color: var(--text-muted);">Litros por dosis estándar</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Tarjeta Full Width: Anular Próximas Dosis -->
         <div class="card" id="panelAnularDosis" style="padding: 0.9rem 1.1rem; margin-top: 0.6rem; margin-bottom: 0.6rem;">
             <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;">
@@ -823,6 +930,71 @@
         </div>
     </div>
 
-    <script type="module" src="app.js?v=6.96"></script>
+    <!-- Modal Registrar Recarga de Bidón -->
+    <div id="modalRecargaBidon" class="overlay">
+        <div class="overlay-content" style="max-width: 360px;">
+            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.8rem;">
+                <span class="material-symbols-outlined" style="color: var(--accent); font-size: 1.5rem;">local_gas_station</span>
+                <h3 style="margin: 0;">Registrar Recarga de Cloro</h3>
+            </div>
+            <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 1rem;">
+                Indica la cantidad de bidones o litros recargados y la fecha en que se realizó.
+            </p>
+
+            <div class="form-group">
+                <label>Cantidad de Bidones Repuestos (27 L c/u):</label>
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <input type="number" id="inpRecargaBidones" min="0.5" max="10" step="0.5" value="1" style="width: 80px; text-align: center;">
+                    <span id="lblRecargaLitrosCalc" style="font-size: 0.88rem; font-weight: 700; color: var(--accent);">= 27.0 Litros</span>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Fecha de Reposición:</label>
+                <input type="date" id="inpRecargaFecha" style="width: 100%; padding: 0.5rem; text-align: center;">
+            </div>
+
+            <div style="display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 1.2rem;">
+                <button class="btn outline" id="btnCancelRecarga" style="width: auto; padding: 0.5rem 1rem;">Cancelar</button>
+                <button class="btn" id="btnConfirmRecarga" style="width: auto; padding: 0.5rem 1rem;">Guardar Recarga</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Ajustar Nivel de Bidón / Capacidad -->
+    <div id="modalAjustarBidon" class="overlay">
+        <div class="overlay-content" style="max-width: 360px;">
+            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.8rem;">
+                <span class="material-symbols-outlined" style="color: var(--accent); font-size: 1.5rem;">tune</span>
+                <h3 style="margin: 0;">Ajustar Nivel y Capacidad</h3>
+            </div>
+
+            <div class="form-group">
+                <label>Cantidad Total de Bidones Instalados:</label>
+                <select id="selTotalBidonesInstalados" style="width: 100%; padding: 0.55rem;">
+                    <option value="1">1 Bidón (27 Litros)</option>
+                    <option value="2">2 Bidones (54 Litros)</option>
+                    <option value="3">3 Bidones (81 Litros)</option>
+                    <option value="4">4 Bidones (108 Litros)</option>
+                </select>
+            </div>
+
+            <div class="form-group" style="margin-top: 0.8rem;">
+                <label>Corregir Nivel Actual Manualmente (% Lleno):</label>
+                <div style="display: flex; align-items: center; gap: 0.6rem;">
+                    <input type="range" id="rngAjusteNivel" min="0" max="100" value="100" style="flex: 1; accent-color: var(--accent);">
+                    <span id="lblAjusteNivelVal" style="font-weight: 800; min-width: 45px; text-align: right; color: var(--accent);">100%</span>
+                </div>
+                <div id="lblAjusteNivelLitros" style="font-size: 0.76rem; color: var(--text-muted); margin-top: 2px;">= 27.0 Litros restantes</div>
+            </div>
+
+            <div style="display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 1.2rem;">
+                <button class="btn outline" id="btnCancelAjustarBidon" style="width: auto; padding: 0.5rem 1rem;">Cancelar</button>
+                <button class="btn" id="btnConfirmAjustarBidon" style="width: auto; padding: 0.5rem 1rem;">Guardar Ajuste</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="app.js?v=6.97"></script>
 </body>
 </html>

@@ -1276,6 +1276,110 @@ nav {
     padding: 0.2rem 0;
 }
 
+/* === ESTILOS DEL BIDÓN DE CLORO Y CALCULADORA DE PISCINA === */
+.bidon-main-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 1.2rem;
+    background: var(--bg-color, #f8fafc);
+    border: 1px solid var(--card-border, #e2e8f0);
+    border-radius: 12px;
+    padding: 0.9rem 1rem;
+}
+
+.bidon-visual-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-width: 80px;
+}
+
+.bidon-visual {
+    width: 65px;
+    height: 95px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.bidon-cap {
+    width: 24px;
+    height: 8px;
+    background: #0284c7;
+    border-radius: 4px 4px 0 0;
+    border: 1.5px solid #0369a1;
+}
+
+.bidon-body {
+    width: 65px;
+    height: 87px;
+    background: #ffffff;
+    border: 2.5px solid #0284c7;
+    border-radius: 6px 6px 10px 10px;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.06);
+}
+
+.bidon-liquid {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(180deg, #38bdf8 0%, #0284c7 100%);
+    transition: height 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 1;
+}
+
+.bidon-percent {
+    position: relative;
+    z-index: 2;
+    font-size: 0.92rem;
+    font-weight: 900;
+    color: #0f172a;
+    text-shadow: 0 1px 2px rgba(255, 255, 255, 0.9);
+}
+
+.bidon-stats-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.bidon-stat-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.82rem;
+}
+
+.bidon-stat-label {
+    color: var(--text-muted, #64748b);
+    font-weight: 500;
+}
+
+.bidon-stat-val {
+    font-weight: 700;
+    color: var(--text-color, #1e293b);
+}
+
+.bidon-stat-val.highlight {
+    color: #10b981;
+    font-weight: 800;
+    font-size: 0.92rem;
+}
+
+.bidon-stat-sub {
+    font-size: 0.78rem;
+    color: var(--text-muted, #64748b);
+    font-weight: 600;
+}
+
 /* Time/Date inputs custom styling */
 .time-inputs-wrapper, .date-selects-wrapper {
     display: flex;
