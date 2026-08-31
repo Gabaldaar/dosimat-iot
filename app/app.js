@@ -4732,10 +4732,13 @@ function initBidonModule() {
             const restantes = Math.max(0, capTotal - consumidos).toFixed(1);
             const percent = Math.round((restantes / capTotal) * 100);
             const mac = currentMac || "No vinculada";
-            const userEmail = (typeof auth !== "undefined" && auth.currentUser && auth.currentUser.email) ? auth.currentUser.email : "Cliente Dosimat";
+            
+            const u = (typeof auth !== "undefined" && auth.currentUser) ? auth.currentUser : null;
+            const userName = (u && u.displayName) ? u.displayName : (document.getElementById('lblUserName')?.innerText || "Cliente");
+            const userEmail = (u && u.email) ? u.email : "Sin email";
             const wspNum = globalSoporteWsp || "5491153074195";
 
-            const texto = `Hola! Quisiera solicitar la reposición de *${cant} bidón(es)* (${litros} Litros de cloro) para mi equipo Dosimat.\n\n📍 *Datos del equipo:*\n• MAC: ${mac}\n• Usuario: ${userEmail}\n• Nivel actual: ${restantes} L (${percent}%)\n\nMuchas gracias!`;
+            const texto = `Hola! Quisiera solicitar la reposición de *${cant} bidón(es)* (${litros} Litros de cloro) para mi equipo Dosimat.\n\n📍 *Datos del Cliente y Equipo:*\n• Nombre: ${userName}\n• Email: ${userEmail}\n• MAC: ${mac}\n• Nivel actual: ${restantes} L (${percent}%)\n\nMuchas gracias!`;
             window.open(`https://wa.me/${wspNum}?text=${encodeURIComponent(texto)}`, '_blank');
         };
     }
@@ -4749,11 +4752,14 @@ function initBidonModule() {
             const restantes = Math.max(0, capTotal - consumidos).toFixed(1);
             const percent = Math.round((restantes / capTotal) * 100);
             const mac = currentMac || "No vinculada";
-            const userEmail = (typeof auth !== "undefined" && auth.currentUser && auth.currentUser.email) ? auth.currentUser.email : "Cliente Dosimat";
+            
+            const u = (typeof auth !== "undefined" && auth.currentUser) ? auth.currentUser : null;
+            const userName = (u && u.displayName) ? u.displayName : (document.getElementById('lblUserName')?.innerText || "Cliente");
+            const userEmail = (u && u.email) ? u.email : "Sin email";
             const mailAddr = globalSoporteMail || "soporte@dosimat.com";
 
-            const subject = encodeURIComponent(`Solicitud de Reposición de Cloro - Dosimat (${mac})`);
-            const body = encodeURIComponent(`Hola equipo de Dosimat,\n\nQuisiera solicitar la reposición de ${cant} bidón(es) de 27 Litros (${litros} Litros en total) para mi equipo Dosimat.\n\nDatos del equipo:\n- MAC: ${mac}\n- Usuario/Email: ${userEmail}\n- Nivel actual estimado: ${restantes} Litros (${percent}%)\n\nMuchas gracias.\nSaludos cordiales.`);
+            const subject = encodeURIComponent(`Solicitud de Reposición de Cloro - ${userName} (${userEmail}) - Dosimat ${mac}`);
+            const body = encodeURIComponent(`Hola equipo de Dosimat,\n\nQuisiera solicitar la reposición de ${cant} bidón(es) de 27 Litros (${litros} Litros en total) para mi equipo Dosimat.\n\nDatos del Cliente y Equipo:\n- Nombre: ${userName}\n- Email: ${userEmail}\n- Identificador (MAC): ${mac}\n- Nivel actual estimado: ${restantes} Litros (${percent}%)\n\nMuchas gracias.\nSaludos cordiales,\n${userName}`);
             window.location.href = `mailto:${mailAddr}?subject=${subject}&body=${body}`;
         };
     }
