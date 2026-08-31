@@ -27,6 +27,23 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
+// === CONEXIÓN A BASE DE DATOS DE DOSIMAT PRO (SISTEMA DE REPOSICIÓN) ===
+const proFirebaseConfig = {
+    apiKey: "AIzaSyAHX9U6coUWgM_1vMpvlzDJ05hTu3CCo6s",
+    authDomain: "studio-8013388458-8013f.firebaseapp.com",
+    projectId: "studio-8013388458-8013f",
+    messagingSenderId: "711462197972",
+    appId: "1:711462197972:web:d190a572e8561b3004f941"
+};
+let proApp = null;
+let proDb = null;
+try {
+    proApp = initializeApp(proFirebaseConfig, "dosimatProApp");
+    proDb = getFirestore(proApp);
+} catch (e) {
+    console.error("Error inicializando DosimatPro App:", e);
+}
+
 // === ESTADO GLOBAL DE LA APLICACIÓN ===
 var currentUser = null;
 var currentMac = null;
@@ -328,6 +345,13 @@ const HELP_TOPICS = {
     "ubicacion-clima": {
         title: "Ubicación y Clima Local",
         text: "Configura la ubicación geográfica de tu equipo por GPS o búsqueda manual para consultar el pronóstico del tiempo (Open-Meteo) y recibir sugerencias inteligentes de refuerzo de cloro ante olas de calor o lluvias intensas."
+    },
+    "portal-reposicion": {
+        title: "Sistema de Reposición",
+        text: "🚚 SISTEMA DE REPOSICIÓN DE CLORO A DOMICILIO:\n\n" +
+            "• Consulta las próximas fechas de entrega programadas en las hojas de ruta de Dosimat.\n" +
+            "• Permite solicitar bidones de Cloro (27L) y Ácido (10L) directamente al sistema.\n" +
+            "• Permite consultar tu estado de cuenta y cancelar pedidos pendientes."
     }
 };
 
@@ -1079,6 +1103,8 @@ onAuthStateChanged(auth, async (user) => {
             console.error("Error buscando equipos de usuario:", e);
             currentMac = null;
         }
+
+        if (typeof syncDosimatProClient === "function") syncDosimatProClient();
     } else {
         if (authOverlay) authOverlay.style.display = 'flex';
         if (userBar) userBar.style.display = 'none';
@@ -1091,6 +1117,7 @@ onAuthStateChanged(auth, async (user) => {
         if (mqttClient) { try { mqttClient.disconnect(); } catch (e) { } mqttClient = null; }
 
         setConexionModo("OFFLINE");
+        if (typeof syncDosimatProClient === "function") syncDosimatProClient();
     }
 });
 
@@ -4778,10 +4805,417 @@ if (document.readyState === "loading") {
     document.addEventListener('DOMContentLoaded', () => {
         initPoolCalculator();
         initBidonModule();
+        initDosimatProModule();
     });
 } else {
     initPoolCalculator();
     initBidonModule();
+    initDosimatProModule();
+}
+
+// =========================================================================
+// === MÓDULO DE INTEGRACIÓN CON DOSIMAT PRO (SISTEMA DE REPOSICIÓN) ===
+// =========================================================================
+
+let proClientState = {
+    isLinked: false,
+    clientDoc: null,
+    upcomingDelivery: null,
+    openOrders: [],
+    customEmail: localStorage.getItem("dosimat_pro_email") || ""
+};
+
+async function syncDosimatProClient() {
+    if (!proDb) return;
+
+    const emailToSearch = (proClientState.customEmail || (auth.currentUser ? auth.currentUser.email : "") || "").trim().toLowerCase();
+    
+    if (!emailToSearch) {
+        proClientState.isLinked = false;
+        proClientState.clientDoc = null;
+        proClientState.upcomingDelivery = null;
+        proClientState.openOrders = [];
+        renderDosimatProUI();
+        return;
+    }
+
+    try {
+        // 1. Buscar en la colección 'clients' de DosimatPro
+        let matchedDoc = null;
+        const qDirect = query(collection(proDb, "clients"), where("mail", "==", emailToSearch), limit(1));
+        const snapDirect = await getDocs(qDirect);
+        
+        if (!snapDirect.empty) {
+            matchedDoc = snapDirect.docs[0];
+        } else {
+            // Buscar si coincide en la lista completa
+            const allClientsSnap = await getDocs(collection(proDb, "clients"));
+            for (const docSnap of allClientsSnap.docs) {
+                const data = docSnap.data();
+                if (!data.mail) continue;
+                const emails = data.mail.split(/[;, ]+/).map(e => e.trim().toLowerCase()).filter(Boolean);
+                if (emails.includes(emailToSearch)) {
+                    matchedDoc = docSnap;
+                    break;
+                }
+            }
+        }
+
+        if (matchedDoc) {
+            proClientState.isLinked = true;
+            proClientState.clientDoc = { id: matchedDoc.id, ...matchedDoc.data() };
+            
+            if (!proClientState.customEmail) {
+                proClientState.customEmail = emailToSearch;
+                localStorage.setItem("dosimat_pro_email", emailToSearch);
+            }
+
+            // 2. Cargar Próxima Entrega / Hojas de ruta
+            await loadProDeliverySheet(matchedDoc.id);
+
+            // 3. Cargar Pedidos Activos del Cliente
+            await loadProClientOrders(matchedDoc.id);
+        } else {
+            proClientState.isLinked = false;
+            proClientState.clientDoc = null;
+            proClientState.upcomingDelivery = null;
+            proClientState.openOrders = [];
+        }
+    } catch (err) {
+        console.error("Error sincronizando cliente con DosimatPro:", err);
+    }
+
+    renderDosimatProUI();
+}
+
+async function loadProDeliverySheet(clientId) {
+    if (!proDb || !clientId) return;
+    try {
+        const qSheets = query(
+            collection(proDb, "route_sheets"),
+            where("participantClientIds", "array-contains", clientId),
+            where("status", "in", ["planned", "active"])
+        );
+        const snap = await getDocs(qSheets);
+        
+        if (!snap.empty) {
+            const sorted = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => {
+                return new Date(b.date + 'T12:00:00').getTime() - new Date(a.date + 'T12:00:00').getTime();
+            });
+
+            const sheet = sorted[0];
+            const item = sheet.items?.find(i => i.clientId === clientId);
+            
+            proClientState.upcomingDelivery = {
+                date: sheet.date,
+                status: sheet.status,
+                cloro: Number(item?.plannedChlorine || 0),
+                acido: Number(item?.plannedAcid || 0)
+            };
+        } else {
+            const qGlobal = query(collection(proDb, "route_sheets"), where("status", "==", "planned"));
+            const snapGlobal = await getDocs(qGlobal);
+            const future = snapGlobal.docs
+                .map(d => ({ id: d.id, ...d.data() }))
+                .filter(s => new Date(s.date) >= new Date())
+                .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+            if (future.length > 0) {
+                proClientState.upcomingDelivery = {
+                    date: future[0].date,
+                    status: 'planned',
+                    cloro: 0,
+                    acido: 0
+                };
+            } else {
+                proClientState.upcomingDelivery = null;
+            }
+        }
+    } catch (err) {
+        console.error("Error cargando hojas de ruta de DosimatPro:", err);
+        proClientState.upcomingDelivery = null;
+    }
+}
+
+async function loadProClientOrders(clientId) {
+    if (!proDb || !clientId) return;
+    try {
+        const qOrders = query(
+            collection(proDb, "client_requests"),
+            where("clientId", "==", clientId),
+            where("status", "in", ["pending", "scheduled"])
+        );
+        const snap = await getDocs(qOrders);
+        proClientState.openOrders = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    } catch (err) {
+        console.error("Error cargando pedidos de DosimatPro:", err);
+        proClientState.openOrders = [];
+    }
+}
+
+function formatProDate(isoDateStr) {
+    if (!isoDateStr) return "--";
+    try {
+        const parts = isoDateStr.split("-");
+        if (parts.length === 3) {
+            const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+            const options = { weekday: 'long', day: 'numeric', month: 'long' };
+            const formatted = d.toLocaleDateString('es-AR', options);
+            return formatted.charAt(0).toUpperCase() + formatted.slice(1);
+        }
+    } catch (e) {}
+    return isoDateStr;
+}
+
+function renderDosimatProUI() {
+    // 1. Banner en el Dashboard
+    const bannerReparto = document.getElementById('bannerProReparto');
+    const lblRepartoTit = document.getElementById('lblProRepartoTitulo');
+    const lblRepartoDet = document.getElementById('lblProRepartoDetalle');
+    const badgeReparto = document.getElementById('badgeProRepartoEstado');
+    const btnSolSistema = document.getElementById('btnSolSistemaPro');
+
+    if (proClientState.isLinked && proClientState.upcomingDelivery) {
+        if (bannerReparto) bannerReparto.style.display = 'block';
+        const d = proClientState.upcomingDelivery;
+        const fechaTxt = formatProDate(d.date);
+
+        if (lblRepartoTit) {
+            lblRepartoTit.innerText = d.status === "active" ? "🚚 ¡Reparto en Camino Hoy!" : `Próximo Reparto: ${fechaTxt}`;
+        }
+        if (lblRepartoDet) {
+            if (d.cloro > 0 || d.acido > 0) {
+                lblRepartoDet.innerText = `Planificado: ${d.cloro > 0 ? d.cloro + ' Cloro ' : ''}${d.acido > 0 ? d.acido + ' Ácido' : ''}`;
+            } else {
+                lblRepartoDet.innerText = "Fecha programada en el cronograma de entregas";
+            }
+        }
+        if (badgeReparto) {
+            badgeReparto.innerText = d.status === "active" ? "En Reparto" : "Planificado";
+            badgeReparto.style.background = d.status === "active" ? "#dcfce7" : "#e0f2fe";
+            badgeReparto.style.color = d.status === "active" ? "#16a34a" : "#0284c7";
+        }
+    } else {
+        if (bannerReparto) bannerReparto.style.display = 'none';
+    }
+
+    // Botón de Confirmar Pedido en el Sistema Pro dentro del modal de reposición
+    if (btnSolSistema) {
+        btnSolSistema.style.display = proClientState.isLinked ? 'flex' : 'none';
+    }
+
+    // 2. Portal en la solapa Soporte
+    const notLinkedView = document.getElementById('proClientNotLinked');
+    const linkedView = document.getElementById('proClientLinked');
+
+    if (!proClientState.isLinked) {
+        if (notLinkedView) notLinkedView.style.display = 'block';
+        if (linkedView) linkedView.style.display = 'none';
+        const inpEmail = document.getElementById('inpProCustomEmail');
+        if (inpEmail && !inpEmail.value) {
+            inpEmail.value = proClientState.customEmail || (auth.currentUser ? auth.currentUser.email : "");
+        }
+    } else {
+        if (notLinkedView) notLinkedView.style.display = 'none';
+        if (linkedView) linkedView.style.display = 'block';
+
+        const c = proClientState.clientDoc;
+        const lblNom = document.getElementById('lblProClientNombre');
+        const lblDir = document.getElementById('lblProClientDireccion');
+        const lblSaldo = document.getElementById('lblProClientSaldo');
+        const lblEmail = document.getElementById('lblProLinkedEmail');
+
+        if (lblNom) lblNom.innerText = `${c.apellido || ''}, ${c.nombre || ''}`.trim() || 'Cliente Dosimat';
+        if (lblDir) lblDir.innerText = c.direccion || c.localidad || 'Sin dirección registrada';
+        
+        if (lblSaldo) {
+            const saldo = Number(c.saldo || 0);
+            lblSaldo.innerText = `$${saldo.toLocaleString('es-AR')}`;
+            lblSaldo.style.color = saldo < 0 ? 'var(--danger)' : '#10b981';
+        }
+        if (lblEmail) lblEmail.innerText = proClientState.customEmail || c.mail || '--';
+
+        // Próxima entrega en el portal
+        const lblFechaPortal = document.getElementById('lblProPortalFechaEntrega');
+        const lblDetallePortal = document.getElementById('lblProPortalDetalleItems');
+        const badgePortal = document.getElementById('badgeProPortalEstado');
+
+        if (proClientState.upcomingDelivery) {
+            const d = proClientState.upcomingDelivery;
+            if (lblFechaPortal) lblFechaPortal.innerText = formatProDate(d.date);
+            if (lblDetallePortal) {
+                lblDetallePortal.innerText = (d.cloro > 0 || d.acido > 0)
+                    ? `Entrega asignada: ${d.cloro} Bidón(es) de Cloro${d.acido > 0 ? ', ' + d.acido + ' de Ácido' : ''}`
+                    : 'Fecha planificada en el cronograma de repartos';
+            }
+            if (badgePortal) {
+                badgePortal.innerText = d.status === "active" ? "En Reparto" : "Planificado";
+                badgePortal.style.background = d.status === "active" ? "#dcfce7" : "#e0f2fe";
+                badgePortal.style.color = d.status === "active" ? "#16a34a" : "#0284c7";
+            }
+        } else {
+            if (lblFechaPortal) lblFechaPortal.innerText = "Sin repartos programados";
+            if (lblDetallePortal) lblDetallePortal.innerText = "Podés hacer un pedido para que sea incluido en la próxima hoja de ruta.";
+            if (badgePortal) {
+                badgePortal.innerText = "Pendiente";
+                badgePortal.style.background = "#f1f5f9";
+                badgePortal.style.color = "#64748b";
+            }
+        }
+
+        // Lista de pedidos
+        const listContainer = document.getElementById('proPedidosList');
+        const lblCount = document.getElementById('lblProCountPedidos');
+        if (lblCount) lblCount.innerText = `${proClientState.openOrders.length} pedido(s)`;
+
+        if (listContainer) {
+            if (proClientState.openOrders.length === 0) {
+                listContainer.innerHTML = `<div style="font-size: 0.76rem; color: var(--text-muted); font-style: italic; padding: 0.3rem 0;">No tenés pedidos pendientes actualmente.</div>`;
+            } else {
+                listContainer.innerHTML = proClientState.openOrders.map(p => {
+                    const cantTxt = `${p.cloro > 0 ? p.cloro + ' Cloro' : ''}${p.cloro > 0 && p.acido > 0 ? ' · ' : ''}${p.acido > 0 ? p.acido + ' Ácido' : ''}`;
+                    const statusClass = p.status === 'scheduled' ? 'scheduled' : 'pending';
+                    const statusTxt = p.status === 'scheduled' ? 'Programado' : 'Pendiente';
+                    return `
+                        <div class="pro-pedido-item">
+                            <div class="pro-pedido-info">
+                                <div class="pro-pedido-title">${cantTxt || 'Pedido'}</div>
+                                <div class="pro-pedido-sub">${p.notes ? `"${p.notes}"` : 'Sin notas adicionales'}</div>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 0.4rem;">
+                                <span class="pro-badge ${statusClass}">${statusTxt}</span>
+                                ${p.status === 'pending' ? `
+                                    <button class="btn-pro-cancel-order" onclick="cancelarPedidoPro('${p.id}')" title="Cancelar Pedido">
+                                        <span class="material-symbols-outlined" style="font-size: 1.1rem;">delete</span>
+                                    </button>
+                                ` : ''}
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+        }
+    }
+}
+
+async function enviarNuevoPedidoPro(cloro, acido, notas) {
+    if (!proDb || !proClientState.clientDoc) {
+        showToast("Error: No estás vinculado a una cuenta de reposición.");
+        return false;
+    }
+
+    if (cloro <= 0 && acido <= 0) {
+        showToast("Indicá al menos 1 bidón de cloro o ácido.");
+        return false;
+    }
+
+    try {
+        const c = proClientState.clientDoc;
+        await addDoc(collection(proDb, "client_requests"), {
+            clientId: c.id,
+            clientName: `${c.apellido || ''}, ${c.nombre || ''}`.trim() || 'Cliente Dosimat',
+            date: new Date().toISOString(),
+            cloro: Number(cloro),
+            acido: Number(acido),
+            notes: notas || "",
+            status: "pending"
+        });
+
+        showToast("¡Pedido enviado con éxito al Sistema de Reposición!");
+        await syncDosimatProClient();
+        return true;
+    } catch (e) {
+        console.error("Error enviando pedido a DosimatPro:", e);
+        showToast("Error al enviar pedido. Intenta por WhatsApp.");
+        return false;
+    }
+}
+
+window.cancelarPedidoPro = async function(requestId) {
+    if (!proDb || !requestId) return;
+    try {
+        await deleteDoc(doc(proDb, "client_requests", requestId));
+        showToast("Pedido cancelado.");
+        await syncDosimatProClient();
+    } catch (e) {
+        console.error("Error cancelando pedido:", e);
+        showToast("No se pudo cancelar el pedido.");
+    }
+};
+
+function initDosimatProModule() {
+    // Botón Vincular Email
+    const btnVincular = document.getElementById('btnVincularProEmail');
+    const inpCustomEmail = document.getElementById('inpProCustomEmail');
+    if (btnVincular && inpCustomEmail) {
+        btnVincular.onclick = () => {
+            const email = inpCustomEmail.value.trim().toLowerCase();
+            if (!email) {
+                showToast("Ingresá un correo electrónico.");
+                return;
+            }
+            proClientState.customEmail = email;
+            localStorage.setItem("dosimat_pro_email", email);
+            showToast("Buscando cuenta en el sistema de reposición...");
+            syncDosimatProClient();
+        };
+    }
+
+    // Botón Cambiar Email
+    const btnCambiar = document.getElementById('btnProCambiarEmail');
+    if (btnCambiar) {
+        btnCambiar.onclick = () => {
+            proClientState.isLinked = false;
+            proClientState.customEmail = "";
+            localStorage.removeItem("dosimat_pro_email");
+            renderDosimatProUI();
+        };
+    }
+
+    // Formulario de Pedido en Solapa Soporte
+    const btnEnviar = document.getElementById('btnProEnviarPedido');
+    const inpCloro = document.getElementById('inpProOrderCloro');
+    const inpAcido = document.getElementById('inpProOrderAcido');
+    const inpNotas = document.getElementById('inpProOrderNotas');
+
+    if (btnEnviar) {
+        btnEnviar.onclick = async () => {
+            const c = parseInt(inpCloro ? inpCloro.value : 1) || 0;
+            const a = parseInt(inpAcido ? inpAcido.value : 0) || 0;
+            const n = inpNotas ? inpNotas.value.trim() : "";
+
+            btnEnviar.disabled = true;
+            btnEnviar.innerText = "Enviando pedido...";
+            const ok = await enviarNuevoPedidoPro(c, a, n);
+            btnEnviar.disabled = false;
+            btnEnviar.innerText = "Confirmar y Enviar Pedido";
+
+            if (ok && inpNotas) inpNotas.value = "";
+        };
+    }
+
+    // Botón de Enviar Pedido al Sistema desde el Modal de Reposición del Dashboard
+    const btnSolSistema = document.getElementById('btnSolSistemaPro');
+    const inpSolCant = document.getElementById('inpSolCantBidones');
+    const modalSolicitar = document.getElementById('modalSolicitarReposicion');
+
+    if (btnSolSistema) {
+        btnSolSistema.onclick = async () => {
+            const cant = parseInt(inpSolCant ? inpSolCant.value : 1) || 1;
+            btnSolSistema.disabled = true;
+            btnSolSistema.innerText = "Enviando pedido...";
+            const ok = await enviarNuevoPedidoPro(cant, 0, "Solicitado desde el Dashboard de Dosimat IoT");
+            btnSolSistema.disabled = false;
+            btnSolSistema.innerText = "Confirmar Pedido en el Sistema";
+
+            if (ok && modalSolicitar) {
+                modalSolicitar.style.display = 'none';
+            }
+        };
+    }
+
+    // Sincronizar automáticamente en el inicio
+    syncDosimatProClient();
 }
 
 

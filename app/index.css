@@ -1380,6 +1380,73 @@ nav {
     font-weight: 600;
 }
 
+/* === ESTILOS DEL PORTAL DE CLIENTES DOSIMAT PRO INTEGRADO === */
+.pro-pedido-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--bg-color, #f8fafc);
+    border: 1px solid var(--card-border, #e2e8f0);
+    border-radius: 8px;
+    padding: 0.55rem 0.8rem;
+    font-size: 0.8rem;
+}
+
+.pro-pedido-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.pro-pedido-title {
+    font-weight: 700;
+    color: var(--text-color, #1e293b);
+}
+
+.pro-pedido-sub {
+    font-size: 0.72rem;
+    color: var(--text-muted, #64748b);
+}
+
+.pro-badge {
+    font-size: 0.68rem;
+    font-weight: 800;
+    padding: 0.15rem 0.5rem;
+    border-radius: 12px;
+    white-space: nowrap;
+}
+
+.pro-badge.pending {
+    background: #fef3c7;
+    color: #d97706;
+}
+
+.pro-badge.scheduled {
+    background: #e0f2fe;
+    color: #0284c7;
+}
+
+.pro-badge.active {
+    background: #dcfce7;
+    color: #16a34a;
+}
+
+.btn-pro-cancel-order {
+    background: none;
+    border: none;
+    color: var(--danger, #ef4444);
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    border-radius: 4px;
+    transition: background 0.15s ease;
+}
+
+.btn-pro-cancel-order:hover {
+    background: rgba(239, 68, 68, 0.1);
+}
+
 /* Time/Date inputs custom styling */
 .time-inputs-wrapper, .date-selects-wrapper {
     display: flex;
