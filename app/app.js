@@ -5100,49 +5100,59 @@ function checkAndSyncProRefillToBidon() {
     if (!proClientState.isLinked || !proClientState.clientDoc) return;
 
     let latestDelivery = null;
+    let cantCloroFromTx = 0;
+    let cantCloroFromSheet = 0;
+    let refillTx = null;
 
     // A. Buscar en transacciones de tipo refill / Reposición
     if (proClientState.transactions && proClientState.transactions.length > 0) {
-        const refillTx = proClientState.transactions.find(t => t.type === 'refill' || t.type === 'Reposición');
+        refillTx = proClientState.transactions.find(t => t.type === 'refill' || t.type === 'Reposición');
         if (refillTx && refillTx.date) {
-            const dateOnly = String(refillTx.date).split('T')[0];
-            const cantCloro = extractChlorineFromTx(refillTx);
-            latestDelivery = {
-                id: refillTx.id || `tx_${dateOnly}`,
-                date: dateOnly,
-                cloro: cantCloro > 0 ? cantCloro : (bidonConfig.totalBidones || 1),
-                source: "transacción"
-            };
+            cantCloroFromTx = extractChlorineFromTx(refillTx);
         }
     }
 
     // B. Buscar en hoja de ruta si hay un item marcado como entregado (isDelivered: true)
     if (proClientState.deliverySheetItem && proClientState.deliverySheetItem.isDelivered) {
         const item = proClientState.deliverySheetItem;
+        cantCloroFromSheet = Number(item.realChlorine || item.plannedChlorine || 0);
+    }
+
+    const totalCloroEntregado = Math.max(cantCloroFromTx, cantCloroFromSheet);
+
+    if (refillTx && refillTx.date) {
+        const dateOnly = String(refillTx.date).split('T')[0];
+        latestDelivery = {
+            id: refillTx.id || `tx_${dateOnly}`,
+            date: dateOnly,
+            cloro: totalCloroEntregado > 0 ? totalCloroEntregado : (bidonConfig.totalBidones || 1),
+            source: "transacción"
+        };
+    } else if (proClientState.deliverySheetItem && proClientState.deliverySheetItem.isDelivered) {
+        const item = proClientState.deliverySheetItem;
         const dateOnly = String(item.sheetDate || '').split('T')[0];
-        const cantCloro = Number(item.realChlorine || item.plannedChlorine || 0);
-        if (dateOnly && (!latestDelivery || new Date(dateOnly + 'T12:00:00') >= new Date(latestDelivery.date + 'T12:00:00'))) {
-            latestDelivery = {
-                id: `sheet_${item.sheetId}_${dateOnly}`,
-                date: dateOnly,
-                cloro: cantCloro > 0 ? cantCloro : (bidonConfig.totalBidones || 1),
-                source: "hoja de ruta"
-            };
-        }
+        latestDelivery = {
+            id: `sheet_${item.sheetId}_${dateOnly}`,
+            date: dateOnly,
+            cloro: totalCloroEntregado > 0 ? totalCloroEntregado : (bidonConfig.totalBidones || 1),
+            source: "hoja de ruta"
+        };
     }
 
     if (!latestDelivery || !latestDelivery.date) return;
 
     const currentRecargaDate = bidonConfig.fechaRecarga || "2000-01-01";
-    const lastAppliedId = localStorage.getItem("dosimat_last_applied_pro_delivery_id") || "";
+    const currentSig = `${latestDelivery.id}_${latestDelivery.cloro}_${latestDelivery.date}`;
+    const lastAppliedSig = localStorage.getItem("dosimat_last_applied_pro_delivery_sig") || "";
 
     const isNewerOrEqualDate = new Date(latestDelivery.date + 'T12:00:00') >= new Date(currentRecargaDate + 'T12:00:00');
-    const isDifferentId = lastAppliedId !== latestDelivery.id;
+    const isDifferentSig = lastAppliedSig !== currentSig;
 
-    if (isNewerOrEqualDate && isDifferentId) {
+    if (isNewerOrEqualDate && isDifferentSig) {
         console.log(`[Auto-Refill] Aplicando reposición automática: ${latestDelivery.cloro} bidón(es) del ${latestDelivery.date}`);
 
         const res = aplicarRecargaCloro(latestDelivery.cloro, latestDelivery.date, latestDelivery.id);
+        localStorage.setItem("dosimat_last_applied_pro_delivery_sig", currentSig);
 
         const fechaFmt = formatProDate(latestDelivery.date);
         showToast(`🚚 ¡Reposición detectada! Se registraron +${res.litrosAgregados.toFixed(1)} L (${latestDelivery.cloro} bidones) del día ${fechaFmt}. Nivel: ${res.nuevosLitrosRestantes.toFixed(1)} / ${res.capTotal.toFixed(0)} L.`);
