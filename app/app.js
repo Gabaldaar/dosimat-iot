@@ -1497,16 +1497,17 @@ function connectNube() {
                 clearTimeout(pendingCronogramaTimeoutId);
                 pendingCronogramaTimeoutId = null;
                 setCronogramaInputsDisabled(false);
-                showToast("🎉 Cronograma confirmado por el dosificador.");
+                updateProgramasUI(docSnap.data());
             }
-            updateProgramasUI(docSnap.data());
-        }
-    }, (err) => {
-        console.warn("Firestore snapshot programas:", err.message);
-    });
-    }
+        }, (err) => {
+            console.warn("Firestore snapshot programas:", err.message);
+        });
 
-    listenLogsCollection();
+        // Pedir logs frescos al ESP32 al conectar
+        setTimeout(() => {
+            sendCommand({ comando: "GET_LOGS" }, true);
+        }, 1200);
+    }
 }
 
 // === ENVÍO DE COMANDOS Y FORMATO DE TIEMPO ===
@@ -2528,8 +2529,7 @@ const btnPedirHistorial = document.getElementById('btnPedirHistorial');
 if (btnPedirHistorial) {
     btnPedirHistorial.onclick = () => {
         sendCommand({ comando: "GET_LOGS" });
-        listenLogsCollection();
-        showToast("Solicitando historial...");
+        showToast("Solicitando registros al dosificador...");
     };
 }
 
