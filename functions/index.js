@@ -379,12 +379,21 @@ exports.onEstadoWrite = functions.firestore.document("equipos/{chipId}/estado/ac
     }
 });
 
-/**
- * Función auxiliar para enviar notificaciones Push vía FCM a todos los usuarios asignados al equipo,
- * verificando las preferencias individuales de notificación de cada cliente.
- */
+// Memoria caché para evitar notificaciones duplicadas en ráfaga (cooldown de 20s)
+const pushCooldownCache = new Map();
+
 async function sendPushToDeviceOwners(chipId, notification, eventType) {
     try {
+        const cooldownKey = `${chipId}_${eventType}_${notification.title}`;
+        const now = Date.now();
+        const lastSent = pushCooldownCache.get(cooldownKey) || 0;
+
+        if (now - lastSent < 20000) {
+            console.log(`[FCM] Alerta omitida por cooldown anti-duplicados (${cooldownKey})`);
+            return;
+        }
+        pushCooldownCache.set(cooldownKey, now);
+
         console.log(`[FCM] Evaluando envío de notificación para equipo ${chipId} - Tipo: ${eventType}`);
         
         // 1. Buscar todos los usuarios que tienen asignado este chipId
