@@ -1550,7 +1550,10 @@ function evaluarAlertasSistema() {
     }
 
     // 5. Refuerzo por Temperatura Activo
-    if (globalTempBoostActivo || (typeof globalRefuerzo !== "undefined" && globalRefuerzo === "ON")) {
+    const isRefuerzoOn = (typeof globalRefuerzo !== "undefined" && (globalRefuerzo === 1 || globalRefuerzo === true || globalRefuerzo === "1"));
+    const isTempBoostActive = (typeof globalTempComp !== "undefined" && globalTempComp && typeof globalTemp !== "undefined" && globalTemp !== null && globalTemp >= 29.0);
+
+    if (isTempBoostActive || isRefuerzoOn) {
         alerts.push({
             id: "refuerzo_temp",
             type: "info",
