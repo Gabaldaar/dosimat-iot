@@ -2563,8 +2563,8 @@ async function initPushNotifications() {
                     if (reg && reg.showNotification) {
                         reg.showNotification(title, {
                             body: body,
-                            icon: "/manifest.json",
-                            badge: "/manifest.json",
+                            icon: "/icon-192.png",
+                            badge: "/icon-192.png",
                             data: payload.data || {},
                             vibrate: [200, 100, 200]
                         });

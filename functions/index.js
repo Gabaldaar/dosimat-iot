@@ -454,6 +454,15 @@ async function sendPushToDeviceOwners(chipId, notification, eventType) {
                 title: notification.title || "Dosimat IoT",
                 body: notification.body || ""
             },
+            webpush: {
+                notification: {
+                    icon: "https://dosimat-iot-v2.web.app/icon-192.png",
+                    badge: "https://dosimat-iot-v2.web.app/icon-192.png"
+                },
+                fcmOptions: {
+                    link: "https://dosimat-iot-v2.web.app/"
+                }
+            },
             data: {
                 chipId: String(chipId),
                 eventType: String(eventType || "general"),

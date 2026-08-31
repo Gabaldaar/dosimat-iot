@@ -72,8 +72,8 @@ messaging.onBackgroundMessage((payload) => {
   
   const notificationOptions = {
     body: body,
-    icon: (payload.notification && payload.notification.icon) || '/manifest.json',
-    badge: '/manifest.json',
+    icon: (payload.notification && payload.notification.icon) || '/icon-192.png',
+    badge: '/icon-192.png',
     tag: (payload.data && payload.data.tag) || 'dosimat-alert',
     data: payload.data || {},
     vibrate: [200, 100, 200]

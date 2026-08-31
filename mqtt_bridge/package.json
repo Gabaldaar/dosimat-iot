@@ -1,0 +1,12 @@
+{
+  "name": "dosimat-mqtt-bridge",
+  "version": "1.0.0",
+  "description": "Puente 24/7 MQTT a Firebase para Dosimat IoT",
+  "main": "bridge.js",
+  "scripts": {
+    "start": "node bridge.js"
+  },
+  "dependencies": {
+    "mqtt": "^5.3.5"
+  }
+}
