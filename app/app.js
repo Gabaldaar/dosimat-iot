@@ -314,6 +314,20 @@ const HELP_TOPICS = {
             "• Elige entre 'CB' (Con Control de Bomba) o 'SCB' (Sin Control de Bomba).\n" +
             "• Si estás usando el teléfono del cliente o sin sesión iniciada, pulsa '🔑 Desbloquear con PIN' e ingresa el PIN maestro.\n" +
             "• Presiona 'Guardar Modelo de Placa' y confirma."
+    },
+    "bidon-calculadora": {
+        title: "Nivel de Cloro y Calculadora",
+        text: "🛢️ ESTIMADOR DE NIVEL DE BIDÓN Y AUTONOMÍA:\n\n" +
+            "• Muestra el nivel de cloro restante y los días de autonomía estimados según tu cronograma activo y los registros del equipo.\n" +
+            "• Registrar Recarga: Permite registrar los bidones repuestos y la fecha de reposición (reiniciando el contador del equipo).\n" +
+            "• Ajustar Nivel: Permite configurar la cantidad total de bidones instalados (27L c/u), corregir el nivel actual y definir los umbrales de alerta de nivel bajo.\n\n" +
+            "📐 CALCULADORA DE PISCINA:\n\n" +
+            "• Calcula el volumen total de agua ingresando las dimensiones de tu piscina.\n" +
+            "• Sugiere la dosis diaria recomendada para Verano a razón de 1 Litro de cloro cada 20.000 Litros de agua (sin alterar tu cronograma)."
+    },
+    "ubicacion-clima": {
+        title: "Ubicación y Clima Local",
+        text: "Configura la ubicación geográfica de tu equipo por GPS o búsqueda manual para consultar el pronóstico del tiempo (Open-Meteo) y recibir sugerencias inteligentes de refuerzo de cloro ante olas de calor o lluvias intensas."
     }
 };
 
@@ -1618,20 +1632,36 @@ function evaluarAlertasSistema() {
         const restantes = Math.max(0, capTotal - consumidos);
         const percent = Math.round((restantes / capTotal) * 100);
 
-        if (percent <= 15 || restantes <= 4.0) {
+        let totalDosisPorSemana = 0;
+        try {
+            const progs = (typeof obtenerListaProgramas === "function") ? obtenerListaProgramas() : [];
+            progs.forEach(p => {
+                if (p.dosifica && p.duracion > 0 && p.dias) {
+                    totalDosisPorSemana += (p.dias.length || 0);
+                }
+            });
+        } catch(e) {}
+        const dosisPorDia = totalDosisPorSemana > 0 ? (totalDosisPorSemana / 7.0) : 1.0;
+        const consumoDiarioLitros = dosisPorDia * (bidonConfig.dosisLitros || 2.0);
+        const diasEstimados = (consumoDiarioLitros > 0) ? Math.round(restantes / consumoDiarioLitros) : 0;
+
+        const umbralLitros = parseFloat(bidonConfig.alertaMinLitros) || 4.0;
+        const umbralDias = parseInt(bidonConfig.alertaMinDias) || 5;
+
+        if (restantes <= umbralLitros || (diasEstimados > 0 && diasEstimados <= umbralDias) || percent <= 15) {
             alerts.push({
                 id: "alerta_bidon_bajo",
                 type: "danger",
                 icon: "water_bottle",
                 title: "Nivel de Cloro Bajo en el Bidón",
-                desc: `Quedan aproximadamente ${restantes.toFixed(1)} Litros (${percent}%). Registra una recarga para no quedarte sin cloro.`,
+                desc: `Quedan aproximadamente ${restantes.toFixed(1)} Litros (${percent}% · ~${diasEstimados} días). Registra una recarga para no quedarte sin cloro.`,
                 btnText: "Registrar Recarga",
                 action: () => {
                     const btnRec = document.getElementById('btnOpenModalRecarga');
                     if (btnRec) btnRec.click();
                 },
                 notifTitle: "Dosimat: Cloro Bajo",
-                notifBody: `Nivel de cloro bajo (${restantes.toFixed(1)}L restantes). Se recomienda reponer bidón.`
+                notifBody: `Nivel de cloro bajo (${restantes.toFixed(1)}L restantes · ~${diasEstimados} días). Se recomienda reponer bidón.`
             });
         }
     }
@@ -4393,7 +4423,9 @@ let bidonConfig = {
     dosisLitros: 2.0,
     dosisAcumuladasHardware: 0.0,
     fechaRecarga: new Date().toISOString().split('T')[0],
-    bidonesRecargados: 1
+    bidonesRecargados: 1,
+    alertaMinDias: 5,
+    alertaMinLitros: 4.0
 };
 
 let poolDims = {
@@ -4569,23 +4601,30 @@ function initBidonModule() {
     const btnOpenAjustar = document.getElementById('btnOpenModalAjustarBidon');
     const btnCancelAjustar = document.getElementById('btnCancelAjustarBidon');
     const btnConfirmAjustar = document.getElementById('btnConfirmAjustarBidon');
-    const selTotalBidones = document.getElementById('selTotalBidonesInstalados');
+    const inpTotalBidones = document.getElementById('inpTotalBidonesInstalados');
+    const lblAjusteCapacidadLitros = document.getElementById('lblAjusteCapacidadLitros');
     const rngAjuste = document.getElementById('rngAjusteNivel');
     const lblAjusteVal = document.getElementById('lblAjusteNivelVal');
     const lblAjusteLitros = document.getElementById('lblAjusteNivelLitros');
+    const inpAlertaDias = document.getElementById('inpAlertaMinDias');
+    const inpAlertaLitros = document.getElementById('inpAlertaMinLitros');
 
     const updateAjustePreview = () => {
-        const bTotal = parseInt(selTotalBidones ? selTotalBidones.value : 1) || 1;
+        const bTotal = parseFloat(inpTotalBidones ? inpTotalBidones.value : 1) || 1;
         const pct = parseInt(rngAjuste ? rngAjuste.value : 100) || 0;
         const cap = bTotal * 27.0;
         const litros = (cap * pct / 100.0).toFixed(1);
+        if (lblAjusteCapacidadLitros) lblAjusteCapacidadLitros.innerText = `= ${cap.toFixed(1)} Litros`;
         if (lblAjusteVal) lblAjusteVal.innerText = `${pct}%`;
         if (lblAjusteLitros) lblAjusteLitros.innerText = `= ${litros} Litros restantes`;
     };
 
     if (btnOpenAjustar && modalAjustar) {
         btnOpenAjustar.onclick = () => {
-            if (selTotalBidones) selTotalBidones.value = String(bidonConfig.totalBidones || 1);
+            if (inpTotalBidones) inpTotalBidones.value = bidonConfig.totalBidones || 1;
+            if (inpAlertaDias) inpAlertaDias.value = bidonConfig.alertaMinDias || 5;
+            if (inpAlertaLitros) inpAlertaLitros.value = bidonConfig.alertaMinLitros || 4.0;
+
             const capTotal = (bidonConfig.totalBidones || 1) * (bidonConfig.litrosPorBidon || 27.0);
             const consumidos = (bidonConfig.dosisAcumuladasHardware || 0.0) * (bidonConfig.dosisLitros || 2.0);
             const restantes = Math.max(0, capTotal - consumidos);
@@ -4597,7 +4636,7 @@ function initBidonModule() {
         };
     }
 
-    if (selTotalBidones) selTotalBidones.onchange = updateAjustePreview;
+    if (inpTotalBidones) inpTotalBidones.oninput = updateAjustePreview;
     if (rngAjuste) rngAjuste.oninput = updateAjustePreview;
 
     if (btnCancelAjustar && modalAjustar) {
@@ -4606,8 +4645,11 @@ function initBidonModule() {
 
     if (btnConfirmAjustar && modalAjustar) {
         btnConfirmAjustar.onclick = () => {
-            const bTotal = parseInt(selTotalBidones ? selTotalBidones.value : 1) || 1;
+            const bTotal = parseFloat(inpTotalBidones ? inpTotalBidones.value : 1) || 1;
             const pct = parseInt(rngAjuste ? rngAjuste.value : 100) || 0;
+            const aDias = parseInt(inpAlertaDias ? inpAlertaDias.value : 5) || 5;
+            const aLitros = parseFloat(inpAlertaLitros ? inpAlertaLitros.value : 4.0) || 4.0;
+
             const cap = bTotal * 27.0;
             const litrosRestantesDeseados = cap * (pct / 100.0);
             const litrosConsumidos = Math.max(0, cap - litrosRestantesDeseados);
@@ -4615,6 +4657,9 @@ function initBidonModule() {
 
             bidonConfig.totalBidones = bTotal;
             bidonConfig.dosisAcumuladasHardware = dosisEquiv;
+            bidonConfig.alertaMinDias = aDias;
+            bidonConfig.alertaMinLitros = aLitros;
+
             localStorage.setItem("dosimat_bidon_config", JSON.stringify(bidonConfig));
 
             // Enviar ajuste al ESP32
@@ -4622,7 +4667,7 @@ function initBidonModule() {
 
             renderBidonUI();
             modalAjustar.style.display = 'none';
-            showToast(`Nivel ajustado al ${pct}% (${litrosRestantesDeseados.toFixed(1)} L)`);
+            showToast(`Nivel ajustado: ${pct}% (${litrosRestantesDeseados.toFixed(1)} L)`);
         };
     }
 
