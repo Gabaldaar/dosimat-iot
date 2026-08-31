@@ -4489,6 +4489,70 @@ let poolDims = {
     prof: 1.5
 };
 
+function aplicarRecargaCloro(bRepuestos, fechaStr, deliveryId = null) {
+    const litrosPorBidon = bidonConfig.litrosPorBidon || 27.0;
+    const dosisL = bidonConfig.dosisLitros || 2.0;
+
+    // 1. Capacidad total configurada (mantiene la configurada, o se expande si se repusieron más bidones que la capacidad)
+    const totalBidonesConfig = Math.max(bidonConfig.totalBidones || 1, bRepuestos);
+    const capTotal = totalBidonesConfig * litrosPorBidon;
+
+    // 2. Litros restantes que quedaban en el reservorio antes de la recarga
+    const dosisAcumPrevias = Math.max(0, bidonConfig.dosisAcumuladasHardware || 0.0);
+    const litrosConsumidosPrevios = dosisAcumPrevias * dosisL;
+    const litrosRestantesPrevios = Math.max(0, capTotal - litrosConsumidosPrevios);
+
+    // 3. Litros agregados por la reposición
+    const litrosAgregados = bRepuestos * litrosPorBidon;
+
+    // 4. Nuevos litros restantes totales (topados a la capacidad máxima capTotal)
+    const nuevosLitrosRestantes = Math.min(capTotal, litrosRestantesPrevios + litrosAgregados);
+    const nuevosLitrosConsumidos = Math.max(0, capTotal - nuevosLitrosRestantes);
+
+    // 5. Nuevas dosis acumuladas equivalentes para el contador
+    const nuevasDosisAcum = Math.round((nuevosLitrosConsumidos / dosisL) * 100) / 100;
+
+    // 6. Actualizar estado local
+    bidonConfig.totalBidones = totalBidonesConfig;
+    bidonConfig.bidonesRecargados = bRepuestos;
+    bidonConfig.fechaRecarga = fechaStr;
+    bidonConfig.dosisAcumuladasHardware = nuevasDosisAcum;
+
+    localStorage.setItem("dosimat_bidon_config", JSON.stringify(bidonConfig));
+    if (deliveryId) {
+        localStorage.setItem("dosimat_last_applied_pro_delivery_id", deliveryId);
+    }
+
+    // 7. Enviar comando de ajuste de contador al ESP32
+    if (nuevasDosisAcum === 0) {
+        sendCommand({ comando: "RESET_CONTADOR_DOSIS" });
+    } else {
+        sendCommand({ comando: "SET_CONTADOR_DOSIS", valor: nuevasDosisAcum });
+    }
+
+    // 8. Persistir en Firestore del equipo
+    if (currentMac) {
+        setDoc(doc(db, "equipos", currentMac, "config", "actual"), {
+            bidon_fecha_recarga: fechaStr,
+            bidon_total_bidones: totalBidonesConfig,
+            bidon_dosis_acum: nuevasDosisAcum,
+            reset_dosis_ts: Date.now()
+        }, { merge: true }).catch(err => console.warn("Aviso Firestore config bidon:", err));
+    }
+
+    if (typeof renderBidonUI === "function") {
+        renderBidonUI();
+    }
+
+    return {
+        totalBidones: totalBidonesConfig,
+        litrosAgregados,
+        nuevosLitrosRestantes,
+        capTotal,
+        nuevasDosisAcum
+    };
+}
+
 function renderBidonUI() {
     const lblLitros = document.getElementById('lblBidonLitros');
     const lblDias = document.getElementById('lblBidonDias');
@@ -4636,18 +4700,10 @@ function initBidonModule() {
             const bRepuestos = parseFloat(inpRecargaBidones ? inpRecargaBidones.value : 1) || 1;
             const fechaStr = inpRecargaFecha ? inpRecargaFecha.value : new Date().toISOString().split('T')[0];
 
-            bidonConfig.bidonesRecargados = bRepuestos;
-            bidonConfig.fechaRecarga = fechaStr;
-            bidonConfig.dosisAcumuladasHardware = 0.0;
+            const res = aplicarRecargaCloro(bRepuestos, fechaStr);
 
-            localStorage.setItem("dosimat_bidon_config", JSON.stringify(bidonConfig));
-
-            // Enviar reset de contador al ESP32
-            sendCommand({ comando: "RESET_CONTADOR_DOSIS" });
-
-            renderBidonUI();
             modalRecarga.style.display = 'none';
-            showToast(`Recarga registrada: ${(bRepuestos * 27.0).toFixed(1)} Litros`);
+            showToast(`Recarga registrada: +${res.litrosAgregados.toFixed(1)} L (Nivel: ${res.nuevosLitrosRestantes.toFixed(1)} / ${res.capTotal.toFixed(0)} L)`);
         };
     }
 
@@ -5002,33 +5058,10 @@ function checkAndSyncProRefillToBidon() {
     if (isNewerDate && isDifferentId) {
         console.log(`[Auto-Refill] Aplicando reposición automática: ${latestDelivery.cloro} bidón(es) del ${latestDelivery.date}`);
 
-        bidonConfig.fechaRecarga = latestDelivery.date;
-        bidonConfig.bidonesRecargados = latestDelivery.cloro;
-        bidonConfig.totalBidones = latestDelivery.cloro;
-        bidonConfig.dosisAcumuladasHardware = 0.0;
-
-        localStorage.setItem("dosimat_bidon_config", JSON.stringify(bidonConfig));
-        localStorage.setItem("dosimat_last_applied_pro_delivery_id", latestDelivery.id);
-
-        // Resetear contador del hardware ESP32
-        sendCommand({ comando: "RESET_CONTADOR_DOSIS" });
-
-        // Guardar en Firestore del equipo
-        if (currentMac) {
-            setDoc(doc(db, "equipos", currentMac, "config", "actual"), {
-                bidon_fecha_recarga: latestDelivery.date,
-                bidon_total_bidones: latestDelivery.cloro,
-                bidon_dosis_acum: 0.0,
-                reset_dosis_ts: Date.now()
-            }, { merge: true }).catch(err => console.warn("Aviso Firestore config bidon:", err));
-        }
-
-        if (typeof renderBidonUI === "function") {
-            renderBidonUI();
-        }
+        const res = aplicarRecargaCloro(latestDelivery.cloro, latestDelivery.date, latestDelivery.id);
 
         const fechaFmt = formatProDate(latestDelivery.date);
-        showToast(`🚚 ¡Reposición detectada! Se registraron ${latestDelivery.cloro} bidón(es) del día ${fechaFmt} y se reinició el nivel al 100%.`);
+        showToast(`🚚 ¡Reposición detectada! Se registraron +${res.litrosAgregados.toFixed(1)} L (${latestDelivery.cloro} bidones) del día ${fechaFmt}. Nivel: ${res.nuevosLitrosRestantes.toFixed(1)} / ${res.capTotal.toFixed(0)} L.`);
     }
 }
 
