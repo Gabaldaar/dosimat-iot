@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Dosimat IoT</title>
     <link rel="manifest" href="manifest.json">
-    <link rel="stylesheet" href="index.css?v=7.30">
+    <link rel="stylesheet" href="index.css?v=7.31">
     <!-- Google Fonts & Icons -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -104,7 +104,7 @@
     <header>
         <div class="header-title" style="align-items: flex-start; margin-top: 5px;">
             <div style="display: flex; flex-direction: column;">
-                <h1 style="margin-bottom: 0;"><span id="lblHeaderTitle">Dosimat IoT CB</span> <span style="font-size: 0.7rem; color: var(--accent); margin-left: 5px;">v7.30</span></h1>
+                <h1 style="margin-bottom: 0;"><span id="lblHeaderTitle">Dosimat IoT CB</span> <span style="font-size: 0.7rem; color: var(--accent); margin-left: 5px;">v7.31</span></h1>
                 <div id="lblUserName" style="font-size: 0.85rem; font-weight: 300; color: var(--text-muted); display: none;"></div>
             </div>
         </div>
@@ -336,6 +336,10 @@
                     <div class="bidon-stat-item">
                         <span class="bidon-stat-label">Capacidad Instalada:</span>
                         <span class="bidon-stat-sub" id="lblBidonCapacidad">1 Bidón</span>
+                    </div>
+                    <div class="bidon-stat-item">
+                        <span class="bidon-stat-label">Última Reposición:</span>
+                        <span class="bidon-stat-sub" id="lblBidonUltimaRecarga" style="font-weight: 600; color: var(--text-color);">--</span>
                     </div>
                 </div>
             </div>
@@ -1253,9 +1257,18 @@
                 <span class="material-symbols-outlined" style="color: var(--accent); font-size: 1.5rem;">local_gas_station</span>
                 <h3 style="margin: 0;">Registrar Recarga de Cloro</h3>
             </div>
-            <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 1rem;">
+            <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 0.8rem;">
                 Indica la cantidad de bidones o litros recargados y la fecha en que se realizó.
             </p>
+
+            <!-- Aviso para Clientes con Reposición Activa -->
+            <div id="boxAvisoRecargaManualPro" style="display: none; background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 8px; padding: 0.6rem 0.75rem; font-size: 0.78rem; color: #b45309; margin-bottom: 0.85rem; line-height: 1.35;">
+                <div style="display: flex; align-items: center; gap: 0.35rem; font-weight: 700; margin-bottom: 2px;">
+                    <span class="material-symbols-outlined" style="font-size: 1.05rem; color: var(--warning);">warning</span>
+                    <span>Aviso: Cuenta con Reposición Activa</span>
+                </div>
+                <div>Tus recambios oficiales se registran de forma automática al entregar el repartidor. Usá esta opción solo para recargas manuales o de emergencia.</div>
+            </div>
 
             <div class="form-group">
                 <label>Cantidad de Bidones Repuestos (27 L c/u):</label>
@@ -1578,6 +1591,6 @@
         </div>
     </div>
 
-    <script type="module" src="app.js?v=7.30"></script>
+    <script type="module" src="app.js?v=7.31"></script>
 </body>
 </html>

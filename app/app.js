@@ -4817,7 +4817,7 @@ function calcularNivelBidonActual() {
     };
 }
 
-function aplicarRecargaCloro(bRepuestos, fechaStr, deliveryId = null) {
+function aplicarRecargaCloro(bRepuestos, fechaStr, deliveryId = null, tipo = "Reposición Oficial") {
     const totalBidonesConfig = Math.max(bidonConfig.totalBidones || 1, bRepuestos);
 
     // 1. Litros restantes previos
@@ -4837,6 +4837,10 @@ function aplicarRecargaCloro(bRepuestos, fechaStr, deliveryId = null) {
     bidonConfig.bidonesRecargados = bRepuestos;
     bidonConfig.fechaRecarga = fechaStr;
     bidonConfig.dosisAcumuladasHardware = 0.0;
+    bidonConfig.ultimaRecargaFecha = fechaStr;
+    bidonConfig.ultimaRecargaLitros = litrosAgregados;
+    bidonConfig.ultimaRecargaBidones = bRepuestos;
+    bidonConfig.ultimaRecargaTipo = tipo;
 
     if (deliveryId) {
         localStorage.setItem("dosimat_last_applied_pro_delivery_id", deliveryId);
@@ -4867,6 +4871,7 @@ function renderBidonUI() {
     const lblCapacidad = document.getElementById('lblBidonCapacidad');
     const lblPercent = document.getElementById('lblBidonPercent');
     const liquidEl = document.getElementById('bidonLiquid');
+    const lblUltimaRecarga = document.getElementById('lblBidonUltimaRecarga');
 
     const nivel = calcularNivelBidonActual();
 
@@ -4875,7 +4880,27 @@ function renderBidonUI() {
     if (lblPercent) lblPercent.innerText = `${nivel.litrosRestantes.toFixed(1)} L`;
     if (liquidEl) liquidEl.style.height = `${nivel.percentVisual}%`;
     if (lblDosisAcum) lblDosisAcum.innerText = `${nivel.dosisAcum.toFixed(1)} dosis`;
-    if (lblCapacidad) lblCapacidad.innerText = `${nivel.bTotal} ${nivel.bTotal === 1 ? 'Bidón' : 'Bidones'}`;
+    if (lblCapacidad) {
+        const isReplenishClient = proClientState.isLinked && (proClientState.clientDoc?.esClienteReposicion !== false);
+        lblCapacidad.innerText = `${nivel.bTotal} ${nivel.bTotal === 1 ? 'Bidón' : 'Bidones'}${isReplenishClient ? ' (Plan Pro)' : ''}`;
+    }
+
+    if (lblUltimaRecarga) {
+        const fRaw = bidonConfig.ultimaRecargaFecha || bidonConfig.fechaRecarga;
+        if (fRaw) {
+            let fTxt = fRaw;
+            try {
+                const parts = fRaw.split('-');
+                if (parts.length === 3) fTxt = `${parts[2]}/${parts[1]}/${parts[0]}`;
+            } catch(e){}
+            const bCant = bidonConfig.ultimaRecargaBidones || bidonConfig.bidonesRecargados || bidonConfig.totalBidones || 1;
+            const bTxt = `${bCant} ${bCant === 1 ? 'bidón' : 'bidones'}`;
+            const tipoTxt = bidonConfig.ultimaRecargaTipo || 'Reposición';
+            lblUltimaRecarga.innerText = `${fTxt} (${bTxt} • ${tipoTxt})`;
+        } else {
+            lblUltimaRecarga.innerText = "Sin registros";
+        }
+    }
 
     // Calcular autonomía en días
     let totalDosisPorSemana = 0;
@@ -5000,6 +5025,13 @@ function initBidonModule() {
                 const bCount = parseFloat(inpRecargaBidones ? inpRecargaBidones.value : 1) || 1;
                 lblRecargaLitrosCalc.innerText = `= ${(bCount * 27.0).toFixed(1)} Litros`;
             }
+
+            const boxAvisoManual = document.getElementById('boxAvisoRecargaManualPro');
+            const isReplenishClient = proClientState.isLinked && (proClientState.clientDoc?.esClienteReposicion !== false);
+            if (boxAvisoManual) {
+                boxAvisoManual.style.display = isReplenishClient ? 'block' : 'none';
+            }
+
             modalRecarga.style.display = 'flex';
         };
     }
@@ -5019,11 +5051,13 @@ function initBidonModule() {
         btnConfirmRecarga.onclick = () => {
             const bRepuestos = parseFloat(inpRecargaBidones ? inpRecargaBidones.value : 1) || 1;
             const fechaStr = inpRecargaFecha ? inpRecargaFecha.value : new Date().toISOString().split('T')[0];
+            const isReplenishClient = proClientState.isLinked && (proClientState.clientDoc?.esClienteReposicion !== false);
+            const tipoRecarga = isReplenishClient ? "Recarga Manual (Emergencia)" : "Recarga Manual";
 
-            const res = aplicarRecargaCloro(bRepuestos, fechaStr);
+            const res = aplicarRecargaCloro(bRepuestos, fechaStr, null, tipoRecarga);
 
             modalRecarga.style.display = 'none';
-            showToast(`Recarga registrada: +${res.litrosAgregados.toFixed(1)} L (Nivel: ${res.nuevosLitrosRestantes.toFixed(1)} / ${res.capTotal.toFixed(0)} L)`);
+            showToast(`Recarga manual guardada: +${res.litrosAgregados.toFixed(1)} L (${fechaStr})`);
         };
     }
 
@@ -5536,7 +5570,7 @@ function checkAndSyncProRefillToBidon() {
     if (isNewerOrEqualDate && isDifferentSig) {
         console.log(`[Auto-Refill] Aplicando reposición automática: ${latestDelivery.cloro} bidón(es) del ${latestDelivery.date}`);
 
-        const res = aplicarRecargaCloro(latestDelivery.cloro, latestDelivery.date, latestDelivery.id);
+        const res = aplicarRecargaCloro(latestDelivery.cloro, latestDelivery.date, latestDelivery.id, "Reposición Oficial");
         localStorage.setItem("dosimat_last_applied_pro_delivery_sig", currentSig);
 
         const fechaFmt = formatProDate(latestDelivery.date);
