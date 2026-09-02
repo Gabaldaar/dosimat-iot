@@ -3647,11 +3647,29 @@ async function deleteTecnico(email) {
 
 async function deleteRemoteDevice(mac) {
     if (!mac) return;
+    
+    // 1ra Confirmación
     const confirmed = await customConfirm(
         `¿Deseas dar de baja el equipo ${mac}?\n\nEsto eliminará el equipo de la base de datos, desvinculará a sus propietarios y borrará su configuración e historial.`,
         "Baja de Equipo"
     );
     if (!confirmed) return;
+
+    // 2da Confirmación (Escribir "Eliminar")
+    const promptValue = await customPrompt(
+        `Esta acción es irreversible.\nPara confirmar la baja definitiva del equipo ${mac}, escribí la palabra "Eliminar":`,
+        "Confirmación de Seguridad",
+        "Escribí Eliminar"
+    );
+
+    if (promptValue === null) {
+        return;
+    }
+
+    if (String(promptValue).trim().toLowerCase() !== "eliminar") {
+        showToast("Baja cancelada: la palabra ingresada no coincide.", true);
+        return;
+    }
 
     showToast(`Dando de baja el equipo ${mac}...`);
 
