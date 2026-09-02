@@ -5773,30 +5773,8 @@ function renderDosimatProUI() {
     const notClientView = document.getElementById('proPortalNotAClient');
     const linkedView = document.getElementById('proPortalLinked');
 
-    if (!proClientState.searchedEmail) {
-        // No hay correo configurado
-        if (notLinkedView) notLinkedView.style.display = 'block';
-        if (notClientView) notClientView.style.display = 'none';
-        if (linkedView) linkedView.style.display = 'none';
-        const inpEmail = document.getElementById('inpProTabEmail');
-        if (inpEmail && !inpEmail.value) {
-            inpEmail.value = (auth.currentUser ? auth.currentUser.email : "");
-        }
-    } else if (!proClientState.isLinked) {
-        // Hay un correo ingresado pero NO figura como cliente de reposición
-        if (notLinkedView) notLinkedView.style.display = 'none';
-        if (notClientView) notClientView.style.display = 'block';
-        if (linkedView) linkedView.style.display = 'none';
-        
-        const lblNotClientEmail = document.getElementById('lblProNotAClientEmail');
-        if (lblNotClientEmail) lblNotClientEmail.innerText = proClientState.searchedEmail;
-
-        const inpNotClientEmail = document.getElementById('inpProNotClientEmail');
-        if (inpNotClientEmail && !inpNotClientEmail.value) {
-            inpNotClientEmail.value = "";
-        }
-    } else {
-        // Cliente activo y verificado en la colección clients
+    if (proClientState.isLinked && proClientState.clientDoc) {
+        // Estado 3: Vinculado y Activo como Cliente de Reposición (¡Se muestra siempre que esté vinculado!)
         if (notLinkedView) notLinkedView.style.display = 'none';
         if (notClientView) notClientView.style.display = 'none';
         if (linkedView) linkedView.style.display = 'block';
@@ -5814,7 +5792,7 @@ function renderDosimatProUI() {
 
         if (lblNom) lblNom.innerText = `¡Hola, ${c.nombre || 'Cliente'}!`;
         if (lblDir) lblDir.innerText = `${c.apellido || ''} ${c.nombre || ''} • ${c.direccion || c.localidad || 'Sin dirección'}`.trim();
-        if (lblLinkedEmail) lblLinkedEmail.innerText = proClientState.searchedEmail || c.mail || '--';
+        if (lblLinkedEmail) lblLinkedEmail.innerText = c.mail || proClientState.searchedEmail || (c.cuit_dni ? 'CUIT/DNI: ' + c.cuit_dni : 'Vinculado por Ficha Oficial');
         
         // Saldos
         const saldoARS = Number(c.saldoActual ?? c.saldo ?? 0);
@@ -5969,9 +5947,20 @@ function renderDosimatProUI() {
         if (btnSolSistemaPro) {
             btnSolSistemaPro.style.display = 'flex';
         }
-    }
-
-    if (!proClientState.isLinked) {
+    } else {
+        // No está vinculado a una ficha de cliente oficial
+        if (notLinkedView && notClientView && linkedView) {
+            linkedView.style.display = 'none';
+            if (proClientState.searchedEmail) {
+                notLinkedView.style.display = 'none';
+                notClientView.style.display = 'block';
+                const lblNotClientEmail = document.getElementById('lblProNotAClientEmail');
+                if (lblNotClientEmail) lblNotClientEmail.innerText = proClientState.searchedEmail;
+            } else {
+                notLinkedView.style.display = 'block';
+                notClientView.style.display = 'none';
+            }
+        }
         const btnSolSistemaPro = document.getElementById('btnSolSistemaPro');
         if (btnSolSistemaPro) btnSolSistemaPro.style.display = 'none';
     }
@@ -6557,7 +6546,12 @@ function initVincularCuitModule() {
         if (modalVincular) modalVincular.style.display = 'none';
     };
 
+    const btnProTabVincular = document.getElementById('btnProTabVincularCuit');
+    const btnProTabNotClientVincular = document.getElementById('btnProTabNotClientVincularCuit');
+
     if (btnOpenDashboard) btnOpenDashboard.onclick = abrirModal;
+    if (btnProTabVincular) btnProTabVincular.onclick = abrirModal;
+    if (btnProTabNotClientVincular) btnProTabNotClientVincular.onclick = abrirModal;
     if (btnCloseModal) btnCloseModal.onclick = cerrarModal;
     if (btnCancelModal) btnCancelModal.onclick = cerrarModal;
 
@@ -6652,10 +6646,28 @@ function initVincularCuitModule() {
             btnConfirmar.innerText = "Vinculando...";
 
             try {
+                // 1. Establecer estado vinculado inmediato
+                proClientState.isLinked = true;
+                proClientState.clientDoc = tempMatchedClient;
                 localStorage.setItem("dosimat_pro_client_id", tempMatchedClient.id);
+                localStorage.removeItem("dosimat_ignorar_banner_repo_" + (currentMac || 'global'));
+
+                const currentAppEmail = (auth.currentUser ? auth.currentUser.email : "") || "";
                 if (tempMatchedClient.mail) {
                     localStorage.setItem("dosimat_pro_email", tempMatchedClient.mail);
                     proClientState.customEmail = tempMatchedClient.mail;
+                } else if (currentAppEmail) {
+                    // Si el cliente no tenía correo en Dosimat Pro, asociar el de la sesión actual
+                    localStorage.setItem("dosimat_pro_email", currentAppEmail);
+                    proClientState.customEmail = currentAppEmail;
+                    tempMatchedClient.mail = currentAppEmail;
+                    if (proDb) {
+                        try {
+                            await updateDoc(doc(proDb, "clients", tempMatchedClient.id), { mail: currentAppEmail.toLowerCase() });
+                        } catch(e) {
+                            console.warn("Aviso actualizando mail en clients:", e);
+                        }
+                    }
                 }
 
                 // Guardar vínculo en el equipo en Firestore
@@ -6663,7 +6675,7 @@ function initVincularCuitModule() {
                     try {
                         await updateDoc(doc(db, "equipos", currentMac), {
                             pro_client_id: tempMatchedClient.id,
-                            pro_client_mail: tempMatchedClient.mail || '',
+                            pro_client_mail: tempMatchedClient.mail || currentAppEmail || '',
                             pro_client_nombre: `${tempMatchedClient.apellido || ''}, ${tempMatchedClient.nombre || ''}`.trim()
                         });
                     } catch (e) {
@@ -6680,6 +6692,8 @@ function initVincularCuitModule() {
                 }
 
                 cerrarModal();
+                renderDosimatProUI();
+                renderBidonUI();
                 showToast(`¡Equipo vinculado exitosamente con la ficha de ${tempMatchedClient.nombre || 'Cliente'}!`);
                 await syncDosimatProClient();
             } catch (e) {

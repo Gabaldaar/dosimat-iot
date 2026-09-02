@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Dosimat IoT</title>
     <link rel="manifest" href="manifest.json">
-    <link rel="stylesheet" href="index.css?v=7.28">
+    <link rel="stylesheet" href="index.css?v=7.29">
     <!-- Google Fonts & Icons -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -104,7 +104,7 @@
     <header>
         <div class="header-title" style="align-items: flex-start; margin-top: 5px;">
             <div style="display: flex; flex-direction: column;">
-                <h1 style="margin-bottom: 0;"><span id="lblHeaderTitle">Dosimat IoT CB</span> <span style="font-size: 0.7rem; color: var(--accent); margin-left: 5px;">v7.28</span></h1>
+                <h1 style="margin-bottom: 0;"><span id="lblHeaderTitle">Dosimat IoT CB</span> <span style="font-size: 0.7rem; color: var(--accent); margin-left: 5px;">v7.29</span></h1>
                 <div id="lblUserName" style="font-size: 0.85rem; font-weight: 300; color: var(--text-muted); display: none;"></div>
             </div>
         </div>
@@ -800,6 +800,13 @@
                 <button class="btn" id="btnProTabLogin" style="width: 100%; padding: 0.7rem; font-weight: 700; background: var(--accent); color: white; margin-top: 0.5rem;">
                     <span>Conectar con Portal de Clientes</span>
                 </button>
+
+                <div style="margin-top: 1rem; border-top: 1px dashed var(--card-border); padding-top: 0.8rem;">
+                    <button type="button" class="btn outline" id="btnProTabVincularCuit" style="width: 100%; border-color: var(--accent); color: var(--accent); display: flex; align-items: center; justify-content: center; gap: 0.4rem; font-size: 0.85rem; padding: 0.55rem;">
+                        <span class="material-symbols-outlined" style="font-size: 1.1rem;">badge</span>
+                        <span>Vincular por CUIT / DNI o Teléfono</span>
+                    </button>
+                </div>
             </div>
         </div>
 
@@ -812,10 +819,10 @@
             </p>
             <div style="background: var(--bg-color); border: 1px solid var(--card-border); border-radius: 8px; padding: 1rem; max-width: 440px; margin: 0 auto 1.5rem; text-align: left; font-size: 0.8rem; color: var(--text-muted);">
                 <p style="margin: 0 0 0.5rem 0;">• Las funciones del Portal (consultar fechas de hoja de ruta, saldos y pedir bidones) están reservadas para clientes con servicio de entrega periódica contratado.</p>
-                <p style="margin: 0;">• Si te registraste en el servicio con otro correo electrónico, podés vincularlo a continuación.</p>
+                <p style="margin: 0;">• Si te registraste en el servicio con otro correo electrónico o por CUIT/DNI, podés vincularlo a continuación.</p>
             </div>
 
-            <!-- Formulario para intentar con otro correo -->
+            <!-- Formulario para intentar con otro correo o CUIT -->
             <div style="max-width: 340px; margin: 0 auto 1.5rem; display: flex; flex-direction: column; gap: 0.6rem;">
                 <div class="form-group" style="text-align: left; margin: 0;">
                     <label style="font-size: 0.72rem; font-weight: 700;">Ingresar otro correo de reposición:</label>
@@ -829,6 +836,13 @@
                 <button class="btn" id="btnProNotClientVincular" style="width: 100%; padding: 0.6rem; font-size: 0.85rem; background: var(--accent); color: white;">
                     <span>Vincular Cuenta de Reposición</span>
                 </button>
+
+                <div style="margin-top: 0.6rem; border-top: 1px dashed var(--card-border); padding-top: 0.6rem;">
+                    <button type="button" class="btn outline" id="btnProTabNotClientVincularCuit" style="width: 100%; border-color: var(--accent); color: var(--accent); display: flex; align-items: center; justify-content: center; gap: 0.4rem; font-size: 0.82rem; padding: 0.5rem;">
+                        <span class="material-symbols-outlined" style="font-size: 1.1rem;">badge</span>
+                        <span>Buscar y Vincular por CUIT / DNI</span>
+                    </button>
+                </div>
             </div>
 
             <div style="border-top: 1px solid var(--card-border); padding-top: 1.2rem; max-width: 440px; margin: 0 auto;">
@@ -1564,6 +1578,6 @@
         </div>
     </div>
 
-    <script type="module" src="app.js?v=7.28"></script>
+    <script type="module" src="app.js?v=7.29"></script>
 </body>
 </html>
