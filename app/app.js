@@ -498,7 +498,7 @@ function showToast(msg, isWarning = false) {
     }, 4000);
 }
 
-function customConfirm(message, title = "Confirmar acción") {
+function customConfirm(message, title = "Confirmar acción", confirmText = "Confirmar", cancelText = "Cancelar") {
     return new Promise((resolve) => {
         const modal = document.getElementById('customModal');
         const btnConfirm = document.getElementById('btnModalConfirm');
@@ -511,6 +511,10 @@ function customConfirm(message, title = "Confirmar acción") {
 
         document.getElementById('modalTitle').innerText = title;
         document.getElementById('modalMessage').innerText = message;
+        btnCancel.style.display = 'inline-block';
+        btnCancel.innerText = cancelText;
+        btnConfirm.style.display = 'inline-block';
+        btnConfirm.innerText = confirmText;
         modal.style.display = 'flex';
 
         const cleanup = () => {
@@ -526,8 +530,38 @@ function customConfirm(message, title = "Confirmar acción") {
     });
 }
 
-function customAlert(message, title = "Información") {
-    return customConfirm(message, title);
+function customAlert(message, title = "Información", btnText = "Cerrar") {
+    return new Promise((resolve) => {
+        const modal = document.getElementById('customModal');
+        const btnConfirm = document.getElementById('btnModalConfirm');
+        const btnCancel = document.getElementById('btnModalCancel');
+
+        if (!modal || !btnConfirm) {
+            alert(`${title}\n\n${message}`);
+            resolve(true);
+            return;
+        }
+
+        document.getElementById('modalTitle').innerText = title;
+        document.getElementById('modalMessage').innerText = message;
+        if (btnCancel) btnCancel.style.display = 'none';
+        btnConfirm.style.display = 'inline-block';
+        btnConfirm.innerText = btnText;
+        modal.style.display = 'flex';
+
+        const cleanup = () => {
+            modal.style.display = 'none';
+            if (btnCancel) {
+                btnCancel.style.display = 'inline-block';
+                btnCancel.innerText = 'Cancelar';
+            }
+            btnConfirm.innerText = 'Confirmar';
+            btnConfirm.removeEventListener('click', onConfirm);
+        };
+        const onConfirm = () => { cleanup(); resolve(true); };
+
+        btnConfirm.addEventListener('click', onConfirm);
+    });
 }
 
 function customPrompt(message, title = "Ingreso de datos", placeholder = "", inputType = "text") {
