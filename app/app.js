@@ -5794,6 +5794,17 @@ function renderDosimatProUI() {
                 }).join('');
             }
         }
+
+        // Boton directo en modal de reposición
+        const btnSolSistemaPro = document.getElementById('btnSolSistemaPro');
+        if (btnSolSistemaPro) {
+            btnSolSistemaPro.style.display = 'flex';
+        }
+    }
+
+    if (!proClientState.isLinked) {
+        const btnSolSistemaPro = document.getElementById('btnSolSistemaPro');
+        if (btnSolSistemaPro) btnSolSistemaPro.style.display = 'none';
     }
 }
 
@@ -6119,25 +6130,138 @@ function initDosimatProModule() {
         };
     }
 
-    // 6. Enviar Pedido desde Tab Portal
+    // 6. Modal de Confirmación de Pedido (Estilo Dosimat Pro)
+    const modalConfirmar = document.getElementById('modalConfirmarPedidoPro');
+    const btnCloseModalConfirmar = document.getElementById('btnCloseModalConfirmarPro');
+    const btnCancelConfirmar = document.getElementById('btnCancelConfirmOrderPro');
+    const btnSendConfirmar = document.getElementById('btnSendConfirmOrderPro');
+
+    const inpConfCloro = document.getElementById('inpConfirmOrderCloro');
+    const inpConfAcido = document.getElementById('inpConfirmOrderAcido');
+    const inpConfNotas = document.getElementById('inpConfirmOrderNotas');
+    const badgeConfCloro = document.getElementById('badgeConfirmOrderCloro');
+    const badgeConfAcido = document.getElementById('badgeConfirmOrderAcido');
+    const lblConfResumen = document.getElementById('lblConfirmOrderResumen');
+
+    const btnCloroMinus = document.getElementById('btnConfirmOrderCloroMinus');
+    const btnCloroPlus = document.getElementById('btnConfirmOrderCloroPlus');
+    const btnAcidoMinus = document.getElementById('btnConfirmOrderAcidoMinus');
+    const btnAcidoPlus = document.getElementById('btnConfirmOrderAcidoPlus');
+
+    const updateConfirmOrderPreview = () => {
+        const c = Math.max(0, parseInt(inpConfCloro ? inpConfCloro.value : 0) || 0);
+        const a = Math.max(0, parseInt(inpConfAcido ? inpConfAcido.value : 0) || 0);
+        if (inpConfCloro) inpConfCloro.value = c;
+        if (inpConfAcido) inpConfAcido.value = a;
+        if (badgeConfCloro) badgeConfCloro.innerText = `${c} ${c === 1 ? 'bidón' : 'bidones'}`;
+        if (badgeConfAcido) badgeConfAcido.innerText = `${a} ${a === 1 ? 'bidón' : 'bidones'}`;
+        if (lblConfResumen) lblConfResumen.innerText = `${c} Cloro y ${a} Ácido`;
+        if (btnSendConfirmar) {
+            btnSendConfirmar.disabled = (c === 0 && a === 0);
+        }
+    };
+
+    if (btnCloroMinus) btnCloroMinus.onclick = () => {
+        if (inpConfCloro) {
+            inpConfCloro.value = Math.max(0, (parseInt(inpConfCloro.value) || 0) - 1);
+            updateConfirmOrderPreview();
+        }
+    };
+    if (btnCloroPlus) btnCloroPlus.onclick = () => {
+        if (inpConfCloro) {
+            inpConfCloro.value = (parseInt(inpConfCloro.value) || 0) + 1;
+            updateConfirmOrderPreview();
+        }
+    };
+    if (btnAcidoMinus) btnAcidoMinus.onclick = () => {
+        if (inpConfAcido) {
+            inpConfAcido.value = Math.max(0, (parseInt(inpConfAcido.value) || 0) - 1);
+            updateConfirmOrderPreview();
+        }
+    };
+    if (btnAcidoPlus) btnAcidoPlus.onclick = () => {
+        if (inpConfAcido) {
+            inpConfAcido.value = (parseInt(inpConfAcido.value) || 0) + 1;
+            updateConfirmOrderPreview();
+        }
+    };
+
+    if (inpConfCloro) inpConfCloro.oninput = updateConfirmOrderPreview;
+    if (inpConfAcido) inpConfAcido.oninput = updateConfirmOrderPreview;
+    if (inpConfNotas) inpConfNotas.oninput = updateConfirmOrderPreview;
+
+    const cerrarModalConfirmar = () => {
+        if (modalConfirmar) modalConfirmar.style.display = 'none';
+    };
+
+    if (btnCloseModalConfirmar) btnCloseModalConfirmar.onclick = cerrarModalConfirmar;
+    if (btnCancelConfirmar) btnCancelConfirmar.onclick = cerrarModalConfirmar;
+
+    const abrirModalConfirmarPedido = (c = 1, a = 0, n = "") => {
+        if (inpConfCloro) inpConfCloro.value = c;
+        if (inpConfAcido) inpConfAcido.value = a;
+        if (inpConfNotas) inpConfNotas.value = n;
+        updateConfirmOrderPreview();
+        if (modalConfirmar) modalConfirmar.style.display = 'flex';
+    };
+
+    if (btnSendConfirmar) {
+        btnSendConfirmar.onclick = async () => {
+            const c = Math.max(0, parseInt(inpConfCloro ? inpConfCloro.value : 0) || 0);
+            const a = Math.max(0, parseInt(inpConfAcido ? inpConfAcido.value : 0) || 0);
+            const n = inpConfNotas ? inpConfNotas.value.trim() : "";
+
+            if (c === 0 && a === 0) {
+                showToast("Debes solicitar al menos 1 bidón de cloro o ácido.", true);
+                return;
+            }
+
+            btnSendConfirmar.disabled = true;
+            btnSendConfirmar.innerHTML = `<span class="material-symbols-outlined" style="font-size: 1.1rem; animation: spin 1s linear infinite;">sync</span><span>Enviando...</span>`;
+            
+            const ok = await enviarNuevoPedidoPro(c, a, n);
+            
+            btnSendConfirmar.disabled = false;
+            btnSendConfirmar.innerHTML = `<span class="material-symbols-outlined" style="font-size: 1.1rem;">send</span><span>Confirmar y Enviar</span>`;
+
+            if (ok) {
+                cerrarModalConfirmar();
+                const inpTabNotas = document.getElementById('inpProTabOrderNotas');
+                if (inpTabNotas) inpTabNotas.value = "";
+                const modalSolicitar = document.getElementById('modalSolicitarReposicion');
+                if (modalSolicitar) modalSolicitar.style.display = 'none';
+            }
+        };
+    }
+
+    // Botón Enviar Pedido desde Tab Portal
     const btnTabEnviar = document.getElementById('btnProTabEnviarPedido');
     const inpTabCloro = document.getElementById('inpProTabOrderCloro');
     const inpTabAcido = document.getElementById('inpProTabOrderAcido');
     const inpTabNotas = document.getElementById('inpProTabOrderNotas');
 
     if (btnTabEnviar) {
-        btnTabEnviar.onclick = async () => {
+        btnTabEnviar.onclick = () => {
             const c = parseInt(inpTabCloro ? inpTabCloro.value : 1) || 0;
             const a = parseInt(inpTabAcido ? inpTabAcido.value : 0) || 0;
             const n = inpTabNotas ? inpTabNotas.value.trim() : "";
 
-            btnTabEnviar.disabled = true;
-            btnTabEnviar.innerText = "Enviando pedido...";
-            const ok = await enviarNuevoPedidoPro(c, a, n);
-            btnTabEnviar.disabled = false;
-            btnTabEnviar.innerText = "Enviar Pedido al Sistema";
+            if (c === 0 && a === 0) {
+                showToast("Indicá al menos cloro o ácido.", true);
+                return;
+            }
 
-            if (ok && inpTabNotas) inpTabNotas.value = "";
+            abrirModalConfirmarPedido(c, a, n);
+        };
+    }
+
+    // Botón Enviar Pedido desde Modal de Reposición en Dashboard
+    const btnSolSistemaPro = document.getElementById('btnSolSistemaPro');
+    if (btnSolSistemaPro) {
+        btnSolSistemaPro.onclick = () => {
+            const inpSolCant = document.getElementById('inpSolCantBidones');
+            const cant = parseInt(inpSolCant ? inpSolCant.value : 1) || 1;
+            abrirModalConfirmarPedido(cant, 0, "");
         };
     }
 

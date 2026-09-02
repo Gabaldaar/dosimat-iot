@@ -96,7 +96,7 @@
     <header>
         <div class="header-title" style="align-items: flex-start; margin-top: 5px;">
             <div style="display: flex; flex-direction: column;">
-                <h1 style="margin-bottom: 0;"><span id="lblHeaderTitle">Dosimat IoT CB</span> <span style="font-size: 0.7rem; color: var(--accent); margin-left: 5px;">v7.22</span></h1>
+                <h1 style="margin-bottom: 0;"><span id="lblHeaderTitle">Dosimat IoT CB</span> <span style="font-size: 0.7rem; color: var(--accent); margin-left: 5px;">v7.23</span></h1>
                 <div id="lblUserName" style="font-size: 0.85rem; font-weight: 300; color: var(--text-muted); display: none;"></div>
             </div>
         </div>
@@ -1345,6 +1345,77 @@
         </div>
     </div>
 
+    <!-- Modal: Confirmar Pedido de Reposición (Estilo Dosimat Pro) -->
+    <div id="modalConfirmarPedidoPro" class="overlay" style="display: none; z-index: 1050;">
+        <div class="overlay-content" style="max-width: 420px; text-align: left; padding: 1.25rem;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem;">
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <span class="material-symbols-outlined" style="color: var(--accent); font-size: 1.6rem;">inventory_2</span>
+                    <h3 style="margin: 0; font-size: 1.15rem; font-weight: 800;">Confirmar Pedido de Reposición</h3>
+                </div>
+                <button class="btn-icon" id="btnCloseModalConfirmarPro" style="background: none; border: none; font-size: 1.3rem; color: var(--text-muted); cursor: pointer; padding: 0.2rem;">&times;</button>
+            </div>
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1rem; line-height: 1.35;">
+                Por favor verificá las cantidades solicitadas. Podés ajustar los valores si te equivocaste antes de confirmar.
+            </p>
+
+            <!-- Card Cloro -->
+            <div style="background: rgba(2, 132, 199, 0.08); border: 1px solid rgba(2, 132, 199, 0.25); border-radius: 12px; padding: 0.85rem; margin-bottom: 0.75rem;">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem;">
+                    <div style="display: flex; align-items: center; gap: 0.4rem; font-weight: 800; color: #0284c7;">
+                        <span class="material-symbols-outlined" style="font-size: 1.2rem;">water_drop</span>
+                        <span>Cloro (27L)</span>
+                    </div>
+                    <span id="badgeConfirmOrderCloro" style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; background: rgba(2, 132, 199, 0.15); color: #0284c7; padding: 0.2rem 0.6rem; border-radius: 20px;">1 bidón</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.4rem;">
+                    <button type="button" class="btn outline" id="btnConfirmOrderCloroMinus" style="width: 42px; height: 42px; font-size: 1.2rem; font-weight: 800; padding: 0; display: flex; align-items: center; justify-content: center; border-color: rgba(2, 132, 199, 0.4);">-</button>
+                    <input type="number" id="inpConfirmOrderCloro" min="0" max="50" value="1" style="flex: 1; height: 42px; text-align: center; font-size: 1.25rem; font-weight: 900; border-radius: 8px; border: 1px solid rgba(2, 132, 199, 0.4); background: var(--input-bg); color: var(--text-color);">
+                    <button type="button" class="btn outline" id="btnConfirmOrderCloroPlus" style="width: 42px; height: 42px; font-size: 1.2rem; font-weight: 800; padding: 0; display: flex; align-items: center; justify-content: center; border-color: rgba(2, 132, 199, 0.4);">+</button>
+                </div>
+            </div>
+
+            <!-- Card Ácido -->
+            <div style="background: rgba(225, 29, 72, 0.08); border: 1px solid rgba(225, 29, 72, 0.25); border-radius: 12px; padding: 0.85rem; margin-bottom: 0.75rem;">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem;">
+                    <div style="display: flex; align-items: center; gap: 0.4rem; font-weight: 800; color: #e11d48;">
+                        <span class="material-symbols-outlined" style="font-size: 1.2rem;">science</span>
+                        <span>Ácido (10L)</span>
+                    </div>
+                    <span id="badgeConfirmOrderAcido" style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; background: rgba(225, 29, 72, 0.15); color: #e11d48; padding: 0.2rem 0.6rem; border-radius: 20px;">0 bidones</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.4rem;">
+                    <button type="button" class="btn outline" id="btnConfirmOrderAcidoMinus" style="width: 42px; height: 42px; font-size: 1.2rem; font-weight: 800; padding: 0; display: flex; align-items: center; justify-content: center; border-color: rgba(225, 29, 72, 0.4);">-</button>
+                    <input type="number" id="inpConfirmOrderAcido" min="0" max="50" value="0" style="flex: 1; height: 42px; text-align: center; font-size: 1.25rem; font-weight: 900; border-radius: 8px; border: 1px solid rgba(225, 29, 72, 0.4); background: var(--input-bg); color: var(--text-color);">
+                    <button type="button" class="btn outline" id="btnConfirmOrderAcidoPlus" style="width: 42px; height: 42px; font-size: 1.2rem; font-weight: 800; padding: 0; display: flex; align-items: center; justify-content: center; border-color: rgba(225, 29, 72, 0.4);">+</button>
+                </div>
+            </div>
+
+            <!-- Notas -->
+            <div style="margin-bottom: 0.75rem;">
+                <label style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); display: block; margin-bottom: 0.3rem;">Notas u observaciones para la entrega</label>
+                <textarea id="inpConfirmOrderNotas" placeholder="Ej: Dejar al lado del portón, tocar timbre..." rows="2" style="width: 100%; padding: 0.6rem; font-size: 0.85rem; border-radius: 8px; border: 1px solid var(--card-border); background: var(--input-bg); color: var(--text-color);"></textarea>
+            </div>
+
+            <!-- Resumen Banner -->
+            <div style="background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 10px; padding: 0.65rem 0.85rem; display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1.2rem;">
+                <span class="material-symbols-outlined" style="color: #d97706; font-size: 1.3rem;">info</span>
+                <div style="font-size: 0.8rem; color: var(--text-color);">
+                    Resumen total: <strong id="lblConfirmOrderResumen" style="color: var(--text-color); font-weight: 800;">1 Cloro y 0 Ácido</strong>.
+                </div>
+            </div>
+
+            <!-- Botones Footer -->
+            <div style="display: flex; gap: 0.6rem;">
+                <button class="btn outline" id="btnCancelConfirmOrderPro" style="flex: 1; font-weight: 700;">Corregir / Volver</button>
+                <button class="btn" id="btnSendConfirmOrderPro" style="flex: 1.3; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 0.4rem;">
+                    <span class="material-symbols-outlined" style="font-size: 1.1rem;">send</span>
+                    <span>Confirmar y Enviar</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Modal: Editar Pedido Pro -->
     <div id="modalEditarPedidoPro" class="overlay" style="display: none;">
         <div class="overlay-content" style="max-width: 380px;">
@@ -1399,6 +1470,6 @@
         </div>
     </div>
 
-    <script type="module" src="app.js?v=7.22"></script>
+    <script type="module" src="app.js?v=7.23"></script>
 </body>
 </html>
