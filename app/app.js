@@ -2156,7 +2156,10 @@ function connectNube() {
                 return;
             }
 
-            if (topic === `dosimat/${currentMac}/telemetry`) {
+            if (topic.startsWith(`dosimat/`) && topic.endsWith(`/telemetry`)) {
+                if (typeof window.onCloudTelemetrySuccess === 'function') {
+                    window.onCloudTelemetrySuccess(data);
+                }
                 if (modoConexion !== "BLE") {
                     setConexionModo("NUBE", innerData.wifi_ssid || innerData.ssid || "");
                     updateUI(data);
@@ -3473,18 +3476,46 @@ async function iniciarProcesoWifi(ssid, pwd) {
         modal.style.display = 'flex';
     }
 
-    // Enviar comando SET_WIFI
+    // 1. Enviar comando SET_WIFI al equipo
     sendCommand({ comando: "SET_WIFI", ssid: ssid, pwd: pwd }, true);
 
     const macTarget = currentMac;
-    const startTs = Date.now();
     let cloudFound = false;
     let checkInterval = null;
     let timeoutTimer = null;
 
     const cleanupWifiCheck = () => {
-        if (checkInterval) clearInterval(checkInterval);
-        if (timeoutTimer) clearTimeout(timeoutTimer);
+        window.onCloudTelemetrySuccess = null;
+        if (checkInterval) { clearInterval(checkInterval); checkInterval = null; }
+        if (timeoutTimer) { clearTimeout(timeoutTimer); timeoutTimer = null; }
+    };
+
+    const markSuccess = (data) => {
+        if (cloudFound) return;
+        cloudFound = true;
+        cleanupWifiCheck();
+
+        if (spinner) spinner.style.display = 'none';
+        if (iconSuccess) iconSuccess.style.display = 'block';
+        if (iconFail) iconFail.style.display = 'none';
+        if (stepReboot) stepReboot.innerText = '✅ Equipo reiniciado y conectado';
+        if (stepCloud) {
+            stepCloud.innerText = '✅ ¡Conectado a la Nube Dosimat!';
+            stepCloud.style.color = 'var(--success, #10b981)';
+        }
+        if (lblTitle) lblTitle.innerText = '¡WiFi Conectado con Éxito!';
+        if (lblDesc) lblDesc.innerText = `Tu Dosimat está en línea en "${ssid}". Ahora podés monitorearlo y controlarlo desde cualquier lugar por Internet.`;
+        if (btnCerrar) btnCerrar.style.display = 'inline-block';
+        if (btnReintentar) btnReintentar.style.display = 'none';
+
+        setConexionModo("NUBE", ssid);
+        if (data && typeof updateUI === 'function') updateUI(data);
+        showToast("¡Equipo conectado a la Nube!");
+    };
+
+    // Callback inmediato si llega telemetría por MQTT
+    window.onCloudTelemetrySuccess = (data) => {
+        markSuccess(data);
     };
 
     if (btnCerrar) {
@@ -3503,37 +3534,44 @@ async function iniciarProcesoWifi(ssid, pwd) {
         };
     }
 
-    // Monitorear en Firestore si el equipo reporta nueva telemetría
-    if (macTarget && typeof db !== 'undefined' && db) {
-        checkInterval = setInterval(async () => {
+    // 2. Iniciar conexión Nube en background
+    setTimeout(() => {
+        connectNube();
+    }, 1500);
+
+    // 3. Polling activo por MQTT y Firestore
+    checkInterval = setInterval(async () => {
+        if (cloudFound) return;
+
+        // Sondeo por MQTT
+        try {
+            if (mqttClient && mqttClient.isConnected && mqttClient.isConnected()) {
+                const msg = new Paho.MQTT.Message(JSON.stringify({ comando: "GET_STATE" }));
+                msg.destinationName = `dosimat/${macTarget}/cmd`;
+                mqttClient.send(msg);
+            }
+        } catch(e) {}
+
+        // Comprobación de Firestore
+        if (macTarget && typeof db !== 'undefined' && db) {
             try {
                 const docSnap = await getDoc(doc(db, "equipos", macTarget, "estado", "actual"));
                 if (docSnap.exists()) {
                     const data = docSnap.data();
-                    const stateTs = data.timestamp ? (typeof data.timestamp === 'number' ? data.timestamp : new Date(data.timestamp).getTime()) : 0;
-                    if (stateTs >= startTs - 5000) {
-                        cloudFound = true;
-                        cleanupWifiCheck();
-                        if (spinner) spinner.style.display = 'none';
-                        if (iconSuccess) iconSuccess.style.display = 'block';
-                        if (stepReboot) stepReboot.innerText = '✅ Equipo reiniciado';
-                        if (stepCloud) {
-                            stepCloud.innerText = '✅ ¡Conectado a la Nube Dosimat!';
-                            stepCloud.style.color = 'var(--success, #10b981)';
-                        }
-                        if (lblTitle) lblTitle.innerText = '¡WiFi Conectado con Éxito!';
-                        if (lblDesc) lblDesc.innerText = `Tu Dosimat está en línea en "${ssid}". Ahora podés monitorearlo y controlarlo desde cualquier lugar por Internet.`;
-                        if (btnCerrar) btnCerrar.style.display = 'inline-block';
+                    let stateTs = data.timestamp || data.ultima_sincronizacion || 0;
+                    if (stateTs && typeof stateTs.toMillis === 'function') stateTs = stateTs.toMillis();
+                    else if (typeof stateTs === 'string') stateTs = new Date(stateTs).getTime();
+                    else if (typeof stateTs === 'number' && stateTs < 2000000000) stateTs = (stateTs + 946684800) * 1000;
 
-                        setConexionModo("NUBE");
-                        connectNube();
+                    if (stateTs && (Date.now() - stateTs < 60000)) {
+                        markSuccess(data);
                     }
                 }
             } catch(e) {}
-        }, 3000);
-    }
+        }
+    }, 2500);
 
-    // Timeout de espera a los 35 segundos
+    // 4. Timeout extendido a 45 segundos
     timeoutTimer = setTimeout(() => {
         if (!cloudFound) {
             cleanupWifiCheck();
@@ -3548,7 +3586,7 @@ async function iniciarProcesoWifi(ssid, pwd) {
                 btnReintentar.style.display = 'inline-block';
             }
         }
-    }, 35000);
+    }, 45000);
 }
 
 const btnGuardarWifi = document.getElementById('btnGuardarWifi');
