@@ -473,10 +473,14 @@ nav {
     gap: 0.35rem;
     box-shadow: 0 -3px 12px rgba(15, 23, 42, 0.03);
     z-index: 100;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    -webkit-overflow-scrolling: touch !important;
     scrollbar-width: none;
     -ms-overflow-style: none;
+    width: 100%;
+    box-sizing: border-box;
+    touch-action: pan-x;
 }
 
 nav::-webkit-scrollbar {
@@ -497,11 +501,12 @@ nav::-webkit-scrollbar {
     cursor: pointer;
     padding: 0.35rem 0.6rem;
     border-radius: 8px;
-    flex: 1 0 auto;
-    min-width: 68px;
-    white-space: nowrap;
+    flex: 0 0 auto !important;
+    min-width: 72px !important;
+    white-space: nowrap !important;
     transition: all 0.15s ease;
     user-select: none;
+    -webkit-tap-highlight-color: transparent;
 }
 
 .nav-btn .material-symbols-outlined {
@@ -515,12 +520,6 @@ nav::-webkit-scrollbar {
 .nav-btn.active {
     color: var(--accent);
     background-color: var(--accent-light);
-}
-
-@media (min-width: 580px) {
-    nav {
-        justify-content: space-around;
-    }
 }
 
 /* Custom Overlays and Modals */
