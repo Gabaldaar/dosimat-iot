@@ -96,7 +96,7 @@
     <header>
         <div class="header-title" style="align-items: flex-start; margin-top: 5px;">
             <div style="display: flex; flex-direction: column;">
-                <h1 style="margin-bottom: 0;"><span id="lblHeaderTitle">Dosimat IoT CB</span> <span style="font-size: 0.7rem; color: var(--accent); margin-left: 5px;">v7.15</span></h1>
+                <h1 style="margin-bottom: 0;"><span id="lblHeaderTitle">Dosimat IoT CB</span> <span style="font-size: 0.7rem; color: var(--accent); margin-left: 5px;">v7.16</span></h1>
                 <div id="lblUserName" style="font-size: 0.85rem; font-weight: 300; color: var(--text-muted); display: none;"></div>
             </div>
         </div>
@@ -327,58 +327,6 @@
                 <span class="material-symbols-outlined" style="font-size: 1.15rem;">local_shipping</span>
                 <span>Solicitar Reposición de Cloro</span>
             </button>
-
-            <!-- Separador / Acordeón para Calculadora de Dimensiones de Piscina -->
-            <div class="pool-calc-accordion" style="margin-top: 1rem; border-top: 1px solid var(--card-border); padding-top: 0.8rem;">
-                <div class="calc-header-toggle" id="btnTogglePoolCalc" style="display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none;">
-                    <div style="display: flex; align-items: center; gap: 0.4rem;">
-                        <span class="material-symbols-outlined" style="color: var(--accent); font-size: 1.15rem;">calculate</span>
-                        <span style="font-weight: 700; font-size: 0.88rem; color: var(--text-color);">Calculadora de Piscina y Dosis Sugerida</span>
-                    </div>
-                    <span class="material-symbols-outlined" id="iconToggleCalc" style="color: var(--text-muted); transition: transform 0.2s ease;">expand_more</span>
-                </div>
-
-                <div id="poolCalcBody" style="display: none; margin-top: 0.8rem;">
-                    <p style="font-size: 0.76rem; color: var(--text-muted); margin-bottom: 0.6rem;">
-                        Ingresa las medidas de tu piscina para calcular el volumen de agua y la dosis diaria recomendada para Verano (1 Litro cada 20.000 L).
-                    </p>
-                    
-                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.5rem; margin-bottom: 0.6rem;">
-                        <div class="form-group" style="margin-bottom: 0;">
-                            <label style="font-size: 0.75rem;">Ancho (m)</label>
-                            <input type="number" id="inpPoolAncho" step="0.1" min="1" max="50" placeholder="Ej: 4.0" style="padding: 0.45rem; text-align: center;">
-                        </div>
-                        <div class="form-group" style="margin-bottom: 0;">
-                            <label style="font-size: 0.75rem;">Largo (m)</label>
-                            <input type="number" id="inpPoolLargo" step="0.1" min="1" max="50" placeholder="Ej: 8.0" style="padding: 0.45rem; text-align: center;">
-                        </div>
-                        <div class="form-group" style="margin-bottom: 0;">
-                            <label style="font-size: 0.75rem;">Prof. Prom (m)</label>
-                            <input type="number" id="inpPoolProf" step="0.1" min="0.5" max="10" placeholder="Ej: 1.5" style="padding: 0.45rem; text-align: center;">
-                        </div>
-                    </div>
-
-                    <!-- Resultados de la Calculadora -->
-                    <div class="calc-results-box" style="background: var(--bg-color); border: 1px solid var(--card-border); border-radius: 8px; padding: 0.65rem 0.85rem; margin-top: 0.5rem;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.3rem;">
-                            <span style="font-size: 0.78rem; color: var(--text-muted);">Volumen de la Piscina:</span>
-                            <span id="lblPoolVolumen" style="font-size: 0.88rem; font-weight: 700; color: var(--text-color);">0 Litros (0 m³)</span>
-                        </div>
-                        <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px dashed var(--card-border); padding-top: 0.3rem;">
-                            <span style="font-size: 0.78rem; color: var(--text-muted);">Dosis Diaria Sugerida (Verano):</span>
-                            <span id="lblPoolDosisSugerida" style="font-size: 0.92rem; font-weight: 800; color: var(--accent);">0.0 L / día</span>
-                        </div>
-                    </div>
-                    
-                    <div class="form-group" style="margin-top: 0.8rem; margin-bottom: 0.2rem;">
-                        <label style="font-size: 0.78rem; font-weight: 600;">Dosis por ciclo configurada (en Litros):</label>
-                        <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.2rem;">
-                            <input type="number" id="inpDosisConfigLitros" step="0.1" min="0.1" max="20" value="2.0" style="width: 90px; padding: 0.45rem; text-align: center;">
-                            <span style="font-size: 0.8rem; color: var(--text-muted);">Litros por dosis estándar</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
         </div>
 
         <!-- Tarjeta Full Width: Anular Próximas Dosis -->
@@ -453,6 +401,68 @@
 
         <!-- Vista 1: Editor de Cronograma y Parámetros -->
         <div id="subtab-prog-editor">
+            <!-- Calculadora de Piscina y Dosis Sugerida -->
+            <div class="card">
+                <h2 style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+                    <div style="display: flex; align-items: center; gap: 0.4rem;">
+                        <span class="material-symbols-outlined" style="color: var(--accent); font-size: 1.25rem;">calculate</span>
+                        <span>Calculadora de Piscina y Dosis</span>
+                    </div>
+                    <span class="material-symbols-outlined btn-help" data-help="calculadora-piscina">help</span>
+                </h2>
+                <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 0.8rem;">
+                    Ingresá las medidas de tu pileta para estimar el volumen de agua y calcular la dosis de cloro recomendada.
+                </p>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.5rem; margin-bottom: 0.8rem;">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label style="font-size: 0.75rem;">Ancho (m)</label>
+                        <input type="number" id="inpPoolAncho" step="0.1" min="1" max="50" placeholder="Ej: 4.0" style="padding: 0.45rem; text-align: center;">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label style="font-size: 0.75rem;">Largo (m)</label>
+                        <input type="number" id="inpPoolLargo" step="0.1" min="1" max="50" placeholder="Ej: 8.0" style="padding: 0.45rem; text-align: center;">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label style="font-size: 0.75rem;">Prof. Prom (m)</label>
+                        <input type="number" id="inpPoolProf" step="0.1" min="0.5" max="10" placeholder="Ej: 1.5" style="padding: 0.45rem; text-align: center;">
+                    </div>
+                </div>
+
+                <!-- Resultados de la Calculadora -->
+                <div class="calc-results-box" style="background: var(--bg-color); border: 1px solid var(--card-border); border-radius: 8px; padding: 0.75rem 0.9rem; margin-bottom: 0.8rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+                        <span style="font-size: 0.8rem; color: var(--text-muted);">Volumen de la Piscina:</span>
+                        <span id="lblPoolVolumen" style="font-size: 0.9rem; font-weight: 700; color: var(--text-main);">0 Litros (0 m³)</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px dashed var(--card-border); padding-top: 0.4rem;">
+                        <span style="font-size: 0.8rem; color: var(--text-muted);">Dosis Diaria Sugerida (Verano):</span>
+                        <span id="lblPoolDosisSugerida" style="font-size: 0.95rem; font-weight: 800; color: var(--accent);">0.0 L / día</span>
+                    </div>
+                </div>
+
+                <!-- Configuración de Dosis de Cloro y Dosis de Agua para Calibración -->
+                <div style="background: var(--bg-color); border: 1px solid var(--card-border); border-radius: 8px; padding: 0.8rem; display: flex; flex-direction: column; gap: 0.6rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 0.5rem;">
+                        <div>
+                            <div style="font-size: 0.82rem; font-weight: 700; color: var(--text-main);">Dosis de Cloro por Ciclo:</div>
+                            <div style="font-size: 0.74rem; color: var(--text-muted);">Cantidad de cloro colocada en cada ciclo de verano</div>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 0.3rem;">
+                            <input type="number" id="inpDosisConfigLitros" step="0.1" min="0.1" max="20" value="2.0" style="width: 75px; padding: 0.4rem; text-align: center; font-weight: 700;">
+                            <span style="font-size: 0.82rem; font-weight: 600; color: var(--text-main);">L</span>
+                        </div>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; border-top: 1px dashed var(--card-border); padding-top: 0.5rem;">
+                        <div>
+                            <div style="font-size: 0.82rem; font-weight: 700; color: var(--accent);">Dosis de Agua (Calibración):</div>
+                            <div style="font-size: 0.74rem; color: var(--text-muted);">Usar agua para medir (+20% respecto a cloro)</div>
+                        </div>
+                        <span id="lblPoolDosisAgua" style="font-size: 0.95rem; font-weight: 800; color: var(--accent); white-space: nowrap;">2.4 L (+20%)</span>
+                    </div>
+                </div>
+            </div>
+
             <!-- Parámetros de Tiempos del Dosificador -->
             <div class="card">
                 <h2 style="display: flex; align-items: center; width: 100%;">
@@ -1363,6 +1373,6 @@
         </div>
     </div>
 
-    <script type="module" src="app.js?v=7.15"></script>
+    <script type="module" src="app.js?v=7.16"></script>
 </body>
 </html>

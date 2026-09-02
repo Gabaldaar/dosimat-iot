@@ -335,14 +335,15 @@ const HELP_TOPICS = {
             "• Presiona 'Guardar Modelo de Placa' y confirma."
     },
     "bidon-calculadora": {
-        title: "Nivel de Cloro y Calculadora",
+        title: "Nivel de Cloro y Autonomía",
         text: "🛢️ ESTIMADOR DE NIVEL DE BIDÓN Y AUTONOMÍA:\n\n" +
             "• Muestra el nivel de cloro restante y los días de autonomía estimados según tu cronograma activo y los registros del equipo.\n" +
             "• Registrar Recarga: Permite registrar los bidones repuestos y la fecha de reposición (reiniciando el contador del equipo).\n" +
-            "• Ajustar Nivel: Permite configurar la cantidad total de bidones instalados (27L c/u), corregir el nivel actual y definir los umbrales de alerta de nivel bajo.\n\n" +
-            "📐 CALCULADORA DE PISCINA:\n\n" +
-            "• Calcula el volumen total de agua ingresando las dimensiones de tu piscina.\n" +
-            "• Sugiere la dosis diaria recomendada para Verano a razón de 1 Litro de cloro cada 20.000 Litros de agua (sin alterar tu cronograma)."
+            "• Ajustar Nivel: Permite configurar la cantidad total de bidones instalados (27L c/u), corregir el nivel actual y definir los umbrales de alerta de nivel bajo."
+    },
+    "calculadora-piscina": {
+        title: "Calculadora de Piscina y Dosis",
+        text: "Configurá cuánto Cloro querés colocar en cada dosis (Para Verano) o dejá el valor sugerido según el volumen de tu pileta. Utilizá la dosis de Agua para calibrar tu dosificador. Podés encontrar las intrucciones en la sección Ayuda"
     },
     "ubicacion-clima": {
         title: "Ubicación y Clima Local",
@@ -4778,8 +4779,13 @@ function initPoolCalculator() {
 
         const lblVol = document.getElementById('lblPoolVolumen');
         const lblSugerida = document.getElementById('lblPoolDosisSugerida');
+        const lblAgua = document.getElementById('lblPoolDosisAgua');
         if (lblVol) lblVol.innerText = `${volLitros.toLocaleString('es-AR')} Litros (${volM3.toFixed(1)} m³)`;
         if (lblSugerida) lblSugerida.innerText = `${dosisSugeridaVerano} L / día`;
+        if (lblAgua) {
+            const dosisAgua = (dL * 1.2).toFixed(1);
+            lblAgua.innerText = `${dosisAgua} L (+20%)`;
+        }
 
         renderBidonUI();
     };
@@ -4788,14 +4794,6 @@ function initPoolCalculator() {
     if (inpLargo) inpLargo.oninput = recalcularPiscina;
     if (inpProf) inpProf.oninput = recalcularPiscina;
     if (inpDosisLitros) inpDosisLitros.oninput = recalcularPiscina;
-
-    if (btnToggleCalc && calcBody) {
-        btnToggleCalc.onclick = () => {
-            const isHidden = (calcBody.style.display === "none");
-            calcBody.style.display = isHidden ? "block" : "none";
-            if (iconToggle) iconToggle.style.transform = isHidden ? "rotate(180deg)" : "rotate(0deg)";
-        };
-    }
 
     recalcularPiscina();
 }
