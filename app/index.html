@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Dosimat IoT</title>
     <link rel="manifest" href="manifest.json">
-    <link rel="stylesheet" href="index.css?v=7.27">
+    <link rel="stylesheet" href="index.css?v=7.28">
     <!-- Google Fonts & Icons -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -68,6 +68,14 @@
                 <span id="lblAuthSwitchText">¿No tienes cuenta?</span> 
                 <a href="#" id="lnkAuthSwitch" style="color: var(--accent); font-weight: bold; text-decoration: none;">Regístrate</a>
             </p>
+
+            <!-- Tip para clientes de reposición -->
+            <div style="margin-top: 1.2rem; padding: 0.65rem 0.85rem; background: rgba(2, 132, 199, 0.08); border: 1px solid rgba(2, 132, 199, 0.25); border-radius: 8px; font-size: 0.78rem; color: #0284c7; text-align: left; display: flex; gap: 0.5rem; align-items: flex-start; line-height: 1.35;">
+                <span class="material-symbols-outlined" style="font-size: 1.15rem; flex-shrink: 0; color: #0284c7; margin-top: 1px;">lightbulb</span>
+                <div>
+                    <strong>Tip para clientes:</strong> Si ya contrataste el servicio de cloro con Dosimat, utilizá el mismo correo electrónico que diste a la empresa para sincronizar tus pedidos y recambios automáticamente.
+                </div>
+            </div>
         </div>
     </div>
 
@@ -96,7 +104,7 @@
     <header>
         <div class="header-title" style="align-items: flex-start; margin-top: 5px;">
             <div style="display: flex; flex-direction: column;">
-                <h1 style="margin-bottom: 0;"><span id="lblHeaderTitle">Dosimat IoT CB</span> <span style="font-size: 0.7rem; color: var(--accent); margin-left: 5px;">v7.27</span></h1>
+                <h1 style="margin-bottom: 0;"><span id="lblHeaderTitle">Dosimat IoT CB</span> <span style="font-size: 0.7rem; color: var(--accent); margin-left: 5px;">v7.28</span></h1>
                 <div id="lblUserName" style="font-size: 0.85rem; font-weight: 300; color: var(--text-muted); display: none;"></div>
             </div>
         </div>
@@ -168,6 +176,30 @@
 
     <!-- 1. Pantalla: Dashboard / Control -->
     <div id="tab-dashboard" class="container active">
+
+        <!-- Banner de Vinculación con Servicio de Reposición -->
+        <div id="bannerUnlinkedRepoPro" class="card" style="display: none; background: linear-gradient(135deg, rgba(245, 158, 11, 0.12), rgba(2, 132, 199, 0.08)); border: 1px solid rgba(245, 158, 11, 0.4); margin-bottom: 0.8rem; padding: 0.9rem 1rem;">
+            <div style="display: flex; gap: 0.8rem; align-items: flex-start;">
+                <div style="background: rgba(245, 158, 11, 0.2); color: #d97706; padding: 0.45rem; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                    <span class="material-symbols-outlined" style="font-size: 1.4rem;">local_shipping</span>
+                </div>
+                <div style="flex: 1;">
+                    <div style="font-weight: 800; font-size: 0.92rem; color: var(--text-main); margin-bottom: 0.2rem;">¿Tenés servicio de reposición con Dosimat?</div>
+                    <div style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.35; margin-bottom: 0.75rem;">
+                        Tu equipo aún no está vinculado a tu ficha de cliente. Vinculalo para activar el recambio automático de bidones en cada entrega.
+                    </div>
+                    <div style="display: flex; gap: 0.4rem; flex-wrap: wrap;">
+                        <button class="btn" id="btnOpenVincularCuitDashboard" style="width: auto; padding: 0.35rem 0.75rem; font-size: 0.78rem; background: var(--accent); color: white; display: inline-flex; align-items: center; gap: 0.3rem;">
+                            <span class="material-symbols-outlined" style="font-size: 0.95rem;">badge</span>
+                            <span>Vincular por CUIT / DNI</span>
+                        </button>
+                        <button class="btn outline" id="btnDismissRepoBanner" style="width: auto; padding: 0.35rem 0.75rem; font-size: 0.78rem; border-color: var(--card-border); color: var(--text-muted);">
+                            No soy cliente de reposición
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
 
         <!-- Centro de Diagnóstico y Alertas Inteligentes -->
         <div id="systemAlertsContainer" style="display: none; margin-bottom: 0.8rem;"></div>
@@ -1239,6 +1271,15 @@
                 <h3 style="margin: 0;">Ajustar Nivel y Capacidad</h3>
             </div>
 
+            <!-- Bloqueo de Capacidad si está en Reposición -->
+            <div id="boxBidonesGestionadosPro" style="display: none; background: rgba(2, 132, 199, 0.08); border: 1px solid rgba(2, 132, 199, 0.25); border-radius: 8px; padding: 0.5rem 0.7rem; font-size: 0.76rem; color: #0284c7; margin-bottom: 0.75rem; line-height: 1.35;">
+                <div style="display: flex; align-items: center; gap: 0.35rem; font-weight: 700; margin-bottom: 2px;">
+                    <span class="material-symbols-outlined" style="font-size: 1rem;">lock</span>
+                    <span>Capacidad asignada por tu plan Dosimat Pro</span>
+                </div>
+                <div>Fijado en <strong id="lblProCantBidonesFijada">1</strong> bidones. Si modificaste la instalación física, solicitá el cambio a soporte técnico.</div>
+            </div>
+
             <div class="form-group">
                 <label>Cantidad Total de Bidones Instalados (27 L c/u):</label>
                 <div style="display: flex; align-items: center; gap: 0.5rem;">
@@ -1274,9 +1315,14 @@
                 </div>
             </div>
 
-            <div style="display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 1.2rem;">
-                <button class="btn outline" id="btnCancelAjustarBidon" style="width: auto; padding: 0.5rem 1rem;">Cancelar</button>
-                <button class="btn" id="btnConfirmAjustarBidon" style="width: auto; padding: 0.5rem 1rem;">Guardar Ajuste</button>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1.2rem; gap: 0.5rem; flex-wrap: wrap;">
+                <button type="button" id="btnDesvincularRepoDesdeAjuste" style="display: none; background: none; border: none; color: var(--danger); font-size: 0.75rem; text-decoration: underline; cursor: pointer; padding: 0;">
+                    Desvincular servicio de reposición
+                </button>
+                <div style="display: flex; gap: 0.5rem; margin-left: auto;">
+                    <button class="btn outline" id="btnCancelAjustarBidon" style="width: auto; padding: 0.5rem 1rem;">Cancelar</button>
+                    <button class="btn" id="btnConfirmAjustarBidon" style="width: auto; padding: 0.5rem 1rem;">Guardar Ajuste</button>
+                </div>
             </div>
         </div>
     </div>
@@ -1470,6 +1516,54 @@
         </div>
     </div>
 
-    <script type="module" src="app.js?v=7.27"></script>
+    <!-- Modal: Vincular por CUIT / DNI -->
+    <div id="modalVincularCuitPro" class="overlay" style="display: none; z-index: 1060;">
+        <div class="overlay-content" style="max-width: 400px; text-align: left; padding: 1.25rem;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.8rem;">
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <span class="material-symbols-outlined" style="color: var(--accent); font-size: 1.6rem;">badge</span>
+                    <h3 style="margin: 0; font-size: 1.15rem;">Vincular Ficha de Cliente</h3>
+                </div>
+                <button class="btn-icon" id="btnCloseModalVincularCuit" style="background: none; border: none; font-size: 1.3rem; color: var(--text-muted); cursor: pointer; padding: 0.2rem;">&times;</button>
+            </div>
+            
+            <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 1rem; line-height: 1.35;">
+                Ingresá el CUIT, DNI o número de teléfono registrado en tu ficha de cliente de Dosimat para vincular este equipo con tu cuenta de reposición.
+            </p>
+
+            <div class="form-group" style="margin-bottom: 0.8rem;">
+                <label style="font-size: 0.75rem; font-weight: 700;">CUIT / DNI o Teléfono del Titular:</label>
+                <div style="display: flex; gap: 0.4rem; margin-top: 0.3rem;">
+                    <input type="text" id="inpVincularCuitVal" placeholder="Ej: 20301234567 o 1155551234" style="flex: 1; padding: 0.55rem; font-size: 0.9rem; border-radius: 8px; border: 1px solid var(--card-border);">
+                    <button class="btn" id="btnBuscarFichaCuit" style="width: auto; padding: 0.55rem 0.9rem; background: var(--accent); color: white; font-weight: 700;">
+                        Buscar
+                    </button>
+                </div>
+            </div>
+
+            <!-- Contenedor de Resultado de Búsqueda -->
+            <div id="boxResultadoFichaCuit" style="display: none; margin-bottom: 1rem; padding: 0.85rem; background: var(--bg-color); border: 1px solid var(--card-border); border-radius: 10px;">
+                <div style="font-size: 0.7rem; font-weight: 800; text-transform: uppercase; color: var(--accent); margin-bottom: 2px;">Ficha encontrada</div>
+                <div id="lblCuitClienteNombre" style="font-weight: 800; font-size: 1.05rem; color: var(--text-color);">--</div>
+                <div id="lblCuitClienteDetalle" style="font-size: 0.8rem; color: var(--text-muted); margin-top: 2px;">--</div>
+                
+                <div style="margin-top: 0.6rem; padding-top: 0.6rem; border-top: 1px dashed var(--card-border); display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem;">
+                    <span style="color: var(--text-muted);">Capacidad del Plan:</span>
+                    <strong id="lblCuitClientePlan" style="color: #0284c7;">-- Bidones</strong>
+                </div>
+            </div>
+
+            <div id="lblVincularCuitError" style="display: none; color: var(--danger); font-size: 0.78rem; text-align: center; margin-bottom: 0.8rem;"></div>
+
+            <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+                <button class="btn outline" id="btnCancelModalVincularCuit" style="width: auto; padding: 0.5rem 1rem;">Cancelar</button>
+                <button class="btn" id="btnConfirmarVinculacionCuit" style="display: none; width: auto; padding: 0.5rem 1.2rem; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; font-weight: 800;">
+                    Vincular este Equipo
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="app.js?v=7.28"></script>
 </body>
 </html>

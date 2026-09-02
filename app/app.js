@@ -5057,12 +5057,53 @@ function initBidonModule() {
             if (inpAlertaDias) inpAlertaDias.value = bidonConfig.alertaMinDias || 5;
             if (inpAlertaLitros) inpAlertaLitros.value = bidonConfig.alertaMinLitros || 4.0;
 
+            // Bloqueo de capacidad por plan oficial de Dosimat Pro
+            const boxProLock = document.getElementById('boxBidonesGestionadosPro');
+            const lblProLockCant = document.getElementById('lblProCantBidonesFijada');
+            const btnDesvincular = document.getElementById('btnDesvincularRepoDesdeAjuste');
+            const isReplenishClient = proClientState.isLinked && (proClientState.clientDoc?.esClienteReposicion !== false);
+            const isStaffOrTech = (typeof isTecnico === 'function' && isTecnico()) || (typeof isSuperAdmin === 'function' && isSuperAdmin());
+
+            if (isReplenishClient) {
+                if (boxProLock) boxProLock.style.display = 'block';
+                if (lblProLockCant) lblProLockCant.innerText = bTotal;
+                if (btnDesvincular) btnDesvincular.style.display = 'inline-block';
+                if (inpTotalBidones) inpTotalBidones.disabled = !isStaffOrTech;
+            } else {
+                if (boxProLock) boxProLock.style.display = 'none';
+                if (btnDesvincular) btnDesvincular.style.display = 'none';
+                if (inpTotalBidones) inpTotalBidones.disabled = false;
+            }
+
             const nivel = calcularNivelBidonActual();
             const litrosPorBidonActual = Math.min(32.0, Math.max(0, nivel.litrosPorBidon));
 
             if (rngAjuste) rngAjuste.value = litrosPorBidonActual.toFixed(1);
             updateAjustePreview();
             modalAjustar.style.display = 'flex';
+        };
+    }
+
+    const btnDesvincularAjuste = document.getElementById('btnDesvincularRepoDesdeAjuste');
+    if (btnDesvincularAjuste) {
+        btnDesvincularAjuste.onclick = () => {
+            if (confirm("¿Estás seguro de desvincular tu equipo del servicio de reposición automática? Podrás gestionar los bidones de forma 100% manual.")) {
+                localStorage.removeItem("dosimat_pro_client_id");
+                localStorage.removeItem("dosimat_pro_email");
+                localStorage.setItem("dosimat_ignorar_banner_repo_" + (currentMac || 'global'), 'true');
+                proClientState.isLinked = false;
+                proClientState.clientDoc = null;
+                proClientState.searchedEmail = "";
+                proClientState.customEmail = "";
+                if (currentMac && typeof db !== "undefined" && db) {
+                    try {
+                        updateDoc(doc(db, "equipos", currentMac), { pro_client_id: null, pro_client_mail: null }).catch(()=>{});
+                    } catch(e) {}
+                }
+                syncDosimatProClient();
+                if (modalAjustar) modalAjustar.style.display = 'none';
+                showToast("Equipo desvinculado. Ahora podés configurar tus bidones y recambios manualmente.");
+            }
         };
     }
 
@@ -5502,49 +5543,62 @@ async function syncDosimatProClient() {
 
     await ensureProAuth();
 
+    const storedClientId = localStorage.getItem("dosimat_pro_client_id") || "";
     const emailToSearch = (proClientState.customEmail || (proAuth?.currentUser?.email) || (auth.currentUser ? auth.currentUser.email : "") || "").trim().toLowerCase();
     proClientState.searchedEmail = emailToSearch;
 
-    if (!emailToSearch) {
-        proClientState.isLinked = false;
-        proClientState.clientDoc = null;
-        proClientState.upcomingDelivery = null;
-        proClientState.deliverySheetItem = null;
-        proClientState.openOrders = [];
-        proClientState.transactions = [];
-        proClientState.deliveryLocked = false;
-        renderDosimatProUI();
-        return;
-    }
-
     try {
-        // 1. Buscar en la colección 'clients' de DosimatPro
         let matchedDoc = null;
-        const qDirect = query(collection(proDb, "clients"), where("mail", "==", emailToSearch), limit(1));
-        const snapDirect = await getDocs(qDirect);
-        
-        if (!snapDirect.empty) {
-            matchedDoc = snapDirect.docs[0];
-        } else {
-            const allClientsSnap = await getDocs(collection(proDb, "clients"));
-            for (const docSnap of allClientsSnap.docs) {
-                const data = docSnap.data();
-                if (!data.mail) continue;
-                const emails = data.mail.split(/[;, ]+/).map(e => e.trim().toLowerCase()).filter(Boolean);
-                if (emails.includes(emailToSearch)) {
-                    matchedDoc = docSnap;
-                    break;
+
+        // 1. Si tenemos un clientId guardado (por vinculación CUIT o ID de equipo), buscarlo directamente
+        if (storedClientId) {
+            try {
+                const snapById = await getDoc(doc(proDb, "clients", storedClientId));
+                if (snapById && snapById.exists()) {
+                    matchedDoc = snapById;
+                }
+            } catch(e) {}
+        }
+
+        // 2. Si no encontramos por ID, buscar por email
+        if (!matchedDoc && emailToSearch) {
+            const qDirect = query(collection(proDb, "clients"), where("mail", "==", emailToSearch), limit(1));
+            const snapDirect = await getDocs(qDirect);
+            
+            if (!snapDirect.empty) {
+                matchedDoc = snapDirect.docs[0];
+            } else {
+                const allClientsSnap = await getDocs(collection(proDb, "clients"));
+                for (const docSnap of allClientsSnap.docs) {
+                    const data = docSnap.data();
+                    if (!data.mail) continue;
+                    const emails = data.mail.split(/[;, ]+/).map(e => e.trim().toLowerCase()).filter(Boolean);
+                    if (emails.includes(emailToSearch)) {
+                        matchedDoc = docSnap;
+                        break;
+                    }
                 }
             }
         }
 
         if (matchedDoc) {
+            const clientData = matchedDoc.data();
             proClientState.isLinked = true;
-            proClientState.clientDoc = { id: matchedDoc.id, ...matchedDoc.data() };
+            proClientState.clientDoc = { id: matchedDoc.id, ...clientData };
             
-            if (!proClientState.customEmail) {
-                proClientState.customEmail = emailToSearch;
-                localStorage.setItem("dosimat_pro_email", emailToSearch);
+            localStorage.setItem("dosimat_pro_client_id", matchedDoc.id);
+            if (clientData.mail && !proClientState.customEmail) {
+                proClientState.customEmail = clientData.mail;
+                localStorage.setItem("dosimat_pro_email", clientData.mail);
+            }
+
+            // Sincronizar automáticamente la cantidad de bidones de la ficha oficial
+            const cantPro = clientData?.equipoInstalado?.cantBidones;
+            if (cantPro && Number(cantPro) > 0 && bidonConfig.totalBidones !== Number(cantPro)) {
+                console.log(`[Dosimat Pro] Sincronizando capacidad de bidones con ficha oficial: ${cantPro} bidones`);
+                bidonConfig.totalBidones = Number(cantPro);
+                saveBidonConfigCloud();
+                renderBidonUI();
             }
 
             // Sincronizar doc en /users/${uid} para asegurar permisos en Firestore rules
@@ -5553,7 +5607,7 @@ async function syncDosimatProClient() {
                     await setDoc(doc(proDb, 'users', proAuth.currentUser.uid), {
                         clientId: matchedDoc.id,
                         role: 'Client',
-                        email: emailToSearch,
+                        email: emailToSearch || clientData.mail || '',
                         updatedAt: new Date().toISOString()
                     }, { merge: true });
                 } catch (userErr) {
@@ -5561,19 +5615,11 @@ async function syncDosimatProClient() {
                 }
             }
 
-            // 2. Cargar Próxima Entrega / Hojas de ruta
+            // Cargar datos del portal
             await loadProDeliverySheet(matchedDoc.id);
-
-            // 3. Cargar Pedidos Activos del Cliente
             await loadProClientOrders(matchedDoc.id);
-
-            // 4. Cargar Historial de Transacciones
             await loadProTransactions(matchedDoc.id);
-
-            // 5. Configurar listeners en tiempo real
             setupProRealtimeListeners(matchedDoc.id);
-
-            // 6. Verificar si hay reposición para aplicar al bidón
             checkAndSyncProRefillToBidon();
         } else {
             proClientState.isLinked = false;
@@ -5681,6 +5727,17 @@ function formatProDate(isoDateStr) {
 }
 
 function renderDosimatProUI() {
+    // 0. Banner de Aviso para Equipos No Vinculados
+    const bannerUnlinked = document.getElementById('bannerUnlinkedRepoPro');
+    if (bannerUnlinked) {
+        const isIgnored = localStorage.getItem("dosimat_ignorar_banner_repo_" + (currentMac || 'global')) === 'true';
+        if (!proClientState.isLinked && !isIgnored) {
+            bannerUnlinked.style.display = 'block';
+        } else {
+            bannerUnlinked.style.display = 'none';
+        }
+    }
+
     // 1. Banner en el Dashboard
     const bannerReparto = document.getElementById('bannerProReparto');
     const lblRepartoTit = document.getElementById('lblProRepartoTitulo');
@@ -6463,8 +6520,177 @@ function initDosimatProModule() {
         };
     }
 
+    // Inicializar módulo de vinculación por CUIT/DNI
+    initVincularCuitModule();
+
     // Sincronizar automáticamente en el inicio
     syncDosimatProClient();
+}
+
+function initVincularCuitModule() {
+    const modalVincular = document.getElementById('modalVincularCuitPro');
+    const btnOpenDashboard = document.getElementById('btnOpenVincularCuitDashboard');
+    const btnDismissBanner = document.getElementById('btnDismissRepoBanner');
+    const btnCloseModal = document.getElementById('btnCloseModalVincularCuit');
+    const btnCancelModal = document.getElementById('btnCancelModalVincularCuit');
+    const inpCuit = document.getElementById('inpVincularCuitVal');
+    const btnBuscar = document.getElementById('btnBuscarFichaCuit');
+    const boxResultado = document.getElementById('boxResultadoFichaCuit');
+    const lblNombre = document.getElementById('lblCuitClienteNombre');
+    const lblDetalle = document.getElementById('lblCuitClienteDetalle');
+    const lblPlan = document.getElementById('lblCuitClientePlan');
+    const lblError = document.getElementById('lblVincularCuitError');
+    const btnConfirmar = document.getElementById('btnConfirmarVinculacionCuit');
+
+    let tempMatchedClient = null;
+
+    const abrirModal = () => {
+        if (inpCuit) inpCuit.value = "";
+        if (boxResultado) boxResultado.style.display = 'none';
+        if (lblError) { lblError.style.display = 'none'; lblError.innerText = ""; }
+        if (btnConfirmar) btnConfirmar.style.display = 'none';
+        tempMatchedClient = null;
+        if (modalVincular) modalVincular.style.display = 'flex';
+    };
+
+    const cerrarModal = () => {
+        if (modalVincular) modalVincular.style.display = 'none';
+    };
+
+    if (btnOpenDashboard) btnOpenDashboard.onclick = abrirModal;
+    if (btnCloseModal) btnCloseModal.onclick = cerrarModal;
+    if (btnCancelModal) btnCancelModal.onclick = cerrarModal;
+
+    if (btnDismissBanner) {
+        btnDismissBanner.onclick = () => {
+            const key = "dosimat_ignorar_banner_repo_" + (currentMac || 'global');
+            localStorage.setItem(key, "true");
+            const banner = document.getElementById('bannerUnlinkedRepoPro');
+            if (banner) banner.style.display = 'none';
+            if (currentMac && typeof db !== "undefined" && db) {
+                try {
+                    updateDoc(doc(db, "equipos", currentMac), { ignorar_banner_repo: true }).catch(()=>{});
+                } catch(e) {}
+            }
+            showToast("Aviso descartado. Podés gestionar tus bidones y recambios manualmente.");
+        };
+    }
+
+    if (btnBuscar) {
+        btnBuscar.onclick = async () => {
+            const rawVal = inpCuit ? inpCuit.value.trim() : "";
+            const cleanDigits = rawVal.replace(/\D/g, "");
+
+            if (!rawVal || (cleanDigits.length < 6 && !rawVal.includes("@"))) {
+                if (lblError) {
+                    lblError.innerText = "Por favor ingresá un CUIT, DNI o número de teléfono válido (mínimo 6 dígitos).";
+                    lblError.style.display = 'block';
+                }
+                return;
+            }
+
+            if (lblError) lblError.style.display = 'none';
+            if (boxResultado) boxResultado.style.display = 'none';
+            if (btnConfirmar) btnConfirmar.style.display = 'none';
+            btnBuscar.disabled = true;
+            btnBuscar.innerText = "Buscando...";
+
+            try {
+                if (!proDb) return;
+                await ensureProAuth();
+
+                const snap = await getDocs(collection(proDb, "clients"));
+                let matched = null;
+
+                for (const docSnap of snap.docs) {
+                    const d = docSnap.data();
+                    const cuitStr = String(d.cuit_dni || "").replace(/\D/g, "");
+                    const telStr = String(d.telefono || "").replace(/\D/g, "");
+                    const mailStr = String(d.mail || "").toLowerCase();
+
+                    if (cleanDigits && (cuitStr.includes(cleanDigits) || telStr.includes(cleanDigits))) {
+                        matched = { id: docSnap.id, ...d };
+                        break;
+                    } else if (rawVal.includes("@") && mailStr.includes(rawVal.toLowerCase())) {
+                        matched = { id: docSnap.id, ...d };
+                        break;
+                    }
+                }
+
+                if (matched) {
+                    tempMatchedClient = matched;
+                    if (lblNombre) lblNombre.innerText = `${matched.apellido || ''}, ${matched.nombre || ''}`.trim() || "Cliente";
+                    if (lblDetalle) lblDetalle.innerText = `${matched.direccion || ''} ${matched.localidad ? '(' + matched.localidad + ')' : ''}`.trim() || (matched.mail || 'Ficha oficial');
+                    const cantB = matched.equipoInstalado?.cantBidones || 1;
+                    if (lblPlan) lblPlan.innerText = `${cantB} ${cantB > 1 ? 'Bidones' : 'Bidón'} (${cantB * 27} Litros)`;
+                    if (boxResultado) boxResultado.style.display = 'block';
+                    if (btnConfirmar) btnConfirmar.style.display = 'inline-block';
+                } else {
+                    if (lblError) {
+                        lblError.innerText = "No encontramos ninguna ficha de cliente con esos datos. Verificá el número o contactá a soporte.";
+                        lblError.style.display = 'block';
+                    }
+                }
+            } catch (err) {
+                console.error("Error buscando ficha por CUIT:", err);
+                if (lblError) {
+                    lblError.innerText = "Ocurrió un error al consultar la base de clientes.";
+                    lblError.style.display = 'block';
+                }
+            } finally {
+                btnBuscar.disabled = false;
+                btnBuscar.innerText = "Buscar";
+            }
+        };
+    }
+
+    if (btnConfirmar) {
+        btnConfirmar.onclick = async () => {
+            if (!tempMatchedClient) return;
+
+            btnConfirmar.disabled = true;
+            btnConfirmar.innerText = "Vinculando...";
+
+            try {
+                localStorage.setItem("dosimat_pro_client_id", tempMatchedClient.id);
+                if (tempMatchedClient.mail) {
+                    localStorage.setItem("dosimat_pro_email", tempMatchedClient.mail);
+                    proClientState.customEmail = tempMatchedClient.mail;
+                }
+
+                // Guardar vínculo en el equipo en Firestore
+                if (currentMac && typeof db !== "undefined" && db) {
+                    try {
+                        await updateDoc(doc(db, "equipos", currentMac), {
+                            pro_client_id: tempMatchedClient.id,
+                            pro_client_mail: tempMatchedClient.mail || '',
+                            pro_client_nombre: `${tempMatchedClient.apellido || ''}, ${tempMatchedClient.nombre || ''}`.trim()
+                        });
+                    } catch (e) {
+                        console.warn("Aviso guardando pro_client_id en equipo:", e);
+                    }
+                }
+
+                // Sincronizar cantidad de bidones de la ficha oficial
+                const cantB = tempMatchedClient.equipoInstalado?.cantBidones;
+                if (cantB && Number(cantB) > 0) {
+                    bidonConfig.totalBidones = Number(cantB);
+                    saveBidonConfigCloud();
+                    renderBidonUI();
+                }
+
+                cerrarModal();
+                showToast(`¡Equipo vinculado exitosamente con la ficha de ${tempMatchedClient.nombre || 'Cliente'}!`);
+                await syncDosimatProClient();
+            } catch (e) {
+                console.error("Error al confirmar vinculación:", e);
+                showToast("No se pudo completar la vinculación.");
+            } finally {
+                btnConfirmar.disabled = false;
+                btnConfirmar.innerText = "Vincular este Equipo";
+            }
+        };
+    }
 }
 
 // Iniciar módulos al cargar
