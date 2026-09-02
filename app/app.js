@@ -4175,6 +4175,9 @@ async function handleNotifications(event) {
                         currentMac = chipId;
                         const lbl = document.getElementById('lblMac');
                         if (lbl) lbl.innerText = currentMac;
+                        if (typeof syncDosimatProClient === "function") {
+                            syncDosimatProClient();
+                        }
                     }
 
                     // Solicitar descarga de logs offline una sola vez
@@ -5128,19 +5131,24 @@ function initBidonModule() {
     const btnDesvincularAjuste = document.getElementById('btnDesvincularRepoDesdeAjuste');
     if (btnDesvincularAjuste) {
         btnDesvincularAjuste.onclick = () => {
-            if (confirm("¿Estás seguro de desvincular tu equipo del servicio de reposición automática? Podrás gestionar los bidones de forma 100% manual.")) {
+            if (confirm("¿Estás seguro de desvincular este equipo del servicio de reposición automática? Podrás gestionar los bidones de forma 100% manual.")) {
+                if (currentMac) {
+                    localStorage.removeItem("dosimat_pro_client_id_" + currentMac);
+                    localStorage.removeItem("dosimat_pro_email_" + currentMac);
+                    localStorage.setItem("dosimat_ignorar_banner_repo_" + currentMac, 'true');
+                    if (typeof db !== "undefined" && db) {
+                        try {
+                            updateDoc(doc(db, "equipos", currentMac), { pro_client_id: null, pro_client_mail: null, pro_client_nombre: null }).catch(()=>{});
+                        } catch(e) {}
+                    }
+                }
                 localStorage.removeItem("dosimat_pro_client_id");
                 localStorage.removeItem("dosimat_pro_email");
-                localStorage.setItem("dosimat_ignorar_banner_repo_" + (currentMac || 'global'), 'true');
                 proClientState.isLinked = false;
                 proClientState.clientDoc = null;
+                proClientState.clientId = null;
                 proClientState.searchedEmail = "";
                 proClientState.customEmail = "";
-                if (currentMac && typeof db !== "undefined" && db) {
-                    try {
-                        updateDoc(doc(db, "equipos", currentMac), { pro_client_id: null, pro_client_mail: null }).catch(()=>{});
-                    } catch(e) {}
-                }
                 syncDosimatProClient();
                 if (modalAjustar) modalAjustar.style.display = 'none';
                 showToast("Equipo desvinculado. Ahora podés configurar tus bidones y recambios manualmente.");
@@ -5584,20 +5592,46 @@ async function syncDosimatProClient() {
 
     await ensureProAuth();
 
-    const storedClientId = localStorage.getItem("dosimat_pro_client_id") || "";
-    const emailToSearch = (proClientState.customEmail || (proAuth?.currentUser?.email) || (auth.currentUser ? auth.currentUser.email : "") || "").trim().toLowerCase();
+    // 1. Obtener ID de cliente guardado ESPECÍFICAMENTE para este equipo (currentMac)
+    let storedClientId = "";
+    let storedEmail = "";
+
+    if (currentMac) {
+        storedClientId = localStorage.getItem("dosimat_pro_client_id_" + currentMac) || "";
+        storedEmail = localStorage.getItem("dosimat_pro_email_" + currentMac) || "";
+
+        // Si no está en localStorage, consultar Firestore en el doc del equipo
+        if (!storedClientId && typeof db !== "undefined" && db) {
+            try {
+                const eqSnap = await getDoc(doc(db, "equipos", currentMac));
+                if (eqSnap && eqSnap.exists()) {
+                    const eqData = eqSnap.data();
+                    if (eqData.pro_client_id) {
+                        storedClientId = eqData.pro_client_id;
+                        localStorage.setItem("dosimat_pro_client_id_" + currentMac, storedClientId);
+                    }
+                    if (eqData.pro_client_mail) {
+                        storedEmail = eqData.pro_client_mail;
+                        localStorage.setItem("dosimat_pro_email_" + currentMac, storedEmail);
+                    }
+                }
+            } catch(e) {}
+        }
+    }
+
+    const emailToSearch = (storedEmail || (currentMac ? "" : (proClientState.customEmail || "")) ).trim().toLowerCase();
     proClientState.searchedEmail = emailToSearch;
 
     try {
         let matchedDoc = null;
         const allClientsSnap = await getDocs(collection(proDb, "clients"));
 
-        // 1. Si tenemos un clientId guardado (por vinculación CUIT o ID de equipo), buscarlo en la colección
+        // 1. Si tenemos un clientId guardado para ESTE equipo, buscarlo en la colección
         if (storedClientId) {
             matchedDoc = allClientsSnap.docs.find(d => d.id === storedClientId);
         }
 
-        // 2. Si no encontramos por ID, buscar por email
+        // 2. Si no encontramos por ID pero hay un email explícito para ESTE equipo
         if (!matchedDoc && emailToSearch) {
             for (const docSnap of allClientsSnap.docs) {
                 const data = docSnap.data();
@@ -5616,10 +5650,11 @@ async function syncDosimatProClient() {
             proClientState.clientId = matchedDoc.id;
             proClientState.clientDoc = { id: matchedDoc.id, ...clientData };
             
-            localStorage.setItem("dosimat_pro_client_id", matchedDoc.id);
-            if (clientData.mail && !proClientState.customEmail) {
-                proClientState.customEmail = clientData.mail;
-                localStorage.setItem("dosimat_pro_email", clientData.mail);
+            if (currentMac) {
+                localStorage.setItem("dosimat_pro_client_id_" + currentMac, matchedDoc.id);
+                if (clientData.mail) {
+                    localStorage.setItem("dosimat_pro_email_" + currentMac, clientData.mail);
+                }
             }
 
             // Sincronizar automáticamente la cantidad de bidones de la ficha oficial
@@ -5652,8 +5687,10 @@ async function syncDosimatProClient() {
             setupProRealtimeListeners(matchedDoc.id);
             checkAndSyncProRefillToBidon();
         } else {
+            // Este equipo NO está vinculado a ningún cliente
             proClientState.isLinked = false;
             proClientState.clientDoc = null;
+            proClientState.clientId = null;
             proClientState.upcomingDelivery = null;
             proClientState.deliverySheetItem = null;
             proClientState.openOrders = [];
@@ -6679,16 +6716,22 @@ function initVincularCuitModule() {
                 // 1. Establecer estado vinculado inmediato
                 proClientState.isLinked = true;
                 proClientState.clientDoc = tempMatchedClient;
-                localStorage.setItem("dosimat_pro_client_id", tempMatchedClient.id);
-                localStorage.removeItem("dosimat_ignorar_banner_repo_" + (currentMac || 'global'));
+                proClientState.clientId = tempMatchedClient.id;
+
+                if (currentMac) {
+                    localStorage.setItem("dosimat_pro_client_id_" + currentMac, tempMatchedClient.id);
+                    if (tempMatchedClient.mail) {
+                        localStorage.setItem("dosimat_pro_email_" + currentMac, tempMatchedClient.mail);
+                    }
+                    localStorage.removeItem("dosimat_ignorar_banner_repo_" + currentMac);
+                }
 
                 const currentAppEmail = (auth.currentUser ? auth.currentUser.email : "") || "";
                 if (tempMatchedClient.mail) {
-                    localStorage.setItem("dosimat_pro_email", tempMatchedClient.mail);
                     proClientState.customEmail = tempMatchedClient.mail;
                 } else if (currentAppEmail) {
                     // Si el cliente no tenía correo en Dosimat Pro, asociar el de la sesión actual
-                    localStorage.setItem("dosimat_pro_email", currentAppEmail);
+                    if (currentMac) localStorage.setItem("dosimat_pro_email_" + currentMac, currentAppEmail);
                     proClientState.customEmail = currentAppEmail;
                     tempMatchedClient.mail = currentAppEmail;
                     if (proDb) {
