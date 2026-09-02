@@ -5062,17 +5062,23 @@ function initBidonModule() {
             const lblProLockCant = document.getElementById('lblProCantBidonesFijada');
             const btnDesvincular = document.getElementById('btnDesvincularRepoDesdeAjuste');
             const isReplenishClient = proClientState.isLinked && (proClientState.clientDoc?.esClienteReposicion !== false);
-            const isStaffOrTech = (typeof isTecnico === 'function' && isTecnico()) || (typeof isSuperAdmin === 'function' && isSuperAdmin());
+            const isStaffOrTech = (typeof userEsTecnicoOAdmin !== 'undefined' && userEsTecnicoOAdmin) || (localStorage.getItem("dosimat_user_role") === "tecnico" || localStorage.getItem("dosimat_user_role") === "super_admin");
 
             if (isReplenishClient) {
                 if (boxProLock) boxProLock.style.display = 'block';
                 if (lblProLockCant) lblProLockCant.innerText = bTotal;
                 if (btnDesvincular) btnDesvincular.style.display = 'inline-block';
-                if (inpTotalBidones) inpTotalBidones.disabled = !isStaffOrTech;
+                if (inpTotalBidones) {
+                    inpTotalBidones.disabled = !isStaffOrTech;
+                    inpTotalBidones.title = !isStaffOrTech ? "Capacidad fijada por tu plan de reposición" : "Modo Técnico habilitado";
+                }
             } else {
                 if (boxProLock) boxProLock.style.display = 'none';
                 if (btnDesvincular) btnDesvincular.style.display = 'none';
-                if (inpTotalBidones) inpTotalBidones.disabled = false;
+                if (inpTotalBidones) {
+                    inpTotalBidones.disabled = false;
+                    inpTotalBidones.title = "";
+                }
             }
 
             const nivel = calcularNivelBidonActual();
@@ -5549,34 +5555,22 @@ async function syncDosimatProClient() {
 
     try {
         let matchedDoc = null;
+        const allClientsSnap = await getDocs(collection(proDb, "clients"));
 
-        // 1. Si tenemos un clientId guardado (por vinculación CUIT o ID de equipo), buscarlo directamente
+        // 1. Si tenemos un clientId guardado (por vinculación CUIT o ID de equipo), buscarlo en la colección
         if (storedClientId) {
-            try {
-                const snapById = await getDoc(doc(proDb, "clients", storedClientId));
-                if (snapById && snapById.exists()) {
-                    matchedDoc = snapById;
-                }
-            } catch(e) {}
+            matchedDoc = allClientsSnap.docs.find(d => d.id === storedClientId);
         }
 
         // 2. Si no encontramos por ID, buscar por email
         if (!matchedDoc && emailToSearch) {
-            const qDirect = query(collection(proDb, "clients"), where("mail", "==", emailToSearch), limit(1));
-            const snapDirect = await getDocs(qDirect);
-            
-            if (!snapDirect.empty) {
-                matchedDoc = snapDirect.docs[0];
-            } else {
-                const allClientsSnap = await getDocs(collection(proDb, "clients"));
-                for (const docSnap of allClientsSnap.docs) {
-                    const data = docSnap.data();
-                    if (!data.mail) continue;
-                    const emails = data.mail.split(/[;, ]+/).map(e => e.trim().toLowerCase()).filter(Boolean);
-                    if (emails.includes(emailToSearch)) {
-                        matchedDoc = docSnap;
-                        break;
-                    }
+            for (const docSnap of allClientsSnap.docs) {
+                const data = docSnap.data();
+                if (!data.mail) continue;
+                const emails = data.mail.split(/[;, ]+/).map(e => e.trim().toLowerCase()).filter(Boolean);
+                if (emails.includes(emailToSearch)) {
+                    matchedDoc = docSnap;
+                    break;
                 }
             }
         }
@@ -5584,6 +5578,7 @@ async function syncDosimatProClient() {
         if (matchedDoc) {
             const clientData = matchedDoc.data();
             proClientState.isLinked = true;
+            proClientState.clientId = matchedDoc.id;
             proClientState.clientDoc = { id: matchedDoc.id, ...clientData };
             
             localStorage.setItem("dosimat_pro_client_id", matchedDoc.id);
