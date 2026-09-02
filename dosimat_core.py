@@ -58,6 +58,7 @@ adc_bomba = None
 UMBRAL_TENSION = 2.75
 ventana_scb = None # Rastreo de ventana programada activa en modelo SCB
 ultimo_evento_warning = "" # Registro del último evento o advertencia (ej: Dosis no realizada: Bomba apagada)
+cached_wifi_ssid = ""
 
 def init_hardware():
     global valvula, bomba, estado_dosimat, rtc_hw, adc_bomba
@@ -150,6 +151,16 @@ async def enviar_telemetria():
         "dr15": sum(d.get("r", 0) for d in config_ref.get("dosis_15d", [])) if isinstance(config_ref.get("dosis_15d"), list) else 0
     }
     try:
+        global cached_wifi_ssid
+        if not cached_wifi_ssid:
+            import ujson
+            try:
+                with open("wifi_config.json", "r") as f:
+                    w = ujson.load(f)
+                    cached_wifi_ssid = w.get("ssid", "")
+            except Exception: pass
+        if cached_wifi_ssid:
+            payload["wifi_ssid"] = cached_wifi_ssid
         if rtc_hw:
             t = rtc_hw.get_time()
             if t:
@@ -318,6 +329,8 @@ async def procesar_comando(cmd_dict):
         ssid = cmd_dict.get("ssid")
         password = cmd_dict.get("pass") or cmd_dict.get("pwd")
         if ssid:
+            global cached_wifi_ssid
+            cached_wifi_ssid = ssid
             await config_manager.guardar_wifi_config(ssid, password)
             await tx_queue.put({"tipo": "ACK_WIFI", "ssid": ssid, "_destino": origen})
             async def reboot_after_delay():
@@ -425,6 +438,8 @@ async def procesar_comando(cmd_dict):
         except Exception: pass
             
     elif cmd == "FACTORY_RESET":
+        global cached_wifi_ssid
+        cached_wifi_ssid = ""
         try:
             try: os.remove(config_manager.CONFIG_FILE)
             except OSError: pass

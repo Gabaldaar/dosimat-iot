@@ -1210,12 +1210,18 @@ onAuthStateChanged(auth, async (user) => {
 // === CONEXIÓN NUBE Y MQTT ===
 function setConexionModo(modo, ssid = "", msg = "Offline") {
     modoConexion = modo;
-    if (ssid) globalWifiSSID = ssid;
+    if (ssid) {
+        globalWifiSSID = ssid;
+        if (currentMac) localStorage.setItem(`dosimat_wifi_ssid_${currentMac}`, ssid);
+        localStorage.setItem("dosimat_wifi_ssid", ssid);
+    } else if (!globalWifiSSID && currentMac) {
+        globalWifiSSID = localStorage.getItem(`dosimat_wifi_ssid_${currentMac}`) || localStorage.getItem("dosimat_wifi_ssid") || "";
+    }
 
     const badge = document.getElementById('lblConnState') || document.getElementById('badgeConexion');
     if (badge) {
         if (modo === "NUBE") {
-            const nombreRed = globalWifiSSID || "Conectado";
+            const nombreRed = globalWifiSSID || (currentMac ? (localStorage.getItem(`dosimat_wifi_ssid_${currentMac}`) || localStorage.getItem("dosimat_wifi_ssid")) : "") || "Conectado";
             badge.innerHTML = `<span class="material-symbols-outlined" style="font-size: 1rem; vertical-align: middle;">wifi</span> <span>${nombreRed}</span>`;
             badge.className = "conn-badge conn-nube";
         } else if (modo === "BLE") {
@@ -2567,6 +2573,16 @@ function updateUI(raw_data) {
         }
     }
 
+    if (data.wifi_ssid || (data.data && data.data.wifi_ssid)) {
+        const detectedSsid = data.wifi_ssid || data.data.wifi_ssid;
+        if (detectedSsid) {
+            globalWifiSSID = detectedSsid;
+            if (currentMac) localStorage.setItem(`dosimat_wifi_ssid_${currentMac}`, detectedSsid);
+            localStorage.setItem("dosimat_wifi_ssid", detectedSsid);
+            if (modoConexion !== "BLE") setConexionModo("NUBE", detectedSsid);
+        }
+    }
+
     renderModeloUI();
 }
 
@@ -3214,8 +3230,12 @@ function updateConfigUI(data) {
     if (!data) return;
     lastConfigData = data;
 
-    if (data.wifi_ssid || data.ssid) {
-        globalWifiSSID = data.wifi_ssid || data.ssid;
+    const detectedSsid = data.wifi_ssid || data.ssid || (currentMac ? localStorage.getItem(`dosimat_wifi_ssid_${currentMac}`) : "");
+    if (detectedSsid) {
+        globalWifiSSID = detectedSsid;
+        if (currentMac) localStorage.setItem(`dosimat_wifi_ssid_${currentMac}`, detectedSsid);
+        const inpSsid = document.getElementById('inpWifiSsid');
+        if (inpSsid && !inpSsid.value) inpSsid.value = detectedSsid;
         if (modoConexion !== "BLE") setConexionModo("NUBE", globalWifiSSID);
     }
     actualizarPanelTemporada();
