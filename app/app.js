@@ -4823,36 +4823,30 @@ function calcularNivelBidonActual() {
 function aplicarRecargaCloro(bRepuestos, fechaStr, deliveryId = null, tipo = "Reposición Programada") {
     const totalBidonesConfig = Math.max(1, bidonConfig.totalBidones || 1);
 
-    // 1. Litros restantes previos
+    // 1. Litros restantes previos (Remanente en el equipo al momento del recambio)
     const prev = calcularNivelBidonActual();
-    const litrosRestantesPrevios = prev.litrosRestantes;
+    const remanentePrevio = Math.max(0, prev.litrosRestantes);
 
-    let litrosAgregados = 0;
-    let nuevosLitrosRestantes = 0;
+    // 2. Bidones efectivos a incorporar al equipo (acotados a la capacidad instalada física)
+    const bidonesEfectivos = (tipo === "Reposición Programada") 
+        ? Math.min(totalBidonesConfig, bRepuestos) 
+        : bRepuestos;
+
+    const litrosAgregados = bidonesEfectivos * 27.0;
+
+    // 3. Capacidad física máxima (32.0 L por bidón instalado). Si hay excedente sobre 32L/bidón, se descarta (vuelco a pileta)
     const maxCapacidadFisica = totalBidonesConfig * 32.0;
+    const nuevosLitrosRestantes = Math.min(maxCapacidadFisica, remanentePrevio + litrosAgregados);
 
-    if (tipo === "Reposición Programada") {
-        // En reposición programada, si se entregaron más bidones que la capacidad instalada,
-        // se llena el equipo al 100% de su capacidad instalada (los bidones extra quedan para recarga manual posterior)
-        const bidonesEfectivos = Math.min(totalBidonesConfig, bRepuestos);
-        litrosAgregados = bidonesEfectivos * 27.0;
-        nuevosLitrosRestantes = totalBidonesConfig * 27.0;
-        bidonConfig.bidonesRecargados = bidonesEfectivos;
-    } else {
-        // En recarga manual, se suman los litros del bidón colocado al nivel actual
-        litrosAgregados = bRepuestos * 27.0;
-        nuevosLitrosRestantes = Math.min(maxCapacidadFisica, litrosRestantesPrevios + litrosAgregados);
-        bidonConfig.bidonesRecargados = bRepuestos;
-    }
-
-    // 2. Actualizar estado local (preservando siempre totalBidones)
+    // 4. Actualizar estado local (preservando siempre totalBidones)
     bidonConfig.totalBidones = totalBidonesConfig;
     bidonConfig.litrosBase = nuevosLitrosRestantes;
+    bidonConfig.bidonesRecargados = bidonesEfectivos;
     bidonConfig.fechaRecarga = fechaStr;
     bidonConfig.dosisAcumuladasHardware = 0.0;
     bidonConfig.ultimaRecargaFecha = fechaStr;
     bidonConfig.ultimaRecargaLitros = litrosAgregados;
-    bidonConfig.ultimaRecargaBidones = bidonConfig.bidonesRecargados;
+    bidonConfig.ultimaRecargaBidones = bidonesEfectivos;
     bidonConfig.ultimaRecargaTipo = tipo;
 
     if (deliveryId) {
@@ -4860,7 +4854,7 @@ function aplicarRecargaCloro(bRepuestos, fechaStr, deliveryId = null, tipo = "Re
     }
     saveBidonConfigCloud();
 
-    // 3. Enviar comando de reset de contador al ESP32
+    // 5. Enviar comando de reset de contador al ESP32
     sendCommand({ comando: "RESET_CONTADOR_DOSIS" });
 
     if (typeof renderBidonUI === "function") {
@@ -4869,6 +4863,7 @@ function aplicarRecargaCloro(bRepuestos, fechaStr, deliveryId = null, tipo = "Re
 
     return {
         totalBidones: totalBidonesConfig,
+        remanentePrevio,
         litrosAgregados,
         nuevosLitrosRestantes,
         capTotal: maxCapacidadFisica,
