@@ -4752,7 +4752,6 @@ function renderBidonUI() {
 
     if (typeof evaluarAlertasSistema === "function") evaluarAlertasSistema();
 }
-}
 
 function initPoolCalculator() {
     try {
