@@ -1692,11 +1692,10 @@ function evaluarAlertasSistema() {
     }
 
     // 7. Alerta de Nivel de Cloro Bajo en el Bidón
-    if (typeof bidonConfig !== "undefined") {
-        const capTotal = (bidonConfig.totalBidones || 1) * (bidonConfig.litrosPorBidon || 27.0);
-        const consumidos = (bidonConfig.dosisAcumuladasHardware || 0.0) * (bidonConfig.dosisLitros || 2.0);
-        const restantes = Math.max(0, capTotal - consumidos);
-        const percent = Math.round((restantes / capTotal) * 100);
+    if (typeof calcularNivelBidonActual === "function") {
+        const nivel = calcularNivelBidonActual();
+        const restantes = nivel.litrosRestantes;
+        const percent = Math.round((nivel.litrosPorBidon / 27.0) * 100);
 
         let totalDosisPorSemana = 0;
         try {
@@ -4640,6 +4639,7 @@ let bidonConfig = {
     litrosPorBidon: 27.0,
     dosisLitros: 2.0,
     dosisAcumuladasHardware: 0.0,
+    litrosBase: 27.0,
     fechaRecarga: new Date().toISOString().split('T')[0],
     bidonesRecargados: 1,
     alertaMinDias: 5,
@@ -4652,46 +4652,53 @@ let poolDims = {
     prof: 1.5
 };
 
-function aplicarRecargaCloro(bRepuestos, fechaStr, deliveryId = null) {
-    const litrosPorBidon = bidonConfig.litrosPorBidon || 27.0;
+function calcularNivelBidonActual() {
+    const bTotal = Math.max(1, bidonConfig.totalBidones || 1);
+    const dosisAcum = Math.max(0, bidonConfig.dosisAcumuladasHardware || 0.0);
     const dosisL = bidonConfig.dosisLitros || 2.0;
+    const baseCargada = (bidonConfig.litrosBase !== undefined) ? bidonConfig.litrosBase : (bTotal * 27.0);
+    const litrosConsumidos = dosisAcum * dosisL;
+    const litrosRestantes = Math.max(0, baseCargada - litrosConsumidos);
+    const litrosPorBidon = litrosRestantes / bTotal;
+    const percentVisual = Math.min(100, Math.max(0, Math.round((litrosPorBidon / 32.0) * 100)));
+    return {
+        bTotal,
+        litrosRestantes,
+        litrosPorBidon,
+        percentVisual,
+        dosisAcum,
+        dosisL
+    };
+}
 
-    // 1. Capacidad total configurada (mantiene la configurada, o se expande si se repusieron más bidones que la capacidad)
+function aplicarRecargaCloro(bRepuestos, fechaStr, deliveryId = null) {
     const totalBidonesConfig = Math.max(bidonConfig.totalBidones || 1, bRepuestos);
-    const capTotal = totalBidonesConfig * litrosPorBidon;
 
-    // 2. Litros restantes que quedaban en el reservorio antes de la recarga
-    const dosisAcumPrevias = Math.max(0, bidonConfig.dosisAcumuladasHardware || 0.0);
-    const litrosConsumidosPrevios = dosisAcumPrevias * dosisL;
-    const litrosRestantesPrevios = Math.max(0, capTotal - litrosConsumidosPrevios);
+    // 1. Litros restantes previos
+    const prev = calcularNivelBidonActual();
+    const litrosRestantesPrevios = prev.litrosRestantes;
 
-    // 3. Litros agregados por la reposición
-    const litrosAgregados = bRepuestos * litrosPorBidon;
+    // 2. Litros agregados por la reposición (27 L c/u)
+    const litrosAgregados = bRepuestos * 27.0;
 
-    // 4. Nuevos litros restantes totales (topados a la capacidad máxima capTotal)
-    const nuevosLitrosRestantes = Math.min(capTotal, litrosRestantesPrevios + litrosAgregados);
-    const nuevosLitrosConsumidos = Math.max(0, capTotal - nuevosLitrosRestantes);
+    // 3. Nuevos litros restantes totales (máximo físico 32 L por bidón)
+    const maxCapacidadFisica = totalBidonesConfig * 32.0;
+    const nuevosLitrosRestantes = Math.min(maxCapacidadFisica, litrosRestantesPrevios + litrosAgregados);
 
-    // 5. Nuevas dosis acumuladas equivalentes para el contador
-    const nuevasDosisAcum = Math.round((nuevosLitrosConsumidos / dosisL) * 100) / 100;
-
-    // 6. Actualizar estado local
+    // 4. Actualizar estado local
     bidonConfig.totalBidones = totalBidonesConfig;
+    bidonConfig.litrosBase = nuevosLitrosRestantes;
     bidonConfig.bidonesRecargados = bRepuestos;
     bidonConfig.fechaRecarga = fechaStr;
-    bidonConfig.dosisAcumuladasHardware = nuevasDosisAcum;
+    bidonConfig.dosisAcumuladasHardware = 0.0;
 
     if (deliveryId) {
         localStorage.setItem("dosimat_last_applied_pro_delivery_id", deliveryId);
     }
     saveBidonConfigCloud();
 
-    // 7. Enviar comando de ajuste de contador al ESP32
-    if (nuevasDosisAcum === 0) {
-        sendCommand({ comando: "RESET_CONTADOR_DOSIS" });
-    } else {
-        sendCommand({ comando: "SET_CONTADOR_DOSIS", valor: nuevasDosisAcum });
-    }
+    // 5. Enviar comando de reset de contador al ESP32
+    sendCommand({ comando: "RESET_CONTADOR_DOSIS" });
 
     if (typeof renderBidonUI === "function") {
         renderBidonUI();
@@ -4701,32 +4708,28 @@ function aplicarRecargaCloro(bRepuestos, fechaStr, deliveryId = null) {
         totalBidones: totalBidonesConfig,
         litrosAgregados,
         nuevosLitrosRestantes,
-        capTotal,
-        nuevasDosisAcum
+        capTotal: maxCapacidadFisica,
+        nuevasDosisAcum: 0.0
     };
 }
 
 function renderBidonUI() {
     const lblLitros = document.getElementById('lblBidonLitros');
+    const lblNivelPorBidon = document.getElementById('lblBidonNivelPorBidon');
     const lblDias = document.getElementById('lblBidonDias');
     const lblDosisAcum = document.getElementById('lblBidonDosisAcum');
     const lblCapacidad = document.getElementById('lblBidonCapacidad');
     const lblPercent = document.getElementById('lblBidonPercent');
     const liquidEl = document.getElementById('bidonLiquid');
 
-    const capTotal = (bidonConfig.totalBidones || 1) * (bidonConfig.litrosPorBidon || 27.0);
-    const dosisAcum = Math.max(0, bidonConfig.dosisAcumuladasHardware || 0.0);
-    const dosisL = bidonConfig.dosisLitros || 2.0;
+    const nivel = calcularNivelBidonActual();
 
-    const litrosConsumidos = dosisAcum * dosisL;
-    const litrosRestantes = Math.max(0, capTotal - litrosConsumidos);
-    const percent = Math.min(100, Math.max(0, Math.round((litrosRestantes / capTotal) * 100)));
-
-    if (lblLitros) lblLitros.innerText = `${litrosRestantes.toFixed(1)} / ${capTotal.toFixed(1)} L`;
-    if (lblPercent) lblPercent.innerText = `${percent}%`;
-    if (liquidEl) liquidEl.style.height = `${percent}%`;
-    if (lblDosisAcum) lblDosisAcum.innerText = `${dosisAcum.toFixed(1)} dosis`;
-    if (lblCapacidad) lblCapacidad.innerText = `${bidonConfig.totalBidones} ${bidonConfig.totalBidones === 1 ? 'Bidón' : 'Bidones'} (${capTotal.toFixed(0)} L)`;
+    if (lblLitros) lblLitros.innerText = `${nivel.litrosRestantes.toFixed(1)} L`;
+    if (lblNivelPorBidon) lblNivelPorBidon.innerText = `${nivel.litrosPorBidon.toFixed(1)} L / bidón`;
+    if (lblPercent) lblPercent.innerText = `${nivel.litrosRestantes.toFixed(1)} L`;
+    if (liquidEl) liquidEl.style.height = `${nivel.percentVisual}%`;
+    if (lblDosisAcum) lblDosisAcum.innerText = `${nivel.dosisAcum.toFixed(1)} dosis`;
+    if (lblCapacidad) lblCapacidad.innerText = `${nivel.bTotal} ${nivel.bTotal === 1 ? 'Bidón' : 'Bidones'}`;
 
     // Calcular autonomía en días
     let totalDosisPorSemana = 0;
@@ -4740,14 +4743,15 @@ function renderBidonUI() {
     } catch(e) {}
 
     const dosisPorDia = totalDosisPorSemana > 0 ? (totalDosisPorSemana / 7.0) : 1.0;
-    const consumoDiarioLitros = dosisPorDia * dosisL;
-    const diasEstimados = (consumoDiarioLitros > 0) ? Math.round(litrosRestantes / consumoDiarioLitros) : 0;
+    const consumoDiarioLitros = dosisPorDia * nivel.dosisL;
+    const diasEstimados = (consumoDiarioLitros > 0) ? Math.round(nivel.litrosRestantes / consumoDiarioLitros) : 0;
 
     if (lblDias) {
-        lblDias.innerText = diasEstimados > 0 ? `~${diasEstimados} días` : (litrosRestantes === 0 ? "0 días" : "-- días");
+        lblDias.innerText = diasEstimados > 0 ? `~${diasEstimados} días` : (nivel.litrosRestantes === 0 ? "0 días" : "-- días");
     }
 
     if (typeof evaluarAlertasSistema === "function") evaluarAlertasSistema();
+}
 }
 
 function initPoolCalculator() {
@@ -4903,15 +4907,13 @@ function initBidonModule() {
 
     if (btnOpenAjustar && modalAjustar) {
         btnOpenAjustar.onclick = () => {
-            const bTotal = bidonConfig.totalBidones || 1;
+            const bTotal = Math.max(1, bidonConfig.totalBidones || 1);
             if (inpTotalBidones) inpTotalBidones.value = bTotal;
             if (inpAlertaDias) inpAlertaDias.value = bidonConfig.alertaMinDias || 5;
             if (inpAlertaLitros) inpAlertaLitros.value = bidonConfig.alertaMinLitros || 4.0;
 
-            const capTotal = bTotal * (bidonConfig.litrosPorBidon || 27.0);
-            const consumidos = (bidonConfig.dosisAcumuladasHardware || 0.0) * (bidonConfig.dosisLitros || 2.0);
-            const restantes = Math.max(0, capTotal - consumidos);
-            const litrosPorBidonActual = Math.min(32.0, Math.max(0, restantes / bTotal));
+            const nivel = calcularNivelBidonActual();
+            const litrosPorBidonActual = Math.min(32.0, Math.max(0, nivel.litrosPorBidon));
 
             if (rngAjuste) rngAjuste.value = litrosPorBidonActual.toFixed(1);
             updateAjustePreview();
@@ -4933,20 +4935,18 @@ function initBidonModule() {
             const aDias = parseInt(inpAlertaDias ? inpAlertaDias.value : 5) || 5;
             const aLitros = parseFloat(inpAlertaLitros ? inpAlertaLitros.value : 4.0) || 4.0;
 
-            const capNominal = bTotal * 27.0;
             const litrosRestantesDeseados = litrosPorBidon * bTotal;
-            const litrosConsumidos = Math.max(0, capNominal - litrosRestantesDeseados);
-            const dosisEquiv = Math.round((litrosConsumidos / (bidonConfig.dosisLitros || 2.0)) * 100) / 100;
 
             bidonConfig.totalBidones = bTotal;
-            bidonConfig.dosisAcumuladasHardware = dosisEquiv;
+            bidonConfig.litrosBase = litrosRestantesDeseados;
+            bidonConfig.dosisAcumuladasHardware = 0.0;
             bidonConfig.alertaMinDias = aDias;
             bidonConfig.alertaMinLitros = aLitros;
 
             saveBidonConfigCloud();
 
-            // Enviar ajuste al ESP32
-            sendCommand({ comando: "SET_CONTADOR_DOSIS", valor: dosisEquiv });
+            // Enviar reset de contador al ESP32 porque la base cargada ya refleja el total exacto deseado
+            sendCommand({ comando: "RESET_CONTADOR_DOSIS" });
 
             renderBidonUI();
             modalAjustar.style.display = 'none';
@@ -4975,10 +4975,7 @@ function initBidonModule() {
 
     if (btnOpenSolicitar && modalSolicitar) {
         btnOpenSolicitar.onclick = () => {
-            const capTotal = (bidonConfig.totalBidones || 1) * (bidonConfig.litrosPorBidon || 27.0);
-            const consumidos = (bidonConfig.dosisAcumuladasHardware || 0.0) * (bidonConfig.dosisLitros || 2.0);
-            const restantes = Math.max(0, capTotal - consumidos);
-            const percent = Math.round((restantes / capTotal) * 100);
+            const nivel = calcularNivelBidonActual();
 
             let totalDosisPorSemana = 0;
             try {
@@ -4991,10 +4988,10 @@ function initBidonModule() {
             } catch(e) {}
             const dosisPorDia = totalDosisPorSemana > 0 ? (totalDosisPorSemana / 7.0) : 1.0;
             const consumoDiarioLitros = dosisPorDia * (bidonConfig.dosisLitros || 2.0);
-            const diasEstimados = (consumoDiarioLitros > 0) ? Math.round(restantes / consumoDiarioLitros) : 0;
+            const diasEstimados = (consumoDiarioLitros > 0) ? Math.round(nivel.litrosRestantes / consumoDiarioLitros) : 0;
 
-            if (lblSolNivelActual) lblSolNivelActual.innerText = `${restantes.toFixed(1)} L (${percent}%)`;
-            if (lblSolAutonomia) lblSolAutonomia.innerText = diasEstimados > 0 ? `~${diasEstimados} días` : (restantes === 0 ? "0 días" : "-- días");
+            if (lblSolNivelActual) lblSolNivelActual.innerText = `${nivel.litrosRestantes.toFixed(1)} L (${nivel.litrosPorBidon.toFixed(1)} L/bidón)`;
+            if (lblSolAutonomia) lblSolAutonomia.innerText = diasEstimados > 0 ? `~${diasEstimados} días` : (nivel.litrosRestantes === 0 ? "0 días" : "-- días");
             if (inpSolCant) inpSolCant.value = bidonConfig.totalBidones || 1;
             updateSolPreview();
 
@@ -5010,10 +5007,7 @@ function initBidonModule() {
         btnSolWsp.onclick = () => {
             const cant = parseInt(inpSolCant ? inpSolCant.value : 1) || 1;
             const litros = (cant * 27.0).toFixed(1);
-            const capTotal = (bidonConfig.totalBidones || 1) * (bidonConfig.litrosPorBidon || 27.0);
-            const consumidos = (bidonConfig.dosisAcumuladasHardware || 0.0) * (bidonConfig.dosisLitros || 2.0);
-            const restantes = Math.max(0, capTotal - consumidos).toFixed(1);
-            const percent = Math.round((restantes / capTotal) * 100);
+            const nivel = calcularNivelBidonActual();
             const mac = currentMac || "No vinculada";
             
             const u = (typeof auth !== "undefined" && auth.currentUser) ? auth.currentUser : null;
@@ -5021,7 +5015,7 @@ function initBidonModule() {
             const userEmail = (u && u.email) ? u.email : "Sin email";
             const wspNum = globalSoporteWsp || "5491153074195";
 
-            const texto = `Hola! Quisiera solicitar la reposición de *${cant} bidón(es)* (${litros} Litros de cloro) para mi equipo Dosimat.\n\n📍 *Datos del Cliente y Equipo:*\n• Nombre: ${userName}\n• Email: ${userEmail}\n• MAC: ${mac}\n• Nivel actual: ${restantes} L (${percent}%)\n\nMuchas gracias!`;
+            const texto = `Hola! Quisiera solicitar la reposición de *${cant} bidón(es)* (${litros} Litros de cloro) para mi equipo Dosimat.\n\n📍 *Datos del Cliente y Equipo:*\n• Nombre: ${userName}\n• Email: ${userEmail}\n• MAC: ${mac}\n• Nivel actual: ${nivel.litrosRestantes.toFixed(1)} L (${nivel.litrosPorBidon.toFixed(1)} L/bidón)\n\nMuchas gracias!`;
             window.open(`https://wa.me/${wspNum}?text=${encodeURIComponent(texto)}`, '_blank');
         };
     }
@@ -5030,10 +5024,7 @@ function initBidonModule() {
         btnSolEmail.onclick = () => {
             const cant = parseInt(inpSolCant ? inpSolCant.value : 1) || 1;
             const litros = (cant * 27.0).toFixed(1);
-            const capTotal = (bidonConfig.totalBidones || 1) * (bidonConfig.litrosPorBidon || 27.0);
-            const consumidos = (bidonConfig.dosisAcumuladasHardware || 0.0) * (bidonConfig.dosisLitros || 2.0);
-            const restantes = Math.max(0, capTotal - consumidos).toFixed(1);
-            const percent = Math.round((restantes / capTotal) * 100);
+            const nivel = calcularNivelBidonActual();
             const mac = currentMac || "No vinculada";
             
             const u = (typeof auth !== "undefined" && auth.currentUser) ? auth.currentUser : null;
@@ -5042,7 +5033,7 @@ function initBidonModule() {
             const mailAddr = globalSoporteMail || "soporte@dosimat.com";
 
             const subject = encodeURIComponent(`Solicitud de Reposición de Cloro - ${userName} (${userEmail}) - Dosimat ${mac}`);
-            const body = encodeURIComponent(`Hola equipo de Dosimat,\n\nQuisiera solicitar la reposición de ${cant} bidón(es) de 27 Litros (${litros} Litros en total) para mi equipo Dosimat.\n\nDatos del Cliente y Equipo:\n- Nombre: ${userName}\n- Email: ${userEmail}\n- Identificador (MAC): ${mac}\n- Nivel actual estimado: ${restantes} Litros (${percent}%)\n\nMuchas gracias.\nSaludos cordiales,\n${userName}`);
+            const body = encodeURIComponent(`Hola equipo de Dosimat,\n\nQuisiera solicitar la reposición de ${cant} bidón(es) de 27 Litros (${litros} Litros en total) para mi equipo Dosimat.\n\nDatos del Cliente y Equipo:\n- Nombre: ${userName}\n- Email: ${userEmail}\n- Identificador (MAC): ${mac}\n- Nivel actual estimado: ${nivel.litrosRestantes.toFixed(1)} Litros (${nivel.litrosPorBidon.toFixed(1)} L/bidón)\n\nMuchas gracias.\nSaludos cordiales,\n${userName}`);
             window.location.href = `mailto:${mailAddr}?subject=${subject}&body=${body}`;
         };
     }

@@ -96,7 +96,7 @@
     <header>
         <div class="header-title" style="align-items: flex-start; margin-top: 5px;">
             <div style="display: flex; flex-direction: column;">
-                <h1 style="margin-bottom: 0;"><span id="lblHeaderTitle">Dosimat IoT CB</span> <span style="font-size: 0.7rem; color: var(--accent); margin-left: 5px;">v7.19</span></h1>
+                <h1 style="margin-bottom: 0;"><span id="lblHeaderTitle">Dosimat IoT CB</span> <span style="font-size: 0.7rem; color: var(--accent); margin-left: 5px;">v7.20</span></h1>
                 <div id="lblUserName" style="font-size: 0.85rem; font-weight: 300; color: var(--text-muted); display: none;"></div>
             </div>
         </div>
@@ -279,7 +279,7 @@
                             <div class="bidon-liquid" id="bidonLiquid" style="height: 100%;">
                                 <div class="bidon-wave"></div>
                             </div>
-                            <div class="bidon-percent" id="lblBidonPercent">100%</div>
+                            <div class="bidon-percent" id="lblBidonPercent" style="font-size: 0.92rem; font-weight: 800; white-space: nowrap;">27.0 L</div>
                         </div>
                     </div>
                 </div>
@@ -287,7 +287,11 @@
                 <div class="bidon-stats-container">
                     <div class="bidon-stat-item">
                         <span class="bidon-stat-label">Litros Restantes:</span>
-                        <span class="bidon-stat-val" id="lblBidonLitros">27.0 / 27.0 L</span>
+                        <span class="bidon-stat-val" id="lblBidonLitros">27.0 L</span>
+                    </div>
+                    <div class="bidon-stat-item">
+                        <span class="bidon-stat-label">Nivel por Bidón:</span>
+                        <span class="bidon-stat-val" id="lblBidonNivelPorBidon">27.0 L / bidón</span>
                     </div>
                     <div class="bidon-stat-item">
                         <span class="bidon-stat-label">Autonomía Estimada:</span>
@@ -298,8 +302,8 @@
                         <span class="bidon-stat-val" id="lblBidonDosisAcum">0.0 dosis</span>
                     </div>
                     <div class="bidon-stat-item">
-                        <span class="bidon-stat-label">Capacidad:</span>
-                        <span class="bidon-stat-sub" id="lblBidonCapacidad">1 Bidón (27 L)</span>
+                        <span class="bidon-stat-label">Capacidad Instalada:</span>
+                        <span class="bidon-stat-sub" id="lblBidonCapacidad">1 Bidón</span>
                     </div>
                 </div>
             </div>
@@ -1395,6 +1399,6 @@
         </div>
     </div>
 
-    <script type="module" src="app.js?v=7.19"></script>
+    <script type="module" src="app.js?v=7.20"></script>
 </body>
 </html>
