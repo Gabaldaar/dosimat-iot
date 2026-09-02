@@ -4817,7 +4817,7 @@ function calcularNivelBidonActual() {
     };
 }
 
-function aplicarRecargaCloro(bRepuestos, fechaStr, deliveryId = null, tipo = "Reposición Oficial") {
+function aplicarRecargaCloro(bRepuestos, fechaStr, deliveryId = null, tipo = "Reposición Programada") {
     const totalBidonesConfig = Math.max(bidonConfig.totalBidones || 1, bRepuestos);
 
     // 1. Litros restantes previos
@@ -4895,7 +4895,9 @@ function renderBidonUI() {
             } catch(e){}
             const bCant = bidonConfig.ultimaRecargaBidones || bidonConfig.bidonesRecargados || bidonConfig.totalBidones || 1;
             const bTxt = `${bCant} ${bCant === 1 ? 'bidón' : 'bidones'}`;
-            const tipoTxt = bidonConfig.ultimaRecargaTipo || 'Reposición';
+            let tipoTxt = bidonConfig.ultimaRecargaTipo || 'Reposición Programada';
+            if (tipoTxt === 'Reposición Oficial') tipoTxt = 'Reposición Programada';
+            if (tipoTxt === 'Recarga Manual (Emergencia)') tipoTxt = 'Recarga Manual';
             lblUltimaRecarga.innerText = `${fTxt} (${bTxt} • ${tipoTxt})`;
         } else {
             lblUltimaRecarga.innerText = "Sin registros";
@@ -5051,8 +5053,7 @@ function initBidonModule() {
         btnConfirmRecarga.onclick = () => {
             const bRepuestos = parseFloat(inpRecargaBidones ? inpRecargaBidones.value : 1) || 1;
             const fechaStr = inpRecargaFecha ? inpRecargaFecha.value : new Date().toISOString().split('T')[0];
-            const isReplenishClient = proClientState.isLinked && (proClientState.clientDoc?.esClienteReposicion !== false);
-            const tipoRecarga = isReplenishClient ? "Recarga Manual (Emergencia)" : "Recarga Manual";
+            const tipoRecarga = "Recarga Manual";
 
             const res = aplicarRecargaCloro(bRepuestos, fechaStr, null, tipoRecarga);
 
@@ -5570,7 +5571,7 @@ function checkAndSyncProRefillToBidon() {
     if (isNewerOrEqualDate && isDifferentSig) {
         console.log(`[Auto-Refill] Aplicando reposición automática: ${latestDelivery.cloro} bidón(es) del ${latestDelivery.date}`);
 
-        const res = aplicarRecargaCloro(latestDelivery.cloro, latestDelivery.date, latestDelivery.id, "Reposición Oficial");
+        const res = aplicarRecargaCloro(latestDelivery.cloro, latestDelivery.date, latestDelivery.id, "Reposición Programada");
         localStorage.setItem("dosimat_last_applied_pro_delivery_sig", currentSig);
 
         const fechaFmt = formatProDate(latestDelivery.date);
