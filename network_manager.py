@@ -152,7 +152,11 @@ async def conectar_wifi_non_blocking(wlan):
         return False
 
     print(f"[WIFI] Conectando a AP: {ssid}...")
-    wlan.connect(ssid, password)
+    try:
+        if not wlan.isconnected():
+            wlan.connect(ssid, password)
+    except OSError as e_conn:
+        print("[WIFI] Aviso al conectar (reconexión):", e_conn)
     
     # Bucle de espera no bloqueante de 15 segundos máximo (30 * 500ms)
     for _ in range(30):
