@@ -144,7 +144,9 @@ async def enviar_telemetria():
         "temp_comp": 1 if config_ref.get("temp_comp_activa", False) else 0,
         "temp_offset": float(config_ref.get("temp_offset", 0.0)),
         "ult_ref_ts": int(config_ref.get("ultimo_refuerzo_temp_ts", 0)),
-        "dosis_acum": float(config_ref.get("dosis_acumuladas", 0.0))
+        "dosis_acum": float(config_ref.get("dosis_acumuladas", 0.0)),
+        "dn15": sum(d.get("n", 0) for d in config_ref.get("dosis_15d", [])) if isinstance(config_ref.get("dosis_15d"), list) else 0,
+        "dr15": sum(d.get("r", 0) for d in config_ref.get("dosis_15d", [])) if isinstance(config_ref.get("dosis_15d"), list) else 0
     }
     try:
         if rtc_hw:
@@ -704,6 +706,32 @@ async def dispenser_loop():
                 factor_temporada = 1.0 if es_temporada_alta() else (float(config_ref.get("ajuste_baja", 50)) / 100.0)
                 dosis_incremento = round(factor_refuerzo * factor_temporada, 2)
                 config_ref["dosis_acumuladas"] = round(config_ref.get("dosis_acumuladas", 0.0) + dosis_incremento, 2)
+
+                # Registro de dosis en ventana móvil de 15 días
+                try:
+                    t_loc = time.localtime(ultima_dosis_ts)
+                    fecha_hoy = f"{t_loc[0]}-{t_loc[1]:02d}-{t_loc[2]:02d}"
+                    d15 = config_ref.get("dosis_15d", [])
+                    if not isinstance(d15, list):
+                        d15 = []
+                    entry = None
+                    for e in d15:
+                        if isinstance(e, dict) and e.get("dia") == fecha_hoy:
+                            entry = e
+                            break
+                    if entry is None:
+                        entry = {"dia": fecha_hoy, "ts": int(ultima_dosis_ts), "n": 0, "r": 0}
+                        d15.append(entry)
+                    if refuerzo_activo:
+                        entry["r"] = entry.get("r", 0) + 1
+                    else:
+                        entry["n"] = entry.get("n", 0) + 1
+                    
+                    limite_15d = ultima_dosis_ts - (15 * 86400)
+                    d15 = [e for e in d15 if isinstance(e, dict) and e.get("ts", ultima_dosis_ts) >= limite_15d][-15:]
+                    config_ref["dosis_15d"] = d15
+                except Exception as e_d15:
+                    print("[DOSIS_15D] Error registrando:", e_d15)
 
                 refuerzo_activo = False
                 config_ref["refuerzo_activo"] = False

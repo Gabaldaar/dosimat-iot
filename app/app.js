@@ -1450,43 +1450,135 @@ function isDosisExitosaLog(item) {
     );
 }
 
-function calcularDosis15Dias(logs) {
+let hardwareDosis15Cache = { n: 0, r: 0 };
+let historialDosisDedicado = [];
+let unsubscribeHistorialDosis = null;
+
+function registrarDosisEnHistorialDedicado(item) {
+    if (!item) return;
+    const now = Date.now();
+    let ts = extractLogTimestampMs(item) || now;
+    let isRef = false;
+    let msg = "";
+
+    if (typeof item === 'string') {
+        msg = item;
+    } else if (item && typeof item === 'object') {
+        msg = item.msg || item.mensaje || item.tipo || "";
+        if (item.refuerzo === true || item.refuerzo === 1 || item.refuerzo === "1" || item.refuerzo === "true") isRef = true;
+    }
+
+    const msgLower = msg.toLowerCase();
+    if (isRef || msgLower.includes("refuerzo activo") || msgLower.includes("refuerzo: si") || msgLower.includes("con refuerzo") || msgLower.includes("refuerzo")) {
+        isRef = true;
+    }
+
+    const minuteBucket = Math.floor(ts / 60000);
+    const dosisId = `dosis_${minuteBucket}`;
+
+    const dosisRecord = {
+        id: dosisId,
+        timestamp: ts,
+        fecha: formatLogDate(ts) || new Date(ts).toLocaleString('es-AR'),
+        refuerzo: isRef,
+        tipo: isRef ? "refuerzo" : "normal"
+    };
+
+    const exists = historialDosisDedicado.some(d => d.id === dosisId || Math.abs((d.timestamp || 0) - ts) < 30000);
+    if (!exists) {
+        historialDosisDedicado.push(dosisRecord);
+        if (currentMac) {
+            localStorage.setItem(`dosimat_historial_dosis_${currentMac}`, JSON.stringify(historialDosisDedicado));
+        }
+        if (currentMac && modoConexion !== "BLE" && typeof db !== "undefined") {
+            try {
+                const docRef = doc(db, "equipos", currentMac, "historial_dosis", dosisId);
+                setDoc(docRef, dosisRecord, { merge: true }).catch(err => console.warn("Error guardando dosis en cloud:", err));
+            } catch(e){}
+        }
+    }
+}
+
+function listenToHistorialDosis() {
+    if (unsubscribeHistorialDosis) {
+        unsubscribeHistorialDosis();
+        unsubscribeHistorialDosis = null;
+    }
+    if (!currentMac) return;
+
+    try {
+        const localSaved = localStorage.getItem(`dosimat_historial_dosis_${currentMac}`);
+        if (localSaved) {
+            historialDosisDedicado = JSON.parse(localSaved) || [];
+            actualizarMetricasDosis15Dias();
+        }
+    } catch(e){}
+
+    if (modoConexion === "BLE" || typeof db === "undefined") return;
+
+    try {
+        const q = query(collection(db, "equipos", currentMac, "historial_dosis"), orderBy("timestamp", "desc"), limit(100));
+        unsubscribeHistorialDosis = onSnapshot(q, (snap) => {
+            if (!snap.empty) {
+                const cloudRecords = [];
+                snap.forEach(docSnap => {
+                    cloudRecords.push(docSnap.data());
+                });
+                historialDosisDedicado = cloudRecords;
+                localStorage.setItem(`dosimat_historial_dosis_${currentMac}`, JSON.stringify(historialDosisDedicado));
+                actualizarMetricasDosis15Dias();
+            }
+        }, (err) => {
+            console.warn("Snapshot historial_dosis:", err.message);
+        });
+    } catch(e) {
+        console.warn("Error escuchando historial_dosis:", e);
+    }
+}
+
+function actualizarMetricasDosis15Dias() {
     const valDosisNormales = document.getElementById('valDosisNormales');
     const valDosisRefuerzo = document.getElementById('valDosisRefuerzo');
     if (!valDosisNormales || !valDosisRefuerzo) return;
-    if (!logs || !Array.isArray(logs)) return;
+
+    if (modoConexion === "BLE" && (hardwareDosis15Cache.n > 0 || hardwareDosis15Cache.r > 0)) {
+        valDosisNormales.innerText = hardwareDosis15Cache.n;
+        valDosisRefuerzo.innerText = hardwareDosis15Cache.r;
+        return;
+    }
 
     const limitMs = 15 * 24 * 60 * 60 * 1000; // 15 días
     const now = Date.now();
     let normCount = 0;
     let refCount = 0;
 
-    logs.forEach(item => {
-        let ts = extractLogTimestampMs(item) || now;
-        let isRef = false;
-        let msg = "";
-
-        if (typeof item === 'string') {
-            msg = item;
-        } else if (item && typeof item === 'object') {
-            msg = item.msg || item.mensaje || item.tipo || "";
-            if (item.refuerzo === true || item.refuerzo === 1 || item.refuerzo === "1" || item.refuerzo === "true") isRef = true;
-        }
+    historialDosisDedicado.forEach(item => {
+        let ts = item.timestamp || (item.ts ? item.ts * 1000 : now);
+        if (ts && typeof ts.toMillis === 'function') ts = ts.toMillis();
+        else if (ts && typeof ts.seconds === 'number') ts = ts.seconds * 1000;
 
         if (now - ts <= limitMs && now >= ts - 86400000) {
-            if (isDosisExitosaLog(item)) {
-                const msgLower = msg.toLowerCase();
-                if (isRef || msgLower.includes("refuerzo activo") || msgLower.includes("refuerzo: si") || msgLower.includes("con refuerzo") || msgLower.includes("refuerzo")) {
-                    refCount++;
-                } else {
-                    normCount++;
-                }
+            if (item.refuerzo === true || item.tipo === "refuerzo" || item.refuerzo === 1 || item.refuerzo === "1") {
+                refCount++;
+            } else {
+                normCount++;
             }
         }
     });
 
     valDosisNormales.innerText = normCount;
     valDosisRefuerzo.innerText = refCount;
+}
+
+function calcularDosis15Dias(logs) {
+    if (logs && Array.isArray(logs)) {
+        logs.forEach(item => {
+            if (isDosisExitosaLog(item)) {
+                registrarDosisEnHistorialDedicado(item);
+            }
+        });
+    }
+    actualizarMetricasDosis15Dias();
 }
 
 function renderLogsList(logs) {
@@ -1796,6 +1888,7 @@ function evaluarAlertasSistema() {
 }
 
 function listenLogsCollection() {
+    listenToHistorialDosis();
     if (unsubscribeLogs) {
         unsubscribeLogs();
         unsubscribeLogs = null;
@@ -2156,6 +2249,14 @@ function updateUI(raw_data) {
     updateSubtexto();
     actualizarLedVirtual();
     updatePanelEstadoBadges();
+
+    if (data.dn15 !== undefined || data.dr15 !== undefined) {
+        hardwareDosis15Cache.n = Number(data.dn15) || 0;
+        hardwareDosis15Cache.r = Number(data.dr15) || 0;
+        if (modoConexion === "BLE") {
+            actualizarMetricasDosis15Dias();
+        }
+    }
 
     // Actualización dinámica del FONDO del Panel de Estado
     const panelEstado = document.querySelector('.panel-estado');
