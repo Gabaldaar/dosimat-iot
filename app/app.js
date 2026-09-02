@@ -1947,6 +1947,12 @@ function connectNube() {
         }, (err) => {
             console.warn("Firestore snapshot config:", err.message);
         });
+
+        getDoc(doc(db, "equipos", currentMac)).then(snap => {
+            if (snap.exists()) {
+                updateConfigUI(snap.data());
+            }
+        }).catch(err => console.warn("Aviso leyendo doc root de equipo:", err));
     }
 
     if (unsubscribeProgramas) unsubscribeProgramas();
@@ -2967,6 +2973,51 @@ function updateConfigUI(data) {
     if (data.modelo !== undefined) {
         globalModelo = String(data.modelo).toUpperCase();
         renderModeloUI();
+    }
+
+    // Sincronizar bidón desde Firestore
+    if (data.bidon || data.bidonConfig) {
+        const bData = data.bidon || data.bidonConfig;
+        bidonConfig = Object.assign(bidonConfig, bData);
+        if (currentMac) localStorage.setItem(`dosimat_bidon_config_${currentMac}`, JSON.stringify(bidonConfig));
+        localStorage.setItem("dosimat_bidon_config", JSON.stringify(bidonConfig));
+        if (typeof renderBidonUI === "function") renderBidonUI();
+    } else if (data.bidon_total_bidones !== undefined) {
+        bidonConfig.totalBidones = Number(data.bidon_total_bidones) || 1;
+        if (data.bidon_dosis_litros !== undefined) bidonConfig.dosisLitros = Number(data.bidon_dosis_litros);
+        if (data.bidon_fecha_recarga) bidonConfig.fechaRecarga = data.bidon_fecha_recarga;
+        if (typeof renderBidonUI === "function") renderBidonUI();
+    }
+
+    // Sincronizar dimensiones de piscina desde Firestore
+    if (data.piscina || data.poolDims) {
+        const pData = data.piscina || data.poolDims;
+        poolDims = Object.assign(poolDims, pData);
+        if (currentMac) localStorage.setItem(`dosimat_pool_dims_${currentMac}`, JSON.stringify(poolDims));
+        localStorage.setItem("dosimat_pool_dims", JSON.stringify(poolDims));
+        const inpAncho = document.getElementById('inpPoolAncho');
+        const inpLargo = document.getElementById('inpPoolLargo');
+        const inpProf = document.getElementById('inpPoolProf');
+        if (inpAncho) inpAncho.value = poolDims.ancho;
+        if (inpLargo) inpLargo.value = poolDims.largo;
+        if (inpProf) inpProf.value = poolDims.prof;
+    }
+
+    // Sincronizar ubicación climática desde Firestore
+    if (data.ubicacion || data.userLocation) {
+        const uData = data.ubicacion || data.userLocation;
+        if (uData.name && uData.lat && uData.lon) {
+            const prevLocKey = `${userLocation.lat},${userLocation.lon}`;
+            userLocation = Object.assign(userLocation, uData);
+            if (currentMac) localStorage.setItem(`dosimat_location_${currentMac}`, JSON.stringify(userLocation));
+            localStorage.setItem("dosimat_location", JSON.stringify(userLocation));
+            
+            const newLocKey = `${userLocation.lat},${userLocation.lon}`;
+            if (typeof updateLocationDisplay === "function") updateLocationDisplay();
+            if (prevLocKey !== newLocKey && typeof fetchWeatherData === "function") {
+                fetchWeatherData(userLocation.lat, userLocation.lon, userLocation.name);
+            }
+        }
     }
 
     if (typeof updateSubtexto === 'function') updateSubtexto();
@@ -4358,9 +4409,77 @@ function updateLocationDisplay() {
     if (lblCoords) lblCoords.innerText = `${userLocation.lat}°, ${userLocation.lon}°`;
 }
 
+async function saveUserLocationCloud() {
+    if (currentMac) localStorage.setItem(`dosimat_location_${currentMac}`, JSON.stringify(userLocation));
+    localStorage.setItem("dosimat_location", JSON.stringify(userLocation));
+
+    if (!currentMac || modoConexion === "BLE") return;
+    try {
+        const cfgRef = doc(db, "equipos", currentMac, "config", "actual");
+        await setDoc(cfgRef, {
+            ubicacion: userLocation,
+            config_version: Date.now()
+        }, { merge: true });
+
+        await setDoc(doc(db, "equipos", currentMac), {
+            userLocation: userLocation,
+            updatedAt: new Date().toISOString()
+        }, { merge: true });
+    } catch(e) {
+        console.warn("Error guardando userLocation en Firestore:", e);
+    }
+}
+
+async function saveBidonConfigCloud() {
+    if (currentMac) localStorage.setItem(`dosimat_bidon_config_${currentMac}`, JSON.stringify(bidonConfig));
+    localStorage.setItem("dosimat_bidon_config", JSON.stringify(bidonConfig));
+
+    if (!currentMac || modoConexion === "BLE") return;
+    try {
+        const cfgRef = doc(db, "equipos", currentMac, "config", "actual");
+        await setDoc(cfgRef, {
+            bidon: bidonConfig,
+            bidon_total_bidones: bidonConfig.totalBidones,
+            bidon_dosis_litros: bidonConfig.dosisLitros,
+            bidon_fecha_recarga: bidonConfig.fechaRecarga,
+            bidon_dosis_acum: bidonConfig.dosisAcumuladasHardware,
+            config_version: Date.now()
+        }, { merge: true });
+
+        await setDoc(doc(db, "equipos", currentMac), {
+            bidonConfig: bidonConfig,
+            updatedAt: new Date().toISOString()
+        }, { merge: true });
+    } catch(e) {
+        console.warn("Error guardando bidonConfig en Firestore:", e);
+    }
+}
+
+async function savePoolDimsCloud() {
+    if (currentMac) localStorage.setItem(`dosimat_pool_dims_${currentMac}`, JSON.stringify(poolDims));
+    localStorage.setItem("dosimat_pool_dims", JSON.stringify(poolDims));
+
+    if (!currentMac || modoConexion === "BLE") return;
+    try {
+        const cfgRef = doc(db, "equipos", currentMac, "config", "actual");
+        await setDoc(cfgRef, {
+            piscina: poolDims,
+            config_version: Date.now()
+        }, { merge: true });
+
+        await setDoc(doc(db, "equipos", currentMac), {
+            poolDims: poolDims,
+            updatedAt: new Date().toISOString()
+        }, { merge: true });
+    } catch(e) {
+        console.warn("Error guardando poolDims en Firestore:", e);
+    }
+}
+
 function initWeatherModule() {
     try {
-        const saved = localStorage.getItem("dosimat_location");
+        const key = currentMac ? `dosimat_location_${currentMac}` : "dosimat_location";
+        const saved = localStorage.getItem(key) || localStorage.getItem("dosimat_location");
         if (saved) {
             userLocation = JSON.parse(saved);
         }
@@ -4404,7 +4523,7 @@ function initWeatherModule() {
                     lat: parseFloat(lat.toFixed(4)),
                     lon: parseFloat(lon.toFixed(4))
                 };
-                localStorage.setItem("dosimat_location", JSON.stringify(userLocation));
+                saveUserLocationCloud();
                 updateLocationDisplay();
                 fetchWeatherData(userLocation.lat, userLocation.lon, userLocation.name);
                 showToast(`Ubicación establecida: ${foundName}`);
@@ -4454,7 +4573,7 @@ function initWeatherModule() {
                             lat: parseFloat(city.latitude.toFixed(4)),
                             lon: parseFloat(city.longitude.toFixed(4))
                         };
-                        localStorage.setItem("dosimat_location", JSON.stringify(userLocation));
+                        saveUserLocationCloud();
                         updateLocationDisplay();
                         fetchWeatherData(userLocation.lat, userLocation.lon, userLocation.name);
                         dropResults.style.display = "none";
@@ -4552,26 +4671,16 @@ function aplicarRecargaCloro(bRepuestos, fechaStr, deliveryId = null) {
     bidonConfig.fechaRecarga = fechaStr;
     bidonConfig.dosisAcumuladasHardware = nuevasDosisAcum;
 
-    localStorage.setItem("dosimat_bidon_config", JSON.stringify(bidonConfig));
     if (deliveryId) {
         localStorage.setItem("dosimat_last_applied_pro_delivery_id", deliveryId);
     }
+    saveBidonConfigCloud();
 
     // 7. Enviar comando de ajuste de contador al ESP32
     if (nuevasDosisAcum === 0) {
         sendCommand({ comando: "RESET_CONTADOR_DOSIS" });
     } else {
         sendCommand({ comando: "SET_CONTADOR_DOSIS", valor: nuevasDosisAcum });
-    }
-
-    // 8. Persistir en Firestore del equipo
-    if (currentMac) {
-        setDoc(doc(db, "equipos", currentMac, "config", "actual"), {
-            bidon_fecha_recarga: fechaStr,
-            bidon_total_bidones: totalBidonesConfig,
-            bidon_dosis_acum: nuevasDosisAcum,
-            reset_dosis_ts: Date.now()
-        }, { merge: true }).catch(err => console.warn("Aviso Firestore config bidon:", err));
     }
 
     if (typeof renderBidonUI === "function") {
@@ -4660,8 +4769,8 @@ function initPoolCalculator() {
 
         poolDims = { ancho: a, largo: l, prof: p };
         bidonConfig.dosisLitros = dL;
-        localStorage.setItem("dosimat_pool_dims", JSON.stringify(poolDims));
-        localStorage.setItem("dosimat_bidon_config", JSON.stringify(bidonConfig));
+        savePoolDimsCloud();
+        saveBidonConfigCloud();
 
         const volM3 = a * l * p;
         const volLitros = Math.round(volM3 * 1000);
@@ -4693,7 +4802,8 @@ function initPoolCalculator() {
 
 function initBidonModule() {
     try {
-        const savedBidon = localStorage.getItem("dosimat_bidon_config");
+        const key = currentMac ? `dosimat_bidon_config_${currentMac}` : "dosimat_bidon_config";
+        const savedBidon = localStorage.getItem(key) || localStorage.getItem("dosimat_bidon_config");
         if (savedBidon) bidonConfig = Object.assign(bidonConfig, JSON.parse(savedBidon));
     } catch(e) {}
 
@@ -4805,7 +4915,7 @@ function initBidonModule() {
             bidonConfig.alertaMinDias = aDias;
             bidonConfig.alertaMinLitros = aLitros;
 
-            localStorage.setItem("dosimat_bidon_config", JSON.stringify(bidonConfig));
+            saveBidonConfigCloud();
 
             // Enviar ajuste al ESP32
             sendCommand({ comando: "SET_CONTADOR_DOSIS", valor: dosisEquiv });
