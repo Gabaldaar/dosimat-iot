@@ -1213,18 +1213,22 @@ function setConexionModo(modo, ssid = "", msg = "Offline") {
     if (ssid) globalWifiSSID = ssid;
 
     const badge = document.getElementById('lblConnState') || document.getElementById('badgeConexion');
-    if (!badge) return;
+    if (badge) {
+        if (modo === "NUBE") {
+            const nombreRed = globalWifiSSID || "Conectado";
+            badge.innerHTML = `<span class="material-symbols-outlined" style="font-size: 1rem; vertical-align: middle;">wifi</span> <span>${nombreRed}</span>`;
+            badge.className = "conn-badge conn-nube";
+        } else if (modo === "BLE") {
+            badge.innerHTML = `<span class="material-symbols-outlined" style="font-size: 1rem; vertical-align: middle;">bluetooth</span> <span>BLE</span>`;
+            badge.className = "conn-badge conn-ble";
+        } else {
+            badge.innerHTML = `<span class="material-symbols-outlined" style="font-size: 1rem; vertical-align: middle;">wifi_off</span> <span>${msg}</span>`;
+            badge.className = "conn-badge conn-offline";
+        }
+    }
 
-    if (modo === "NUBE") {
-        const nombreRed = globalWifiSSID || "Conectado";
-        badge.innerHTML = `<span class="material-symbols-outlined" style="font-size: 1rem; vertical-align: middle;">wifi</span> <span>${nombreRed}</span>`;
-        badge.className = "conn-badge conn-nube";
-    } else if (modo === "BLE") {
-        badge.innerHTML = `<span class="material-symbols-outlined" style="font-size: 1rem; vertical-align: middle;">bluetooth</span> <span>BLE</span>`;
-        badge.className = "conn-badge conn-ble";
-    } else {
-        badge.innerHTML = `<span class="material-symbols-outlined" style="font-size: 1rem; vertical-align: middle;">wifi_off</span> <span>${msg}</span>`;
-        badge.className = "conn-badge conn-offline";
+    if (typeof evaluarAlertasSistema === "function") {
+        evaluarAlertasSistema();
     }
 }
 
@@ -1685,17 +1689,130 @@ function navigateToTab(targetName) {
     }
 }
 
+function ejecutarReintentoNube() {
+    window.isReintentandoConexionNube = true;
+    window.falloReintentoNube = false;
+    showToast("Reintentando conexión con la Nube...");
+    connectNube();
+    if (typeof evaluarAlertasSistema === "function") evaluarAlertasSistema();
+
+    const targetMac = currentMac;
+    let intento = 0;
+
+    const interval = setInterval(async () => {
+        intento++;
+        if (targetMac && typeof db !== 'undefined' && db) {
+            try {
+                const docSnap = await getDoc(doc(db, "equipos", targetMac, "estado", "actual"));
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    const ts = data.timestamp ? (typeof data.timestamp === 'number' ? data.timestamp : new Date(data.timestamp).getTime()) : 0;
+                    if (Date.now() - ts < 60000) {
+                        clearInterval(interval);
+                        window.isReintentandoConexionNube = false;
+                        window.falloReintentoNube = false;
+                        setConexionModo("NUBE", data.wifi_ssid || globalWifiSSID || "");
+                        showToast("¡Equipo conectado a la Nube!");
+                        evaluarAlertasSistema();
+                        return;
+                    }
+                }
+            } catch(e) {}
+        }
+
+        if (intento >= 4) { // ~12 segundos
+            clearInterval(interval);
+            window.isReintentandoConexionNube = false;
+            window.falloReintentoNube = true;
+            evaluarAlertasSistema();
+        }
+    }, 3000);
+}
+
 function evaluarAlertasSistema() {
     const container = document.getElementById('systemAlertsContainer');
     if (!container) return;
 
-    if (!currentMac || modoConexion === "OFFLINE") {
+    if (!currentMac) {
         container.style.display = "none";
         container.innerHTML = "";
         return;
     }
 
     const alerts = [];
+
+    // 0. ALERTA EQUIPO OFFLINE (Desconectado de la Nube)
+    const isBleConnected = (modoConexion === "BLE" && typeof bleDevice !== "undefined" && bleDevice && bleDevice.gatt && bleDevice.gatt.connected);
+    if (!isBleConnected && modoConexion !== "NUBE") {
+        const ssidGuardado = globalWifiSSID || (document.getElementById('inpWifiSsid') ? document.getElementById('inpWifiSsid').value.trim() : "");
+        const hayCredenciales = Boolean(ssidGuardado);
+
+        if (window.isReintentandoConexionNube) {
+            alerts.push({
+                id: "alerta_equipo_reintentando",
+                type: "warning",
+                icon: "sync",
+                title: "Verificando enlace Nube...",
+                desc: "Consultando respuesta del dosificador en Internet. Aguardá unos segundos.",
+                btnText: "Conectar BLE",
+                action: () => {
+                    const btnBLE = document.getElementById('btnShowConnectBLE');
+                    if (btnBLE) btnBLE.click();
+                },
+                notifTitle: "Dosimat Offline",
+                notifBody: "Verificando conexión con el equipo..."
+            });
+        } else if (window.falloReintentoNube) {
+            alerts.push({
+                id: "alerta_equipo_fallo_nube",
+                type: "danger",
+                icon: "wifi_off",
+                title: "Dosificador Offline en Nube",
+                desc: "No se pudo conectar por Internet. Te sugerimos acercarte al equipo y conectarte por Bluetooth (BLE).",
+                btnText: "Conectar BLE",
+                action: () => {
+                    const btnBLE = document.getElementById('btnShowConnectBLE');
+                    if (btnBLE) btnBLE.click();
+                },
+                notifTitle: "Dosimat Offline",
+                notifBody: "El equipo no respondió en la Nube. Conéctate por Bluetooth para gestionarlo."
+            });
+        } else if (hayCredenciales) {
+            alerts.push({
+                id: "alerta_equipo_offline_con_wifi",
+                type: "danger",
+                icon: "wifi_off",
+                title: "Equipo Offline (Sin Conexión Nube)",
+                desc: `El dosificador no responde en la Nube (${ssidGuardado}). Podés reintentar el enlace o conectarte por Bluetooth directamente.`,
+                btnText: "Reintentar",
+                secondaryBtnText: "Conectar BLE",
+                action: () => {
+                    ejecutarReintentoNube();
+                },
+                secondaryAction: () => {
+                    const btnBLE = document.getElementById('btnShowConnectBLE');
+                    if (btnBLE) btnBLE.click();
+                },
+                notifTitle: "Dosimat Offline",
+                notifBody: "El equipo está offline en la Nube. Reintenta la conexión o conecta por BLE."
+            });
+        } else {
+            alerts.push({
+                id: "alerta_equipo_offline_sin_wifi",
+                type: "warning",
+                icon: "bluetooth_searching",
+                title: "Equipo Offline (Sin WiFi)",
+                desc: "El dosificador no está conectado a Internet. Conectate por Bluetooth para controlarlo y configurar tu WiFi.",
+                btnText: "Conectar BLE",
+                action: () => {
+                    const btnBLE = document.getElementById('btnShowConnectBLE');
+                    if (btnBLE) btnBLE.click();
+                },
+                notifTitle: "Dosimat Offline",
+                notifBody: "Conéctate por Bluetooth para configurar tu red WiFi."
+            });
+        }
+    }
 
     // 1. Sin dosificación programada (comprueba todos los programas de 1 a 10)
     if (lastProgramasData) {
@@ -1904,6 +2021,17 @@ function evaluarAlertasSistema() {
 
         const card = document.createElement('div');
         card.className = `system-alert-card ${item.type}`;
+        
+        let buttonsHtml = `<button class="system-alert-btn main-btn">${escapeHtml(item.btnText)}</button>`;
+        if (item.secondaryBtnText) {
+            buttonsHtml = `
+                <div style="display: flex; gap: 0.35rem; flex-wrap: wrap; justify-content: flex-end;">
+                    <button class="system-alert-btn main-btn">${escapeHtml(item.btnText)}</button>
+                    <button class="system-alert-btn sec-btn" style="background: rgba(255,255,255,0.15); color: var(--text-main); border: 1px solid var(--card-border);">${escapeHtml(item.secondaryBtnText)}</button>
+                </div>
+            `;
+        }
+
         card.innerHTML = `
             <div class="system-alert-icon">
                 <span class="material-symbols-outlined">${item.icon}</span>
@@ -1912,9 +2040,12 @@ function evaluarAlertasSistema() {
                 <div class="system-alert-title">${escapeHtml(item.title)}</div>
                 <div class="system-alert-desc">${escapeHtml(item.desc)}</div>
             </div>
-            <button class="system-alert-btn">${escapeHtml(item.btnText)}</button>
+            ${buttonsHtml}
         `;
-        card.querySelector('.system-alert-btn').onclick = item.action;
+        const btnMain = card.querySelector('.main-btn');
+        if (btnMain && item.action) btnMain.onclick = item.action;
+        const btnSec = card.querySelector('.sec-btn');
+        if (btnSec && item.secondaryAction) btnSec.onclick = item.secondaryAction;
         container.appendChild(card);
     });
 }
