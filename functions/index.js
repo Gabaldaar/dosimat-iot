@@ -103,6 +103,8 @@ exports.mqttWebhook = functions.https.onRequest(async (req, res) => {
             if (data.modelo !== undefined) estadoData.modelo = String(data.modelo).toUpperCase();
             if (data.bomba_on !== undefined) estadoData.bomba_on = Number(data.bomba_on);
             if (data.ult_warn !== undefined) estadoData.ult_warn = data.ult_warn;
+            if (data.dn15 !== undefined) estadoData.dn15 = Number(data.dn15);
+            if (data.dr15 !== undefined) estadoData.dr15 = Number(data.dr15);
 
             const prevEstadoSnap = await db.doc(`equipos/${chipId}/estado/actual`).get();
             const prevEstado = prevEstadoSnap.exists ? prevEstadoSnap.data() : {};

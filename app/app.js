@@ -1450,7 +1450,7 @@ function isDosisExitosaLog(item) {
     );
 }
 
-let hardwareDosis15Cache = { n: 0, r: 0 };
+let hardwareDosis15Cache = { n: 0, r: 0, valid: false };
 let historialDosisDedicado = [];
 let unsubscribeHistorialDosis = null;
 
@@ -1541,7 +1541,7 @@ function actualizarMetricasDosis15Dias() {
     const valDosisRefuerzo = document.getElementById('valDosisRefuerzo');
     if (!valDosisNormales || !valDosisRefuerzo) return;
 
-    if (modoConexion === "BLE" && (hardwareDosis15Cache.n > 0 || hardwareDosis15Cache.r > 0)) {
+    if (hardwareDosis15Cache.valid) {
         valDosisNormales.innerText = hardwareDosis15Cache.n;
         valDosisRefuerzo.innerText = hardwareDosis15Cache.r;
         return;
@@ -2253,9 +2253,8 @@ function updateUI(raw_data) {
     if (data.dn15 !== undefined || data.dr15 !== undefined) {
         hardwareDosis15Cache.n = Number(data.dn15) || 0;
         hardwareDosis15Cache.r = Number(data.dr15) || 0;
-        if (modoConexion === "BLE") {
-            actualizarMetricasDosis15Dias();
-        }
+        hardwareDosis15Cache.valid = true;
+        actualizarMetricasDosis15Dias();
     }
 
     // Actualización dinámica del FONDO del Panel de Estado
