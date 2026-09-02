@@ -678,10 +678,22 @@ async function switchTab(btn, target) {
     document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.container').forEach(c => c.classList.remove('active'));
 
-    if (btn && btn.classList) btn.classList.add('active');
-    else if (typeof btn === 'string') {
+    let activeNavBtn = null;
+    if (btn && btn.classList) {
+        btn.classList.add('active');
+        activeNavBtn = btn;
+    } else if (typeof btn === 'string') {
         const btnElem = document.querySelector(`nav [data-target="${btn}"]`);
-        if (btnElem) btnElem.classList.add('active');
+        if (btnElem) {
+            btnElem.classList.add('active');
+            activeNavBtn = btnElem;
+        }
+    }
+
+    if (activeNavBtn && typeof activeNavBtn.scrollIntoView === 'function') {
+        try {
+            activeNavBtn.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+        } catch(e){}
     }
 
     const targetElem = document.getElementById(`tab-${target}`);
