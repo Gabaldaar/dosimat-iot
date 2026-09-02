@@ -1313,6 +1313,94 @@ function appendLogToTerminal(logData) {
     if (typeof evaluarAlertasSistema === "function") evaluarAlertasSistema();
 }
 
+function extractLogTimestampMs(item) {
+    if (!item) return 0;
+    let ts = 0;
+    let msg = "";
+
+    if (typeof item === 'string') {
+        msg = item;
+    } else if (typeof item === 'object') {
+        ts = item.ts || item.timestamp || 0;
+        if (ts && typeof ts.toMillis === 'function') {
+            ts = ts.toMillis();
+        } else if (ts && typeof ts.seconds === 'number') {
+            ts = ts.seconds * 1000;
+        } else if (typeof ts === 'string' && !isNaN(Number(ts))) {
+            ts = Number(ts);
+        } else if (typeof ts === 'string' && ts.includes('T')) {
+            const parsedIso = new Date(ts).getTime();
+            if (!isNaN(parsedIso) && parsedIso > 0) ts = parsedIso;
+        }
+
+        // Si es timestamp en segundos (ej: 1725270000 o Y2K epoch)
+        if (typeof ts === 'number' && ts > 0 && ts < 20000000000) {
+            if (ts < 1000000000) {
+                ts = (ts + 946684800) * 1000;
+            } else {
+                ts = ts * 1000;
+            }
+        }
+
+        msg = item.msg || item.mensaje || item.tipo || "";
+    }
+
+    // Si aún no tenemos ts válido en milisegundos, parsear desde texto "DD/MM/YY - HH:MM:SS" o "DD/MM/YYYY"
+    if (!ts || isNaN(ts) || ts < 1000000000000) {
+        try {
+            const parts = msg.split(" - ");
+            if (parts.length >= 2 && parts[0].includes("/")) {
+                const dateParts = parts[0].trim().split("/");
+                const timeParts = parts[1].trim().split(":");
+                if (dateParts.length === 3 && timeParts.length >= 2) {
+                    let year = parseInt(dateParts[2], 10);
+                    if (year < 100) year += 2000;
+                    const d = new Date(
+                        year,
+                        parseInt(dateParts[1], 10) - 1,
+                        parseInt(dateParts[0], 10),
+                        parseInt(timeParts[0], 10),
+                        parseInt(timeParts[1], 10),
+                        parseInt(timeParts[2] || 0, 10)
+                    );
+                    const parsedMs = d.getTime();
+                    if (!isNaN(parsedMs) && parsedMs > 0) ts = parsedMs;
+                }
+            }
+        } catch(e) {}
+    }
+
+    return (ts && !isNaN(ts) && ts > 1000000000000) ? ts : 0;
+}
+
+function isDosisExitosaLog(item) {
+    let msg = "";
+    let tipo = "";
+    if (typeof item === 'string') {
+        msg = item.toLowerCase();
+    } else if (item && typeof item === 'object') {
+        msg = (item.msg || item.mensaje || item.tipo || "").toLowerCase();
+        tipo = String(item.tipo || "").toLowerCase();
+    }
+    return (
+        tipo === "dosis_ok" ||
+        msg.includes("dosis completada") ||
+        msg.includes("dosis finalizada") ||
+        (
+            (msg.includes("dosis automática") || msg.includes("dosis manual") || msg.includes("dosificando") || msg.includes("dosis")) &&
+            !msg.includes("no realizada") &&
+            !msg.includes("bomba apagada") &&
+            !msg.includes("detenido") &&
+            !msg.includes("salteada") &&
+            !msg.includes("pausada") &&
+            !msg.includes("anulada") &&
+            !msg.includes("suspendida") &&
+            !msg.includes("cancelada") &&
+            !msg.includes("error")
+        )
+    );
+}
+
 function calcularDosis15Dias(logs) {
     const valDosisNormales = document.getElementById('valDosisNormales');
     const valDosisRefuerzo = document.getElementById('valDosisRefuerzo');
@@ -1325,69 +1413,20 @@ function calcularDosis15Dias(logs) {
     let refCount = 0;
 
     logs.forEach(item => {
-        let ts = 0;
-        let msg = "";
+        let ts = extractLogTimestampMs(item) || now;
         let isRef = false;
+        let msg = "";
 
         if (typeof item === 'string') {
             msg = item;
-        } else {
-            ts = item.ts || item.timestamp || 0;
-            if (ts && typeof ts.toMillis === 'function') ts = ts.toMillis();
-            else if (ts && typeof ts.seconds === 'number') ts = ts.seconds * 1000;
-            
-            if (ts && typeof ts === 'number' && ts < 2000000000) {
-                if (ts < 1000000000 && ts > 0) {
-                    ts = (ts + 946684800) * 1000;
-                } else {
-                    ts = ts * 1000;
-                }
-            }
-
-            msg = item.msg || item.mensaje || item.tipo || JSON.stringify(item);
+        } else if (item && typeof item === 'object') {
+            msg = item.msg || item.mensaje || item.tipo || "";
             if (item.refuerzo === true || item.refuerzo === 1 || item.refuerzo === "1" || item.refuerzo === "true") isRef = true;
         }
 
-        if (!ts || isNaN(ts) || ts === 0 || ts < 1000000000000) {
-            try {
-                const parts = msg.split(" - ");
-                if (parts.length >= 2 && parts[0].includes("/")) {
-                    const dateParts = parts[0].split("/");
-                    const timeParts = parts[1].split(":");
-                    if (dateParts.length === 3 && timeParts.length === 3) {
-                        let year = parseInt(dateParts[2], 10);
-                        if (year < 100) year += 2000;
-                        const logDate = new Date(year, parseInt(dateParts[1], 10) - 1, parseInt(dateParts[0], 10), parseInt(timeParts[0], 10), parseInt(timeParts[1], 10), parseInt(timeParts[2], 10));
-                        ts = logDate.getTime();
-                    }
-                }
-            } catch(e) {}
-        }
-        if (!ts || isNaN(ts) || ts === 0) ts = now;
-
         if (now - ts <= limitMs && now >= ts - 86400000) {
-            const msgLower = msg.toLowerCase();
-            const tipoLower = String(item.tipo || "").toLowerCase();
-
-            // Comprobar estrictamente si fue una dosis completada con éxito
-            const esDosisExitosa = (
-                tipoLower === "dosis_ok" ||
-                msgLower.includes("dosis completada") ||
-                msgLower.includes("dosis finalizada") ||
-                (
-                    (msgLower.includes("dosis automática") || msgLower.includes("dosis manual") || msgLower.includes("dosificando")) &&
-                    !msgLower.includes("no realizada") &&
-                    !msgLower.includes("bomba apagada") &&
-                    !msgLower.includes("detenido") &&
-                    !msgLower.includes("salteada") &&
-                    !msgLower.includes("pausada") &&
-                    !msgLower.includes("anulada") &&
-                    !msgLower.includes("suspendida") &&
-                    !msgLower.includes("cancelada")
-                )
-            );
-            
-            if (esDosisExitosa) {
+            if (isDosisExitosaLog(item)) {
+                const msgLower = msg.toLowerCase();
                 if (isRef || msgLower.includes("refuerzo activo") || msgLower.includes("refuerzo: si") || msgLower.includes("con refuerzo") || msgLower.includes("refuerzo")) {
                     refCount++;
                 } else {
@@ -1534,37 +1573,17 @@ function evaluarAlertasSistema() {
     let ultimaDosisExitosaTs = 0;
     if (Array.isArray(currentLogsCache) && currentLogsCache.length > 0) {
         for (const item of currentLogsCache) {
-            let msg = "";
-            let ts = 0;
-            let tipo = "";
-            if (typeof item === "string") {
-                msg = item;
-            } else if (item && typeof item === "object") {
-                msg = item.msg || item.mensaje || "";
-                ts = item.ts || item.timestamp || 0;
-                tipo = String(item.tipo || "");
-            }
-            if (tipo === "dosis_ok" || msg.toLowerCase().includes("dosis completada") || msg.toLowerCase().includes("dosis finalizada") || (msg.toLowerCase().includes("dosis") && !msg.toLowerCase().includes("no realizada") && !msg.toLowerCase().includes("bomba apagada"))) {
-                if (!ts || ts === 0) {
-                    try {
-                        const parts = msg.split(" - ");
-                        if (parts.length >= 2 && parts[0].includes("/")) {
-                            const dateParts = parts[0].split("/");
-                            const timeParts = parts[1].split(":");
-                            let year = parseInt(dateParts[2], 10);
-                            if (year < 100) year += 2000;
-                            const d = new Date(year, parseInt(dateParts[1], 10) - 1, parseInt(dateParts[0], 10), parseInt(timeParts[0], 10), parseInt(timeParts[1], 10));
-                            ts = d.getTime();
-                        }
-                    } catch(e) {}
+            if (isDosisExitosaLog(item)) {
+                const ts = extractLogTimestampMs(item);
+                if (ts > ultimaDosisExitosaTs) {
+                    ultimaDosisExitosaTs = ts;
                 }
-                if (ts > ultimaDosisExitosaTs) ultimaDosisExitosaTs = ts;
             }
         }
     }
 
     const now = Date.now();
-    if (ultimaDosisExitosaTs > 0 && now - ultimaDosisExitosaTs > 24 * 60 * 60 * 1000) {
+    if (ultimaDosisExitosaTs > 0 && (now - ultimaDosisExitosaTs) > 24 * 60 * 60 * 1000) {
         alerts.push({
             id: "sin_dosis_24h",
             type: "danger",
@@ -1595,17 +1614,17 @@ function evaluarAlertasSistema() {
         });
     }
 
-    // 5. Refuerzo por Temperatura Activo
+    // 5. Refuerzo por Temperatura Activo (SOLO si se activó automáticamente por sensor de temperatura)
     const isRefuerzoOn = (typeof globalRefuerzo !== "undefined" && (globalRefuerzo === 1 || globalRefuerzo === true || globalRefuerzo === "1"));
     const isTempBoostActive = (typeof globalTempComp !== "undefined" && globalTempComp && typeof globalTemp !== "undefined" && globalTemp !== null && globalTemp >= 29.0);
 
-    if (isTempBoostActive || isRefuerzoOn) {
+    if (isTempBoostActive && !isRefuerzoOn) {
         alerts.push({
             id: "refuerzo_temp",
             type: "info",
             icon: "thermostat",
             title: "Refuerzo por Temperatura Activo",
-            desc: "La temperatura superó el umbral. Se aplicará automáticamente una dosis con refuerzo.",
+            desc: `La temperatura del agua (${globalTemp.toFixed(1)}°C) superó el umbral. Se aplicará automáticamente una dosis con refuerzo.`,
             btnText: "Ver Ajustes",
             action: () => navigateToTab("configuracion"),
             notifTitle: "Dosimat",
@@ -2235,18 +2254,15 @@ function updateUI(raw_data) {
 }
 
 function obtenerMensajeRefuerzoTemp() {
+    const isRefuerzoOn = (globalRefuerzo === 1 || globalRefuerzo === true || globalRefuerzo === "1");
+    if (isRefuerzoOn) {
+        return null;
+    }
+
     if (!globalTempComp || globalTemp === null || globalTemp < 29.0) return null;
 
     const intervalDays = globalTemp > 32.0 ? 3 : 4;
     const intervalSecs = intervalDays * 24 * 3600;
-
-    const isRefuerzoOn = (globalRefuerzo === 1 || globalRefuerzo === true || globalRefuerzo === "1");
-    if (isRefuerzoOn) {
-        return {
-            tipo: "activo",
-            texto: `Refuerzo por Temp. Alta activo: Se aplicará doble dosis en el próximo ciclo.`
-        };
-    }
 
     const nowEpoch = Math.floor(Date.now() / 1000);
     const timeSinceLastBooster = nowEpoch - globalUltRefTs;
@@ -2255,7 +2271,7 @@ function obtenerMensajeRefuerzoTemp() {
     if (timeRemaining <= 300 || globalUltRefTs === 0) {
         return {
             tipo: "inminente",
-            texto: `Refuerzo por Temp. Alta: Se aplicará doble dosis en el próximo ciclo.`
+            texto: `Refuerzo por Temp. Alta (${globalTemp.toFixed(1)}°C): Se aplicará doble dosis en el próximo ciclo.`
         };
     } else {
         const nextTriggerDate = new Date((globalUltRefTs + intervalSecs) * 1000);
@@ -2263,7 +2279,7 @@ function obtenerMensajeRefuerzoTemp() {
         const dateStr = nextTriggerDate.toLocaleString('es-AR', dateOptions);
         return {
             tipo: "programado",
-            texto: `Refuerzo por Temp. Alta: Próxima doble dosis programada para después del ${dateStr}.`
+            texto: `Refuerzo por Temp. Alta (${globalTemp.toFixed(1)}°C): Próxima doble dosis programada para después del ${dateStr}.`
         };
     }
 }

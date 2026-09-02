@@ -4,6 +4,7 @@
     --card-bg: #ffffff;
     --card-border: #e2e8f0;
     --text-main: #0f172a;
+    --text-color: #0f172a;
     --text-muted: #64748b;
     --accent: #0284c7;
     --accent-hover: #0369a1;
@@ -28,6 +29,7 @@ body.dark-mode {
     --card-bg: #1e293b;
     --card-border: #334155;
     --text-main: #f8fafc;
+    --text-color: #f8fafc;
     --text-muted: #94a3b8;
     --accent: #0ea5e9;
     --accent-hover: #38bdf8;
@@ -1172,7 +1174,7 @@ nav {
 .calendar-day-name {
     font-size: 0.88rem;
     font-weight: 800;
-    color: var(--text-color, #1e293b);
+    color: var(--text-main);
     display: flex;
     align-items: center;
     gap: 0.45rem;
@@ -1228,7 +1230,7 @@ nav {
     gap: 0.45rem;
     font-size: 0.82rem;
     font-weight: 700;
-    color: var(--text-color, #1e293b);
+    color: var(--text-main);
 }
 
 .calendar-event-type .material-symbols-outlined {
@@ -1257,16 +1259,16 @@ nav {
     gap: 0.3rem;
     font-size: 0.78rem;
     font-weight: 700;
-    color: var(--text-color, #334155);
-    background: var(--card-bg, #ffffff);
-    border: 1px solid var(--card-border, #e2e8f0);
+    color: var(--text-main);
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
     padding: 0.25rem 0.55rem;
     border-radius: 6px;
 }
 
 .calendar-event-time .material-symbols-outlined {
     font-size: 0.9rem;
-    color: var(--text-muted, #64748b);
+    color: var(--text-muted);
 }
 
 .calendar-empty-day {
