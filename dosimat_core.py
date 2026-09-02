@@ -1,5 +1,6 @@
 # dosimat_core.py - Núcleo funcional y máquina de estados del dosificador
 import machine
+import os
 import time
 import uasyncio as asyncio
 import config_manager
@@ -321,7 +322,6 @@ async def procesar_comando(cmd_dict):
             await tx_queue.put({"tipo": "ACK_WIFI", "ssid": ssid, "_destino": origen})
             async def reboot_after_delay():
                 await asyncio.sleep(2)
-                import machine
                 machine.reset()
             asyncio.create_task(reboot_after_delay())
 
@@ -332,7 +332,6 @@ async def procesar_comando(cmd_dict):
             try:
                 parts_f = [int(x) for x in fecha_str.split("-")]
                 parts_h = [int(x) for x in hora_str.split(":")]
-                import machine
                 rtc = machine.RTC()
                 t_epoch = time.mktime((parts_f[0], parts_f[1], parts_f[2], parts_h[0], parts_h[1], 0, 0, 0))
                 t_correct = time.localtime(t_epoch)
@@ -427,7 +426,6 @@ async def procesar_comando(cmd_dict):
             
     elif cmd == "FACTORY_RESET":
         try:
-            import os
             try: os.remove(config_manager.CONFIG_FILE)
             except OSError: pass
             try: os.remove(config_manager.WIFI_CONFIG_FILE)
