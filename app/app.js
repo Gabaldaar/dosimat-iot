@@ -670,7 +670,7 @@ async function switchTab(btn, target) {
     }
 
     if (unsavedChanges) {
-        if (!confirm("Tienes cambios sin guardar en la configuración. ¿Deseas salir de todas formas?")) {
+        if (!await customConfirm("Tienes cambios sin guardar en la configuración. ¿Deseas salir de todas formas?", "Cambios sin guardar", "Salir sin guardar", "Permanecer")) {
             return;
         }
         unsavedChanges = false;
@@ -5135,8 +5135,14 @@ function initBidonModule() {
 
     const btnDesvincularAjuste = document.getElementById('btnDesvincularRepoDesdeAjuste');
     if (btnDesvincularAjuste) {
-        btnDesvincularAjuste.onclick = () => {
-            if (confirm("¿Estás seguro de desvincular este equipo del servicio de reposición automática? Podrás gestionar los bidones de forma 100% manual.")) {
+        btnDesvincularAjuste.onclick = async () => {
+            const confirmed = await customConfirm(
+                "¿Estás seguro de desvincular este equipo del servicio de reposición automática? Podrás gestionar la capacidad de los bidones y las recargas de forma 100% manual.",
+                "Desvincular Reposición",
+                "Desvincular",
+                "Cancelar"
+            );
+            if (confirmed) {
                 if (currentMac) {
                     localStorage.removeItem("dosimat_pro_client_id_" + currentMac);
                     localStorage.removeItem("dosimat_pro_email_" + currentMac);
