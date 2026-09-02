@@ -96,7 +96,7 @@
     <header>
         <div class="header-title" style="align-items: flex-start; margin-top: 5px;">
             <div style="display: flex; flex-direction: column;">
-                <h1 style="margin-bottom: 0;"><span id="lblHeaderTitle">Dosimat IoT CB</span> <span style="font-size: 0.7rem; color: var(--accent); margin-left: 5px;">v7.18</span></h1>
+                <h1 style="margin-bottom: 0;"><span id="lblHeaderTitle">Dosimat IoT CB</span> <span style="font-size: 0.7rem; color: var(--accent); margin-left: 5px;">v7.19</span></h1>
                 <div id="lblUserName" style="font-size: 0.85rem; font-weight: 300; color: var(--text-muted); display: none;"></div>
             </div>
         </div>
@@ -175,6 +175,13 @@
         <!-- Tarjeta de Estado Principal -->
         <div class="card panel-estado" id="panelEstado" style="min-height: 110px; display: flex; flex-direction: column; justify-content: center; position: relative; padding: 0.85rem 1rem; margin-bottom: 0.5rem;">
             <span id="panelLed" class="panel-led off" style="position: absolute; top: 12px; left: 12px; margin: 0;"></span>
+            
+            <!-- Badges/Iconos de Estado Activo (Temp Comp y Clima) -->
+            <div id="panelEstadoBadges" style="position: absolute; top: 10px; left: 32px; display: flex; align-items: center; gap: 0.35rem;">
+                <span id="badgeEstadoTempComp" class="material-symbols-outlined" style="font-size: 1.15rem; color: var(--warning); display: none;" title="Compensación por Temperatura Alta Activa">thermostat</span>
+                <span id="badgeEstadoClima" class="material-symbols-outlined" style="font-size: 1.15rem; color: var(--accent); display: none;" title="Sugerencias Inteligentes de Clima Activas">location_on</span>
+            </div>
+
             <span class="material-symbols-outlined btn-help" data-help="panel-estado" style="position: absolute; top: 12px; right: 12px;">help</span>
             <div class="estado-header" style="display: flex; align-items: center; justify-content: center; gap: 0.6rem; margin: 0;">
                 <span id="iconEstado" class="material-symbols-outlined anim-clock" style="font-size: 2.2rem; color: var(--text-muted);">schedule</span>
@@ -606,35 +613,6 @@
             </div>
         </div>
 
-        <!-- Tarjeta de Conexión BLE Local -->
-        <div class="card">
-            <h2 style="display: flex; align-items: center; width: 100%;">
-                <span>Vinculación Bluetooth</span>
-                <span class="material-symbols-outlined btn-help" data-help="vinculo-ble">help</span>
-            </h2>
-            <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1rem;">Conéctate directamente al dosificador por Bluetooth para realizar configuraciones locales y sincronizar logs.</p>
-            <button class="btn" id="btnShowConnectBLE">Buscar Dosificador por BLE</button>
-        </div>
-
-        <div class="card">
-            <h2 style="display: flex; align-items: center; width: 100%;">
-                <span>Conectividad WiFi local</span>
-                <span class="material-symbols-outlined btn-help" data-help="wifi-local">help</span>
-            </h2>
-            <div class="form-group">
-                <label>Red WiFi (SSID)</label>
-                <input type="text" id="inpWifiSsid" placeholder="Nombre de la red">
-            </div>
-            <div class="form-group">
-                <label>Contraseña WiFi</label>
-                <div class="pass-wrapper">
-                    <input type="password" id="inpWifiPwd" placeholder="••••••••">
-                    <span class="material-symbols-outlined btn-toggle-pass" id="btnToggleWifiPass">visibility</span>
-                </div>
-            </div>
-            <button class="btn outline" id="btnGuardarWifi">Registrar Red WiFi</button>
-        </div>
-
         <!-- Tarjeta de Ubicación y Clima (Open-Meteo) -->
         <div class="card">
             <h2 style="display: flex; align-items: center; width: 100%;">
@@ -680,6 +658,35 @@
                     </label>
                 </div>
             </div>
+        </div>
+
+        <!-- Tarjeta de Conexión BLE Local -->
+        <div class="card">
+            <h2 style="display: flex; align-items: center; width: 100%;">
+                <span>Vinculación Bluetooth</span>
+                <span class="material-symbols-outlined btn-help" data-help="vinculo-ble">help</span>
+            </h2>
+            <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1rem;">Conéctate directamente al dosificador por Bluetooth para realizar configuraciones locales y sincronizar logs.</p>
+            <button class="btn" id="btnShowConnectBLE">Buscar Dosificador por BLE</button>
+        </div>
+
+        <div class="card">
+            <h2 style="display: flex; align-items: center; width: 100%;">
+                <span>Conectividad WiFi local</span>
+                <span class="material-symbols-outlined btn-help" data-help="wifi-local">help</span>
+            </h2>
+            <div class="form-group">
+                <label>Red WiFi (SSID)</label>
+                <input type="text" id="inpWifiSsid" placeholder="Nombre de la red">
+            </div>
+            <div class="form-group">
+                <label>Contraseña WiFi</label>
+                <div class="pass-wrapper">
+                    <input type="password" id="inpWifiPwd" placeholder="••••••••">
+                    <span class="material-symbols-outlined btn-toggle-pass" id="btnToggleWifiPass">visibility</span>
+                </div>
+            </div>
+            <button class="btn outline" id="btnGuardarWifi">Registrar Red WiFi</button>
         </div>
     </div>
 
@@ -1237,12 +1244,16 @@
             </div>
 
             <div class="form-group" style="margin-top: 0.8rem;">
-                <label>Corregir Nivel Actual Manualmente (% Lleno):</label>
+                <label>Corregir Nivel de Cloro por Bidón (0 a 32 L):</label>
                 <div style="display: flex; align-items: center; gap: 0.6rem;">
-                    <input type="range" id="rngAjusteNivel" min="0" max="100" value="100" style="flex: 1; accent-color: var(--accent);">
-                    <span id="lblAjusteNivelVal" style="font-weight: 800; min-width: 45px; text-align: right; color: var(--accent);">100%</span>
+                    <span style="font-size: 0.75rem; color: var(--text-muted); min-width: 25px;">0 L</span>
+                    <input type="range" id="rngAjusteNivel" min="0" max="32" step="0.5" value="27" style="flex: 1; accent-color: var(--accent);">
+                    <span style="font-size: 0.75rem; color: var(--text-muted); min-width: 30px; text-align: right;">32 L</span>
                 </div>
-                <div id="lblAjusteNivelLitros" style="font-size: 0.76rem; color: var(--text-muted); margin-top: 2px;">= 27.0 Litros restantes</div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
+                    <span id="lblAjusteNivelLitros" style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600;">Total: 27.0 Litros</span>
+                    <span id="lblAjusteNivelVal" style="font-weight: 800; font-size: 0.95rem; color: var(--accent);">27.0 L / bidón</span>
+                </div>
             </div>
 
             <div style="border-top: 1px dashed var(--card-border); margin-top: 0.9rem; padding-top: 0.8rem;">
@@ -1384,6 +1395,6 @@
         </div>
     </div>
 
-    <script type="module" src="app.js?v=7.18"></script>
+    <script type="module" src="app.js?v=7.19"></script>
 </body>
 </html>

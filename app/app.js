@@ -261,6 +261,20 @@ function actualizarLedVirtual() {
     runLedStep();
 }
 
+function updatePanelEstadoBadges() {
+    const badgeTemp = document.getElementById('badgeEstadoTempComp');
+    const badgeClima = document.getElementById('badgeEstadoClima');
+    const chkWeather = document.getElementById('chkWeatherAlerts');
+
+    if (badgeTemp) {
+        badgeTemp.style.display = (globalTempComp === true || globalTempComp === 1) ? 'inline-block' : 'none';
+    }
+    if (badgeClima) {
+        const isWeatherActive = chkWeather ? chkWeather.checked : (localStorage.getItem("dosimat_weather_alerts") !== "false");
+        badgeClima.style.display = isWeatherActive ? 'inline-block' : 'none';
+    }
+}
+
 // === DICCIONARIO DE AYUDA (BOTONES HELP) ===
 const HELP_TOPICS = {
     "compensacion-temperatura": {
@@ -2108,6 +2122,7 @@ function updateUI(raw_data) {
     actualizarPanelTemporada();
     updateSubtexto();
     actualizarLedVirtual();
+    updatePanelEstadoBadges();
 
     // Actualización dinámica del FONDO del Panel de Estado
     const panelEstado = document.querySelector('.panel-estado');
@@ -2943,6 +2958,7 @@ function updateConfigUI(data) {
         globalTempComp = data.temp_comp_activa === 1 || data.temp_comp_activa === true;
         const tglTempComp = document.getElementById('tglTempComp');
         if (tglTempComp) tglTempComp.checked = globalTempComp;
+        updatePanelEstadoBadges();
     }
 
     if (data.temp_offset !== undefined) {
@@ -4597,9 +4613,14 @@ function initWeatherModule() {
 
     const chkWeather = document.getElementById('chkWeatherAlerts');
     if (chkWeather) {
+        const savedAlerts = localStorage.getItem("dosimat_weather_alerts");
+        if (savedAlerts !== null) chkWeather.checked = (savedAlerts === "true");
         chkWeather.onchange = () => {
+            localStorage.setItem("dosimat_weather_alerts", chkWeather.checked ? "true" : "false");
             if (typeof evaluarAlertasSistema === "function") evaluarAlertasSistema();
+            if (typeof updatePanelEstadoBadges === "function") updatePanelEstadoBadges();
         };
+        updatePanelEstadoBadges();
     }
 }
 
@@ -4872,26 +4893,27 @@ function initBidonModule() {
 
     const updateAjustePreview = () => {
         const bTotal = parseFloat(inpTotalBidones ? inpTotalBidones.value : 1) || 1;
-        const pct = parseInt(rngAjuste ? rngAjuste.value : 100) || 0;
-        const cap = bTotal * 27.0;
-        const litros = (cap * pct / 100.0).toFixed(1);
-        if (lblAjusteCapacidadLitros) lblAjusteCapacidadLitros.innerText = `= ${cap.toFixed(1)} Litros`;
-        if (lblAjusteVal) lblAjusteVal.innerText = `${pct}%`;
-        if (lblAjusteLitros) lblAjusteLitros.innerText = `= ${litros} Litros restantes`;
+        const litrosPorBidon = parseFloat(rngAjuste ? rngAjuste.value : 27.0) || 0;
+        const capNominal = bTotal * 27.0;
+        const totalLitros = (litrosPorBidon * bTotal).toFixed(1);
+        if (lblAjusteCapacidadLitros) lblAjusteCapacidadLitros.innerText = `= ${capNominal.toFixed(1)} Litros (Nominal)`;
+        if (lblAjusteVal) lblAjusteVal.innerText = `${litrosPorBidon.toFixed(1)} L / bidón`;
+        if (lblAjusteLitros) lblAjusteLitros.innerText = `Total: ${totalLitros} Litros (${bTotal} ${bTotal > 1 ? 'bidones' : 'bidón'})`;
     };
 
     if (btnOpenAjustar && modalAjustar) {
         btnOpenAjustar.onclick = () => {
-            if (inpTotalBidones) inpTotalBidones.value = bidonConfig.totalBidones || 1;
+            const bTotal = bidonConfig.totalBidones || 1;
+            if (inpTotalBidones) inpTotalBidones.value = bTotal;
             if (inpAlertaDias) inpAlertaDias.value = bidonConfig.alertaMinDias || 5;
             if (inpAlertaLitros) inpAlertaLitros.value = bidonConfig.alertaMinLitros || 4.0;
 
-            const capTotal = (bidonConfig.totalBidones || 1) * (bidonConfig.litrosPorBidon || 27.0);
+            const capTotal = bTotal * (bidonConfig.litrosPorBidon || 27.0);
             const consumidos = (bidonConfig.dosisAcumuladasHardware || 0.0) * (bidonConfig.dosisLitros || 2.0);
             const restantes = Math.max(0, capTotal - consumidos);
-            const currentPct = Math.min(100, Math.max(0, Math.round((restantes / capTotal) * 100)));
+            const litrosPorBidonActual = Math.min(32.0, Math.max(0, restantes / bTotal));
 
-            if (rngAjuste) rngAjuste.value = currentPct;
+            if (rngAjuste) rngAjuste.value = litrosPorBidonActual.toFixed(1);
             updateAjustePreview();
             modalAjustar.style.display = 'flex';
         };
@@ -4907,13 +4929,13 @@ function initBidonModule() {
     if (btnConfirmAjustar && modalAjustar) {
         btnConfirmAjustar.onclick = () => {
             const bTotal = parseFloat(inpTotalBidones ? inpTotalBidones.value : 1) || 1;
-            const pct = parseInt(rngAjuste ? rngAjuste.value : 100) || 0;
+            const litrosPorBidon = parseFloat(rngAjuste ? rngAjuste.value : 27.0) || 0;
             const aDias = parseInt(inpAlertaDias ? inpAlertaDias.value : 5) || 5;
             const aLitros = parseFloat(inpAlertaLitros ? inpAlertaLitros.value : 4.0) || 4.0;
 
-            const cap = bTotal * 27.0;
-            const litrosRestantesDeseados = cap * (pct / 100.0);
-            const litrosConsumidos = Math.max(0, cap - litrosRestantesDeseados);
+            const capNominal = bTotal * 27.0;
+            const litrosRestantesDeseados = litrosPorBidon * bTotal;
+            const litrosConsumidos = Math.max(0, capNominal - litrosRestantesDeseados);
             const dosisEquiv = Math.round((litrosConsumidos / (bidonConfig.dosisLitros || 2.0)) * 100) / 100;
 
             bidonConfig.totalBidones = bTotal;
@@ -4928,7 +4950,7 @@ function initBidonModule() {
 
             renderBidonUI();
             modalAjustar.style.display = 'none';
-            showToast(`Nivel ajustado: ${pct}% (${litrosRestantesDeseados.toFixed(1)} L)`);
+            showToast(`Nivel ajustado: ${litrosPorBidon.toFixed(1)} L/bidón (${litrosRestantesDeseados.toFixed(1)} L totales)`);
         };
     }
 
