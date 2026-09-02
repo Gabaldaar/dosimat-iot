@@ -3560,12 +3560,64 @@ if (btnRecomendar) {
     };
 }
 
+function ejecutarFlujoFactoryReset() {
+    // 1. Desconectar BLE limpiamente
+    if (typeof bleDevice !== 'undefined' && bleDevice && bleDevice.gatt && bleDevice.gatt.connected) {
+        try { bleDevice.gatt.disconnect(); } catch(e){}
+    }
+
+    // 2. Limpiar claves locales asociadas al equipo
+    if (currentMac) {
+        localStorage.removeItem(`dosimat_location_${currentMac}`);
+        localStorage.removeItem(`dosimat_bidon_config_${currentMac}`);
+        localStorage.removeItem(`dosimat_pool_dims_${currentMac}`);
+        localStorage.removeItem(`dosimat_pro_client_id_${currentMac}`);
+        localStorage.removeItem(`dosimat_pro_email_${currentMac}`);
+    }
+
+    // 3. Mostrar modal con cuenta regresiva y reiniciar la app
+    const modal = document.getElementById('customModal');
+    const titleEl = document.getElementById('modalTitle');
+    const msgEl = document.getElementById('modalMessage');
+    const btnConfirm = document.getElementById('btnModalConfirm');
+    const btnCancel = document.getElementById('btnModalCancel');
+
+    let seconds = 4;
+    if (modal && titleEl && msgEl) {
+        titleEl.innerHTML = '🔄 Restableciendo Equipo...';
+        msgEl.innerHTML = `
+            <div style="text-align: center; padding: 1rem 0;">
+                <div class="spinner" style="margin: 0 auto 1rem; width: 44px; height: 44px; border-width: 4px;"></div>
+                <p style="font-weight: 600; color: var(--text-main); margin-bottom: 0.5rem;">El dosificador se está reiniciando a valores de fábrica.</p>
+                <p style="color: var(--text-muted); font-size: 0.9rem;">La aplicación se reiniciará automáticamente en <strong id="lblResetCountdown" style="color: var(--accent); font-size: 1.2rem;">${seconds}</strong> segundos...</p>
+            </div>
+        `;
+        if (btnConfirm) btnConfirm.style.display = 'none';
+        if (btnCancel) btnCancel.style.display = 'none';
+        modal.style.display = 'flex';
+
+        const timer = setInterval(() => {
+            seconds--;
+            const lbl = document.getElementById('lblResetCountdown');
+            if (lbl) lbl.innerText = seconds;
+            if (seconds <= 0) {
+                clearInterval(timer);
+                window.location.reload();
+            }
+        }, 1000);
+    } else {
+        setTimeout(() => {
+            window.location.reload();
+        }, 3000);
+    }
+}
+
 const btnResetFabrica = document.getElementById('btnResetFabrica');
 if (btnResetFabrica) {
     btnResetFabrica.onclick = async () => {
         if (await customConfirm("¿Estás seguro de restablecer el equipo a valores de fábrica? Se borrarán las configuraciones WiFi, cronogramas y parámetros guardados.", "Restablecer Fábrica", "Restablecer", "Cancelar")) {
             sendCommand({ comando: "FACTORY_RESET" });
-            showToast("Orden de restablecimiento de fábrica enviada al equipo.");
+            ejecutarFlujoFactoryReset();
         }
     };
 }
