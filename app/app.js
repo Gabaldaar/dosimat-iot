@@ -4741,10 +4741,6 @@ function initPoolCalculator() {
     const inpLargo = document.getElementById('inpPoolLargo');
     const inpProf = document.getElementById('inpPoolProf');
     const inpDosisLitros = document.getElementById('inpDosisConfigLitros');
-    const btnToggleCalc = document.getElementById('btnTogglePoolCalc');
-    const calcBody = document.getElementById('poolCalcBody');
-    const iconToggle = document.getElementById('iconToggleCalc');
-
     if (inpAncho) inpAncho.value = poolDims.ancho;
     if (inpLargo) inpLargo.value = poolDims.largo;
     if (inpProf) inpProf.value = poolDims.prof;
