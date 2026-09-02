@@ -96,7 +96,7 @@
     <header>
         <div class="header-title" style="align-items: flex-start; margin-top: 5px;">
             <div style="display: flex; flex-direction: column;">
-                <h1 style="margin-bottom: 0;"><span id="lblHeaderTitle">Dosimat IoT CB</span> <span style="font-size: 0.7rem; color: var(--accent); margin-left: 5px;">v7.16</span></h1>
+                <h1 style="margin-bottom: 0;"><span id="lblHeaderTitle">Dosimat IoT CB</span> <span style="font-size: 0.7rem; color: var(--accent); margin-left: 5px;">v7.17</span></h1>
                 <div id="lblUserName" style="font-size: 0.85rem; font-weight: 300; color: var(--text-muted); display: none;"></div>
             </div>
         </div>
@@ -259,7 +259,7 @@
         <div class="card" id="panelBidonYCalculadora" style="padding: 1rem 1.1rem; margin-top: 0.6rem; margin-bottom: 0.6rem;">
             <h2 style="display: flex; align-items: center; width: 100%; margin-bottom: 0.8rem;">
                 <span class="material-symbols-outlined" style="color: var(--accent); margin-right: 0.4rem;">water_bottle</span>
-                <span>Nivel de Cloro y Calculadora</span>
+                <span>Nivel de Cloro y Recarga</span>
                 <span class="material-symbols-outlined btn-help" data-help="bidon-calculadora">help</span>
             </h2>
 
@@ -347,41 +347,6 @@
             </div>
         </div>
 
-        <!-- Tarjeta Full Width: Compensación Automática por Altas Temperaturas -->
-        <div class="card" id="panelTempComp" style="padding: 0.9rem 1.1rem; margin-top: 0.6rem; margin-bottom: 0.6rem;">
-            <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;">
-                <div style="flex: 1;">
-                    <div style="font-weight: 600; font-size: 0.98rem; font-weight: 700; display: flex; align-items: center; gap: 0.4rem;">
-                        <span class="material-symbols-outlined" style="font-size: 1.1rem; color: var(--warning);">thermostat</span>
-                        <span>Compensación Temp. Alta</span>
-                        <span class="material-symbols-outlined btn-help" data-help="compensacion-temperatura" style="font-size: 1.1rem; cursor: pointer; color: var(--text-muted); margin-left: 0.2rem;">help</span>
-                    </div>
-                    <div style="font-size: 0.82rem; color: var(--text-muted); margin-top: 3px;">Ajuste automático de dosis por calor</div>
-                </div>
-                <div style="display: flex; gap: 0.4rem; align-items: center;">
-                    <label class="switch">
-                        <input type="checkbox" id="tglTempComp">
-                        <span class="slider"></span>
-                    </label>
-                </div>
-            </div>
-            
-            <!-- Contenedor del control deslizable de calibración -->
-            <div id="containerTempOffset" style="display: none; margin-top: 0.8rem; border-top: 1px solid var(--card-border, #eee); padding-top: 0.8rem;">
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.3rem;">
-                    <span style="font-size: 0.85rem; font-weight: 600; color: var(--text-main);">Ajuste del Sensor (Calibración):</span>
-                    <span id="lblTempValOffset" style="font-size: 0.9rem; font-weight: bold; color: var(--warning);">0.0°C</span>
-                </div>
-                <div style="display: flex; align-items: center; gap: 0.8rem;">
-                    <span style="font-size: 0.75rem; color: var(--text-muted); min-width: 35px; text-align: right;">-10.0°C</span>
-                    <input type="range" id="inpTempOffset" min="-10.0" max="5.0" step="0.5" value="0.0" style="flex: 1; cursor: pointer; accent-color: var(--accent);">
-                    <span style="font-size: 0.75rem; color: var(--text-muted); min-width: 35px;">+5.0°C</span>
-                </div>
-                <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.3rem; line-height: 1.2;">
-                    Ajusta la lectura del sensor interno del equipo sumando o restando grados (-10°C a +5°C).
-                </div>
-            </div>
-        </div>
     </div>
 
     <!-- 2. Pantalla: Programación (Filtrado / Dosificación / Tiempos / Vacaciones) -->
@@ -401,122 +366,132 @@
 
         <!-- Vista 1: Editor de Cronograma y Parámetros -->
         <div id="subtab-prog-editor">
-            <!-- Calculadora de Piscina y Dosis Sugerida -->
-            <div class="card">
-                <h2 style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+            <!-- Calculadora de Piscina y Dosis Sugerida (Colapsable) -->
+            <div class="card" id="cardPoolCalc">
+                <div class="calc-header-toggle" id="btnTogglePoolCalc" style="display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none;">
                     <div style="display: flex; align-items: center; gap: 0.4rem;">
                         <span class="material-symbols-outlined" style="color: var(--accent); font-size: 1.25rem;">calculate</span>
-                        <span>Calculadora de Piscina y Dosis</span>
+                        <span style="font-weight: 700; font-size: 0.95rem; color: var(--text-main);">Calculadora de Piscina y Dosis</span>
+                        <span class="material-symbols-outlined btn-help" data-help="calculadora-piscina" style="font-size: 1.1rem; cursor: pointer; color: var(--text-muted); margin-left: 0.2rem;">help</span>
                     </div>
-                    <span class="material-symbols-outlined btn-help" data-help="calculadora-piscina">help</span>
-                </h2>
-                <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 0.8rem;">
-                    Ingresá las medidas de tu pileta para estimar el volumen de agua y calcular la dosis de cloro recomendada.
-                </p>
-                
-                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.5rem; margin-bottom: 0.8rem;">
-                    <div class="form-group" style="margin-bottom: 0;">
-                        <label style="font-size: 0.75rem;">Ancho (m)</label>
-                        <input type="number" id="inpPoolAncho" step="0.1" min="1" max="50" placeholder="Ej: 4.0" style="padding: 0.45rem; text-align: center;">
-                    </div>
-                    <div class="form-group" style="margin-bottom: 0;">
-                        <label style="font-size: 0.75rem;">Largo (m)</label>
-                        <input type="number" id="inpPoolLargo" step="0.1" min="1" max="50" placeholder="Ej: 8.0" style="padding: 0.45rem; text-align: center;">
-                    </div>
-                    <div class="form-group" style="margin-bottom: 0;">
-                        <label style="font-size: 0.75rem;">Prof. Prom (m)</label>
-                        <input type="number" id="inpPoolProf" step="0.1" min="0.5" max="10" placeholder="Ej: 1.5" style="padding: 0.45rem; text-align: center;">
-                    </div>
+                    <span class="material-symbols-outlined" id="iconToggleCalc" style="color: var(--text-muted); transition: transform 0.2s ease;">expand_more</span>
                 </div>
 
-                <!-- Resultados de la Calculadora -->
-                <div class="calc-results-box" style="background: var(--bg-color); border: 1px solid var(--card-border); border-radius: 8px; padding: 0.75rem 0.9rem; margin-bottom: 0.8rem;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
-                        <span style="font-size: 0.8rem; color: var(--text-muted);">Volumen de la Piscina:</span>
-                        <span id="lblPoolVolumen" style="font-size: 0.9rem; font-weight: 700; color: var(--text-main);">0 Litros (0 m³)</span>
+                <div id="poolCalcBody" style="display: none; margin-top: 0.8rem; border-top: 1px solid var(--card-border); padding-top: 0.8rem;">
+                    <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 0.8rem;">
+                        Ingresá las medidas de tu pileta para estimar el volumen de agua y calcular la dosis de cloro recomendada.
+                    </p>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.5rem; margin-bottom: 0.8rem;">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label style="font-size: 0.75rem;">Ancho (m)</label>
+                            <input type="number" id="inpPoolAncho" step="0.1" min="1" max="50" placeholder="Ej: 4.0" style="padding: 0.45rem; text-align: center;">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label style="font-size: 0.75rem;">Largo (m)</label>
+                            <input type="number" id="inpPoolLargo" step="0.1" min="1" max="50" placeholder="Ej: 8.0" style="padding: 0.45rem; text-align: center;">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label style="font-size: 0.75rem;">Prof. Prom (m)</label>
+                            <input type="number" id="inpPoolProf" step="0.1" min="0.5" max="10" placeholder="Ej: 1.5" style="padding: 0.45rem; text-align: center;">
+                        </div>
                     </div>
-                    <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px dashed var(--card-border); padding-top: 0.4rem;">
-                        <span style="font-size: 0.8rem; color: var(--text-muted);">Dosis Diaria Sugerida (Verano):</span>
-                        <span id="lblPoolDosisSugerida" style="font-size: 0.95rem; font-weight: 800; color: var(--accent);">0.0 L / día</span>
-                    </div>
-                </div>
 
-                <!-- Configuración de Dosis de Cloro y Dosis de Agua para Calibración -->
-                <div style="background: var(--bg-color); border: 1px solid var(--card-border); border-radius: 8px; padding: 0.8rem; display: flex; flex-direction: column; gap: 0.6rem;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 0.5rem;">
-                        <div>
-                            <div style="font-size: 0.82rem; font-weight: 700; color: var(--text-main);">Dosis de Cloro por Ciclo:</div>
-                            <div style="font-size: 0.74rem; color: var(--text-muted);">Cantidad de cloro colocada en cada ciclo de verano</div>
+                    <!-- Resultados de la Calculadora -->
+                    <div class="calc-results-box" style="background: var(--bg-color); border: 1px solid var(--card-border); border-radius: 8px; padding: 0.75rem 0.9rem; margin-bottom: 0.8rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+                            <span style="font-size: 0.8rem; color: var(--text-muted);">Volumen de la Piscina:</span>
+                            <span id="lblPoolVolumen" style="font-size: 0.9rem; font-weight: 700; color: var(--text-main);">0 Litros (0 m³)</span>
                         </div>
-                        <div style="display: flex; align-items: center; gap: 0.3rem;">
-                            <input type="number" id="inpDosisConfigLitros" step="0.1" min="0.1" max="20" value="2.0" style="width: 75px; padding: 0.4rem; text-align: center; font-weight: 700;">
-                            <span style="font-size: 0.82rem; font-weight: 600; color: var(--text-main);">L</span>
+                        <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px dashed var(--card-border); padding-top: 0.4rem;">
+                            <span style="font-size: 0.8rem; color: var(--text-muted);">Dosis Diaria Sugerida (Verano):</span>
+                            <span id="lblPoolDosisSugerida" style="font-size: 0.95rem; font-weight: 800; color: var(--accent);">0.0 L / día</span>
                         </div>
                     </div>
-                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; border-top: 1px dashed var(--card-border); padding-top: 0.5rem;">
-                        <div>
-                            <div style="font-size: 0.82rem; font-weight: 700; color: var(--accent);">Dosis de Agua (Calibración):</div>
-                            <div style="font-size: 0.74rem; color: var(--text-muted);">Usar agua para medir (+20% respecto a cloro)</div>
+
+                    <!-- Configuración de Dosis de Cloro y Dosis de Agua para Calibración -->
+                    <div style="background: var(--bg-color); border: 1px solid var(--card-border); border-radius: 8px; padding: 0.8rem; display: flex; flex-direction: column; gap: 0.6rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; gap: 0.5rem;">
+                            <div>
+                                <div style="font-size: 0.82rem; font-weight: 700; color: var(--text-main);">Dosis de Cloro por Ciclo:</div>
+                                <div style="font-size: 0.74rem; color: var(--text-muted);">Cantidad de cloro colocada en cada ciclo de verano</div>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 0.3rem;">
+                                <input type="number" id="inpDosisConfigLitros" step="0.1" min="0.1" max="20" value="2.0" style="width: 75px; padding: 0.4rem; text-align: center; font-weight: 700;">
+                                <span style="font-size: 0.82rem; font-weight: 600; color: var(--text-main);">L</span>
+                            </div>
                         </div>
-                        <span id="lblPoolDosisAgua" style="font-size: 0.95rem; font-weight: 800; color: var(--accent); white-space: nowrap;">2.4 L (+20%)</span>
+                        <div style="display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; border-top: 1px dashed var(--card-border); padding-top: 0.5rem;">
+                            <div>
+                                <div style="font-size: 0.82rem; font-weight: 700; color: var(--accent);">Dosis de Agua (Calibración):</div>
+                                <div style="font-size: 0.74rem; color: var(--text-muted);">Usar agua para medir (+20% respecto a cloro)</div>
+                            </div>
+                            <span id="lblPoolDosisAgua" style="font-size: 0.95rem; font-weight: 800; color: var(--accent); white-space: nowrap;">2.4 L (+20%)</span>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Parámetros de Tiempos del Dosificador -->
-            <div class="card">
-                <h2 style="display: flex; align-items: center; width: 100%;">
-                    <span>Tiempos del Dosificador</span>
-                    <span class="material-symbols-outlined btn-help" data-help="tiempos-dosificador">help</span>
-                </h2>
+            <!-- Parámetros de Tiempos del Dosificador (Colapsable) -->
+            <div class="card" id="cardTiemposDosificador">
+                <div class="calc-header-toggle" id="btnToggleTiempos" style="display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none;">
+                    <div style="display: flex; align-items: center; gap: 0.4rem;">
+                        <span class="material-symbols-outlined" style="color: var(--accent); font-size: 1.25rem;">timer</span>
+                        <span style="font-weight: 700; font-size: 0.95rem; color: var(--text-main);">Tiempos del Dosificador</span>
+                        <span class="material-symbols-outlined btn-help" data-help="tiempos-dosificador" style="font-size: 1.1rem; cursor: pointer; color: var(--text-muted); margin-left: 0.2rem;">help</span>
+                    </div>
+                    <span class="material-symbols-outlined" id="iconToggleTiempos" style="color: var(--text-muted); transition: transform 0.2s ease;">expand_more</span>
+                </div>
                 
-                <div class="form-group">
-                    <label>Tiempo de Espera (Minutos y Segundos)</label>
-                    <div class="time-inputs-wrapper">
-                        <input type="number" id="inpEsperaMin" min="0" max="599" value="1" placeholder="Min">
-                        <span>m</span>
-                        <input type="number" id="inpEsperaSeg" min="0" max="59" value="30" placeholder="Seg">
-                        <span>s</span>
-                    </div>
-                </div>
-
-                <div class="form-group">
-                    <label>Duración de Dosis (Minutos y Segundos)</label>
-                    <div class="time-inputs-wrapper">
-                        <input type="number" id="inpDosisMin" min="0" max="59" value="1" placeholder="Min">
-                        <span>m</span>
-                        <input type="number" id="inpDosisSeg" min="0" max="59" value="30" placeholder="Seg">
-                        <span>s</span>
-                    </div>
-                </div>
-
-                <div class="form-group">
-                    <label>Ajuste por Temporada Baja: <span id="lblValAjusteBaja" style="font-weight: bold; color: var(--accent);">50%</span></label>
-                    <div style="display: flex; align-items: center; gap: 0.75rem;">
-                        <span>0%</span>
-                        <input type="range" id="inpAjusteBaja" min="0" max="100" value="50" style="padding: 0; height: auto;">
-                        <span>100%</span>
-                    </div>
-                </div>
-
-                <div class="row">
+                <div id="tiemposDosificadorBody" style="display: none; margin-top: 0.8rem; border-top: 1px solid var(--card-border); padding-top: 0.8rem;">
                     <div class="form-group">
-                        <label>Inicio Temporada Alta (DD-MM)</label>
-                        <div class="date-selects-wrapper">
-                            <select id="selectFVeranoDia"></select>
-                            <select id="selectFVeranoMes"></select>
+                        <label>Tiempo de Espera (Minutos y Segundos)</label>
+                        <div class="time-inputs-wrapper">
+                            <input type="number" id="inpEsperaMin" min="0" max="599" value="1" placeholder="Min">
+                            <span>m</span>
+                            <input type="number" id="inpEsperaSeg" min="0" max="59" value="30" placeholder="Seg">
+                            <span>s</span>
                         </div>
                     </div>
+
                     <div class="form-group">
-                        <label>Fin Temporada Alta (DD-MM)</label>
-                        <div class="date-selects-wrapper">
-                            <select id="selectFInviernoDia"></select>
-                            <select id="selectFInviernoMes"></select>
+                        <label>Duración de Dosis (Minutos y Segundos)</label>
+                        <div class="time-inputs-wrapper">
+                            <input type="number" id="inpDosisMin" min="0" max="59" value="1" placeholder="Min">
+                            <span>m</span>
+                            <input type="number" id="inpDosisSeg" min="0" max="59" value="30" placeholder="Seg">
+                            <span>s</span>
                         </div>
                     </div>
-                </div>
 
-                <button class="btn" id="btnGuardarConfig" style="margin-top: 0.5rem;">Guardar Parámetros de Tiempos</button>
+                    <div class="form-group">
+                        <label>Ajuste por Temporada Baja: <span id="lblValAjusteBaja" style="font-weight: bold; color: var(--accent);">50%</span></label>
+                        <div style="display: flex; align-items: center; gap: 0.75rem;">
+                            <span>0%</span>
+                            <input type="range" id="inpAjusteBaja" min="0" max="100" value="50" style="padding: 0; height: auto;">
+                            <span>100%</span>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="form-group">
+                            <label>Inicio Temporada Alta (DD-MM)</label>
+                            <div class="date-selects-wrapper">
+                                <select id="selectFVeranoDia"></select>
+                                <select id="selectFVeranoMes"></select>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Fin Temporada Alta (DD-MM)</label>
+                            <div class="date-selects-wrapper">
+                                <select id="selectFInviernoDia"></select>
+                                <select id="selectFInviernoMes"></select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button class="btn" id="btnGuardarConfig" style="margin-top: 0.5rem;">Guardar Parámetros de Tiempos</button>
+                </div>
             </div>
 
             <!-- Cronograma de Horarios de Filtrado / Dosificación -->
@@ -593,6 +568,42 @@
                 </div>
             </div>
             <button class="btn outline" id="btnGuardarModelo" style="display: none; margin-top: 0.5rem;">Guardar Modelo de Placa</button>
+        </div>
+
+        <!-- Tarjeta: Compensación Automática por Altas Temperaturas y Ajuste del Sensor -->
+        <div class="card" id="panelTempComp">
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;">
+                <div style="flex: 1;">
+                    <div style="font-weight: 600; font-size: 0.98rem; font-weight: 700; display: flex; align-items: center; gap: 0.4rem;">
+                        <span class="material-symbols-outlined" style="font-size: 1.15rem; color: var(--warning);">thermostat</span>
+                        <span>Compensación Temp. Alta</span>
+                        <span class="material-symbols-outlined btn-help" data-help="compensacion-temperatura" style="font-size: 1.1rem; cursor: pointer; color: var(--text-muted); margin-left: 0.2rem;">help</span>
+                    </div>
+                    <div style="font-size: 0.82rem; color: var(--text-muted); margin-top: 3px;">Ajuste automático de dosis por calor</div>
+                </div>
+                <div style="display: flex; gap: 0.4rem; align-items: center;">
+                    <label class="switch">
+                        <input type="checkbox" id="tglTempComp">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+            
+            <!-- Contenedor del control deslizable de calibración (Siempre visible) -->
+            <div id="containerTempOffset" style="margin-top: 0.8rem; border-top: 1px solid var(--card-border, #eee); padding-top: 0.8rem;">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.3rem;">
+                    <span style="font-size: 0.85rem; font-weight: 600; color: var(--text-main);">Ajuste del Sensor (Calibración):</span>
+                    <span id="lblTempValOffset" style="font-size: 0.9rem; font-weight: bold; color: var(--warning);">0.0°C</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.8rem;">
+                    <span style="font-size: 0.75rem; color: var(--text-muted); min-width: 35px; text-align: right;">-10.0°C</span>
+                    <input type="range" id="inpTempOffset" min="-10.0" max="5.0" step="0.5" value="0.0" style="flex: 1; cursor: pointer; accent-color: var(--accent);">
+                    <span style="font-size: 0.75rem; color: var(--text-muted); min-width: 35px;">+5.0°C</span>
+                </div>
+                <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.3rem; line-height: 1.2;">
+                    Ajusta la lectura del sensor interno del equipo sumando o restando grados (-10°C a +5°C).
+                </div>
+            </div>
         </div>
 
         <!-- Tarjeta de Conexión BLE Local -->
@@ -1373,6 +1384,6 @@
         </div>
     </div>
 
-    <script type="module" src="app.js?v=7.16"></script>
+    <script type="module" src="app.js?v=7.17"></script>
 </body>
 </html>

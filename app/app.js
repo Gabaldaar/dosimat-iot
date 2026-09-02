@@ -343,7 +343,7 @@ const HELP_TOPICS = {
     },
     "calculadora-piscina": {
         title: "Calculadora de Piscina y Dosis",
-        text: "Configurá cuánto Cloro querés colocar en cada dosis (Para Verano) o dejá el valor sugerido según el volumen de tu pileta. Utilizá la dosis de Agua para calibrar tu dosificador. Podés encontrar las intrucciones en la sección Ayuda"
+        text: "Configurá cuánto Cloro querés colocar en cada dosis (Para Verano) o dejá el valor sugerido según el volumen de tu pileta. Utilizá la dosis de Agua para calibrar tu dosificador. Podés encontrar las instrucciones en la sección Ayuda"
     },
     "ubicacion-clima": {
         title: "Ubicación y Clima Local",
@@ -2063,10 +2063,6 @@ function updateUI(raw_data) {
         if (inpTempOffset) inpTempOffset.value = globalTempOffset;
         if (lblTempValOffset) lblTempValOffset.innerText = (globalTempOffset > 0 ? "+" : "") + globalTempOffset.toFixed(1) + "°C";
     }
-    const containerTempOffset = document.getElementById('containerTempOffset');
-    if (containerTempOffset) {
-        containerTempOffset.style.display = globalTempComp ? 'block' : 'none';
-    }
 
     let tr = data.tr !== undefined ? data.tr : 0;
     currentDosisSec = tr;
@@ -2518,10 +2514,6 @@ const tglTempComp = document.getElementById('tglTempComp');
 if (tglTempComp) {
     tglTempComp.onchange = () => {
         globalTempComp = tglTempComp.checked;
-        const containerTempOffset = document.getElementById('containerTempOffset');
-        if (containerTempOffset) {
-            containerTempOffset.style.display = globalTempComp ? 'block' : 'none';
-        }
         sendCommand({ comando: "SET_TEMP_COMP", temp_comp: globalTempComp, temp_offset: globalTempOffset });
         updateUI({});
     };
@@ -2959,10 +2951,6 @@ function updateConfigUI(data) {
         const lblTempValOffset = document.getElementById('lblTempValOffset');
         if (inpTempOffset) inpTempOffset.value = globalTempOffset;
         if (lblTempValOffset) lblTempValOffset.innerText = (globalTempOffset > 0 ? "+" : "") + globalTempOffset.toFixed(1) + "°C";
-    }
-    const containerTempOffset = document.getElementById('containerTempOffset');
-    if (containerTempOffset) {
-        containerTempOffset.style.display = globalTempComp ? 'block' : 'none';
     }
 
     if (data.ultimo_refuerzo_temp_ts !== undefined) {
@@ -4794,6 +4782,30 @@ function initPoolCalculator() {
     if (inpLargo) inpLargo.oninput = recalcularPiscina;
     if (inpProf) inpProf.oninput = recalcularPiscina;
     if (inpDosisLitros) inpDosisLitros.oninput = recalcularPiscina;
+
+    const btnToggleCalc = document.getElementById('btnTogglePoolCalc');
+    const calcBody = document.getElementById('poolCalcBody');
+    const iconToggleCalc = document.getElementById('iconToggleCalc');
+    if (btnToggleCalc && calcBody) {
+        btnToggleCalc.onclick = (e) => {
+            if (e.target.closest('.btn-help')) return;
+            const isHidden = (calcBody.style.display === "none");
+            calcBody.style.display = isHidden ? "block" : "none";
+            if (iconToggleCalc) iconToggleCalc.innerText = isHidden ? "expand_less" : "expand_more";
+        };
+    }
+
+    const btnToggleTiempos = document.getElementById('btnToggleTiempos');
+    const tiemposBody = document.getElementById('tiemposDosificadorBody');
+    const iconToggleTiempos = document.getElementById('iconToggleTiempos');
+    if (btnToggleTiempos && tiemposBody) {
+        btnToggleTiempos.onclick = (e) => {
+            if (e.target.closest('.btn-help')) return;
+            const isHidden = (tiemposBody.style.display === "none");
+            tiemposBody.style.display = isHidden ? "block" : "none";
+            if (iconToggleTiempos) iconToggleTiempos.innerText = isHidden ? "expand_less" : "expand_more";
+        };
+    }
 
     recalcularPiscina();
 }
