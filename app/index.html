@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Dosimat IoT</title>
     <link rel="manifest" href="manifest.json">
-    <link rel="stylesheet" href="index.css?v=7.38">
+    <link rel="stylesheet" href="index.css?v=7.39">
     <!-- Google Fonts & Icons -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -104,7 +104,7 @@
     <header>
         <div class="header-title" style="align-items: flex-start; margin-top: 5px;">
             <div style="display: flex; flex-direction: column;">
-                <h1 style="margin-bottom: 0;"><span id="lblHeaderTitle">Dosimat IoT CB</span> <span style="font-size: 0.7rem; color: var(--accent); margin-left: 5px;">v7.38</span></h1>
+                <h1 style="margin-bottom: 0;"><span id="lblHeaderTitle">Dosimat IoT CB</span> <span style="font-size: 0.7rem; color: var(--accent); margin-left: 5px;">v7.39</span></h1>
                 <div id="lblUserName" style="font-size: 0.85rem; font-weight: 300; color: var(--text-muted); display: none;"></div>
             </div>
         </div>
@@ -1250,6 +1250,37 @@
         </div>
     </div>
 
+    <!-- Modal Estado de Conexión WiFi / Reinicio del Equipo -->
+    <div id="modalWifiConexion" class="overlay" style="z-index: 10006;">
+        <div class="overlay-content" style="max-width: 400px; text-align: center; padding: 1.75rem 1.25rem;">
+            <div id="boxWifiSpinner" style="margin: 0.5rem 0 1rem;">
+                <div class="spinner" style="margin: 0 auto; width: 44px; height: 44px; border-width: 4px;"></div>
+            </div>
+            <div id="boxWifiIconSuccess" style="display: none; margin: 0.5rem 0 1rem; color: var(--success, #10b981);">
+                <span class="material-symbols-outlined" style="font-size: 54px;">cloud_done</span>
+            </div>
+            <div id="boxWifiIconFail" style="display: none; margin: 0.5rem 0 1rem; color: var(--warning, #f59e0b);">
+                <span class="material-symbols-outlined" style="font-size: 54px;">wifi_off</span>
+            </div>
+
+            <h3 id="lblWifiModalTitle" style="color: var(--accent); margin-bottom: 0.5rem;">Conectando a WiFi...</h3>
+            <p id="lblWifiModalDesc" style="color: var(--text-muted); font-size: 0.9rem; line-height: 1.4; margin-bottom: 1.25rem;">
+                El dosificador se está reiniciando para conectarse a tu red y enlazar con la Nube. Esto puede demorar entre 15 y 30 segundos.
+            </p>
+
+            <div id="boxWifiSteps" style="background: var(--bg-color); border: 1px solid var(--card-border); border-radius: 8px; padding: 0.75rem; text-align: left; font-size: 0.85rem; margin-bottom: 1.25rem;">
+                <div id="stepWifiCreds" style="color: var(--success, #10b981); margin-bottom: 4px;">✅ Credenciales enviadas</div>
+                <div id="stepWifiReboot" style="color: var(--accent); margin-bottom: 4px;">⏳ Reiniciando equipo y buscando señal...</div>
+                <div id="stepWifiCloud" style="color: var(--text-muted);">📡 Esperando reporte en la Nube Dosimat...</div>
+            </div>
+
+            <div id="boxWifiModalActions" style="display: flex; gap: 0.5rem; justify-content: center;">
+                <button class="btn" id="btnCerrarModalWifi" style="display: none; width: auto; padding: 0.6rem 1.5rem;">Ir al Panel</button>
+                <button class="btn outline" id="btnReintentarModalWifi" style="display: none; width: auto; padding: 0.6rem 1.2rem;">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Modal Registrar Recarga de Bidón -->
     <div id="modalRecargaBidon" class="overlay">
         <div class="overlay-content" style="max-width: 360px;">
@@ -1591,6 +1622,6 @@
         </div>
     </div>
 
-    <script type="module" src="app.js?v=7.38"></script>
+    <script type="module" src="app.js?v=7.39"></script>
 </body>
 </html>

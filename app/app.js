@@ -1190,6 +1190,7 @@ onAuthStateChanged(auth, async (user) => {
         }
 
         if (typeof syncDosimatProClient === "function") syncDosimatProClient();
+        if (typeof syncEquipmentLocation === "function" && currentMac) syncEquipmentLocation(currentMac);
     } else {
         if (authOverlay) authOverlay.style.display = 'flex';
         if (userBar) userBar.style.display = 'none';
@@ -3313,6 +3314,112 @@ if (inpAjusteBaja) {
 }
 
 // === CONEXIÓN Y REGISTRO DE RED WIFI ===
+async function iniciarProcesoWifi(ssid, pwd) {
+    const modal = document.getElementById('modalWifiConexion');
+    const spinner = document.getElementById('boxWifiSpinner');
+    const iconSuccess = document.getElementById('boxWifiIconSuccess');
+    const iconFail = document.getElementById('boxWifiIconFail');
+    const lblTitle = document.getElementById('lblWifiModalTitle');
+    const lblDesc = document.getElementById('lblWifiModalDesc');
+    const stepReboot = document.getElementById('stepWifiReboot');
+    const stepCloud = document.getElementById('stepWifiCloud');
+    const btnCerrar = document.getElementById('btnCerrarModalWifi');
+    const btnReintentar = document.getElementById('btnReintentarModalWifi');
+
+    if (modal) {
+        if (spinner) spinner.style.display = 'block';
+        if (iconSuccess) iconSuccess.style.display = 'none';
+        if (iconFail) iconFail.style.display = 'none';
+        if (btnCerrar) btnCerrar.style.display = 'none';
+        if (btnReintentar) btnReintentar.style.display = 'none';
+        if (lblTitle) lblTitle.innerText = `Conectando a "${ssid}"...`;
+        if (lblDesc) lblDesc.innerText = `El dosificador se está reiniciando para conectarse a "${ssid}" y enlazar con la Nube. Por favor, aguardá unos segundos sin cerrar la app...`;
+        if (stepReboot) stepReboot.innerText = '⏳ Reiniciando equipo y buscando señal WiFi...';
+        if (stepCloud) {
+            stepCloud.innerText = '📡 Esperando reporte en la Nube Dosimat...';
+            stepCloud.style.color = 'var(--text-muted)';
+        }
+        modal.style.display = 'flex';
+    }
+
+    // Enviar comando SET_WIFI
+    sendCommand({ comando: "SET_WIFI", ssid: ssid, pwd: pwd }, true);
+
+    const macTarget = currentMac;
+    const startTs = Date.now();
+    let cloudFound = false;
+    let checkInterval = null;
+    let timeoutTimer = null;
+
+    const cleanupWifiCheck = () => {
+        if (checkInterval) clearInterval(checkInterval);
+        if (timeoutTimer) clearTimeout(timeoutTimer);
+    };
+
+    if (btnCerrar) {
+        btnCerrar.onclick = () => {
+            cleanupWifiCheck();
+            if (modal) modal.style.display = 'none';
+            const btnHome = document.querySelector('nav button[data-target="dashboard"]');
+            if (btnHome) btnHome.click();
+        };
+    }
+
+    if (btnReintentar) {
+        btnReintentar.onclick = () => {
+            cleanupWifiCheck();
+            if (modal) modal.style.display = 'none';
+        };
+    }
+
+    // Monitorear en Firestore si el equipo reporta nueva telemetría
+    if (macTarget && typeof db !== 'undefined' && db) {
+        checkInterval = setInterval(async () => {
+            try {
+                const docSnap = await getDoc(doc(db, "equipos", macTarget, "estado", "actual"));
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    const stateTs = data.timestamp ? (typeof data.timestamp === 'number' ? data.timestamp : new Date(data.timestamp).getTime()) : 0;
+                    if (stateTs >= startTs - 5000) {
+                        cloudFound = true;
+                        cleanupWifiCheck();
+                        if (spinner) spinner.style.display = 'none';
+                        if (iconSuccess) iconSuccess.style.display = 'block';
+                        if (stepReboot) stepReboot.innerText = '✅ Equipo reiniciado';
+                        if (stepCloud) {
+                            stepCloud.innerText = '✅ ¡Conectado a la Nube Dosimat!';
+                            stepCloud.style.color = 'var(--success, #10b981)';
+                        }
+                        if (lblTitle) lblTitle.innerText = '¡WiFi Conectado con Éxito!';
+                        if (lblDesc) lblDesc.innerText = `Tu Dosimat está en línea en "${ssid}". Ahora podés monitorearlo y controlarlo desde cualquier lugar por Internet.`;
+                        if (btnCerrar) btnCerrar.style.display = 'inline-block';
+
+                        setConexionModo("NUBE");
+                        connectNube();
+                    }
+                }
+            } catch(e) {}
+        }, 3000);
+    }
+
+    // Timeout de espera a los 35 segundos
+    timeoutTimer = setTimeout(() => {
+        if (!cloudFound) {
+            cleanupWifiCheck();
+            if (spinner) spinner.style.display = 'none';
+            if (iconFail) iconFail.style.display = 'block';
+            if (stepReboot) stepReboot.innerText = '⚠️ No se confirmó enlace a la Nube';
+            if (stepCloud) stepCloud.innerText = '❓ Verificá la señal WiFi o la contraseña';
+            if (lblTitle) lblTitle.innerText = 'Sin respuesta de Nube';
+            if (lblDesc) lblDesc.innerText = `El equipo no reportó a tiempo. Verificá que la contraseña de "${ssid}" sea correcta y que la señal WiFi llegue con potencia al dosificador.`;
+            if (btnReintentar) {
+                btnReintentar.innerText = 'Cerrar';
+                btnReintentar.style.display = 'inline-block';
+            }
+        }
+    }, 35000);
+}
+
 const btnGuardarWifi = document.getElementById('btnGuardarWifi');
 if (btnGuardarWifi) {
     btnGuardarWifi.onclick = async () => {
@@ -3347,8 +3454,7 @@ if (btnGuardarWifi) {
             await vincularEquipo(currentMac);
         }
 
-        sendCommand({ comando: "SET_WIFI", ssid: ssid, pwd: pwd });
-        showToast("Datos de WiFi enviados al equipo.");
+        iniciarProcesoWifi(ssid, pwd);
     };
 }
 
@@ -3703,6 +3809,8 @@ async function connectRemoteDevice(mac, ownerName = "", ownerEmail = "", alias =
     }
 
     connectNube();
+    if (typeof syncDosimatProClient === "function") syncDosimatProClient();
+    if (typeof syncEquipmentLocation === "function") syncEquipmentLocation(mac);
     switchTab(document.querySelector('nav [data-target="dashboard"]'), 'dashboard');
     showToast(`🔧 Conectado en Modo Técnico a: ${displayClient || mac}`);
 }
@@ -4198,6 +4306,9 @@ async function handleNotifications(event) {
                         if (typeof syncDosimatProClient === "function") {
                             syncDosimatProClient();
                         }
+                        if (typeof syncEquipmentLocation === "function") {
+                            syncEquipmentLocation(chipId);
+                        }
                     }
 
                     // Solicitar descarga de logs offline una sola vez
@@ -4586,7 +4697,7 @@ async function saveUserLocationCloud() {
     if (currentMac) localStorage.setItem(`dosimat_location_${currentMac}`, JSON.stringify(userLocation));
     localStorage.setItem("dosimat_location", JSON.stringify(userLocation));
 
-    if (!currentMac || modoConexion === "BLE") return;
+    if (!currentMac || typeof db === "undefined" || !db) return;
     try {
         const cfgRef = doc(db, "equipos", currentMac, "config", "actual");
         await setDoc(cfgRef, {
@@ -4603,11 +4714,37 @@ async function saveUserLocationCloud() {
     }
 }
 
+function syncEquipmentLocation(mac) {
+    if (!mac) return;
+    try {
+        const saved = localStorage.getItem(`dosimat_location_${mac}`) || localStorage.getItem("dosimat_location");
+        if (saved) {
+            userLocation = JSON.parse(saved);
+            updateLocationDisplay();
+            fetchWeatherData(userLocation.lat, userLocation.lon, userLocation.name);
+        }
+    } catch(e) {}
+
+    if (typeof db !== "undefined" && db) {
+        getDoc(doc(db, "equipos", mac)).then(snap => {
+            if (snap.exists()) {
+                const eqData = snap.data();
+                if (eqData.userLocation && eqData.userLocation.lat) {
+                    userLocation = eqData.userLocation;
+                    localStorage.setItem(`dosimat_location_${mac}`, JSON.stringify(userLocation));
+                    updateLocationDisplay();
+                    fetchWeatherData(userLocation.lat, userLocation.lon, userLocation.name);
+                }
+            }
+        }).catch(()=>{});
+    }
+}
+
 async function saveBidonConfigCloud() {
     if (currentMac) localStorage.setItem(`dosimat_bidon_config_${currentMac}`, JSON.stringify(bidonConfig));
     localStorage.setItem("dosimat_bidon_config", JSON.stringify(bidonConfig));
 
-    if (!currentMac || modoConexion === "BLE") return;
+    if (!currentMac || typeof db === "undefined" || !db) return;
     try {
         const cfgRef = doc(db, "equipos", currentMac, "config", "actual");
         await setDoc(cfgRef, {
@@ -4632,7 +4769,7 @@ async function savePoolDimsCloud() {
     if (currentMac) localStorage.setItem(`dosimat_pool_dims_${currentMac}`, JSON.stringify(poolDims));
     localStorage.setItem("dosimat_pool_dims", JSON.stringify(poolDims));
 
-    if (!currentMac || modoConexion === "BLE") return;
+    if (!currentMac || typeof db === "undefined" || !db) return;
     try {
         const cfgRef = doc(db, "equipos", currentMac, "config", "actual");
         await setDoc(cfgRef, {
