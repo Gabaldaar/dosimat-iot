@@ -10,13 +10,21 @@ _UART_SERVICE_UUID = bluetooth.UUID("6E400001-B5A3-F393-E0A9-E50E24DCCA9E")
 _UART_RX_CHAR_UUID = bluetooth.UUID("6E400002-B5A3-F393-E0A9-E50E24DCCA9E")
 _UART_TX_CHAR_UUID = bluetooth.UUID("6E400003-B5A3-F393-E0A9-E50E24DCCA9E")
 
-# Configuración del servicio y características UART
-_uart_service = aioble.Service(_UART_SERVICE_UUID)
-_uart_rx = aioble.Characteristic(_uart_service, _UART_RX_CHAR_UUID, write=True, write_no_response=True, capture=True)
-_uart_tx = aioble.Characteristic(_uart_service, _UART_TX_CHAR_UUID, read=True, notify=True)
+# Configuración diferida del servicio y características UART
+_uart_service = None
+_uart_rx = None
+_uart_tx = None
+_services_registered = False
 
-# Registrar servicio en aioble
-aioble.register_services(_uart_service)
+def ensure_ble_services():
+    global _uart_service, _uart_rx, _uart_tx, _services_registered
+    if not _services_registered:
+        _uart_service = aioble.Service(_UART_SERVICE_UUID)
+        _uart_rx = aioble.Characteristic(_uart_service, _UART_RX_CHAR_UUID, write=True, write_no_response=True, capture=True)
+        _uart_tx = aioble.Characteristic(_uart_service, _UART_TX_CHAR_UUID, read=True, notify=True)
+        aioble.register_services(_uart_service)
+        _services_registered = True
+        print("[BLE] Servicios GATT Nordic UART registrados.")
 
 class AsyncQueue:
     def __init__(self):
@@ -159,6 +167,7 @@ async def start_ble_service(name="DosimatBLE"):
         
     _ble_running = True
     try:
+        ensure_ble_services()
         # Inicializar el chip físico de BLE
         ble_hw = bluetooth.BLE()
         if not ble_hw.active():
