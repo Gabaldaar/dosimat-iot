@@ -320,8 +320,8 @@ const HELP_TOPICS = {
         text: "Permite conectar el celular directamente al dosificador mediante Bluetooth (BLE) sin necesidad de internet, ideal para la configuración inicial o zonas sin WiFi."
     },
     "wifi-local": {
-        title: "Configuración WiFi",
-        text: "Asigna la red WiFi local (SSID y Contraseña) a la que se conectará el dosificador para poder ser controlado de forma remota desde cualquier lugar."
+        title: "Configuración WiFi (2.4 GHz)",
+        text: "Asigna la red WiFi local (SSID y Contraseña) a la que se conectará el dosificador para poder ser controlado de forma remota desde cualquier lugar. El dosificador solo funciona con redes de 2.4 GHz."
     },
     "guia-conexion": {
         title: "Guía de Conexión y Registro",
@@ -414,7 +414,26 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     initHelpButtons();
+    initPasswordToggles();
 });
+
+function initPasswordToggles() {
+    document.addEventListener('click', (e) => {
+        const btn = e.target.closest('.btn-toggle-pass');
+        if (!btn) return;
+        const wrapper = btn.closest('.pass-wrapper');
+        const input = wrapper ? wrapper.querySelector('input') : (btn.previousElementSibling || btn.nextElementSibling);
+        if (input) {
+            if (input.type === 'password') {
+                input.type = 'text';
+                btn.innerText = 'visibility_off';
+            } else {
+                input.type = 'password';
+                btn.innerText = 'visibility';
+            }
+        }
+    });
+}
 
 // === LISTENERS DE CONTACTOS DE SOPORTE GLOBAL ===
 function listenSupportContacts() {
