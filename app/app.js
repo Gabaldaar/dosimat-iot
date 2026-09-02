@@ -3438,8 +3438,9 @@ if (btnRecomendar) {
 const btnResetFabrica = document.getElementById('btnResetFabrica');
 if (btnResetFabrica) {
     btnResetFabrica.onclick = async () => {
-        if (await customConfirm("¿Estás seguro de reiniciar el equipo a valores de fábrica?", "Restablecer Fábrica")) {
-            sendCommand({ comando: "RESET_FACTORY" });
+        if (await customConfirm("¿Estás seguro de restablecer el equipo a valores de fábrica? Se borrarán las configuraciones WiFi, cronogramas y parámetros guardados.", "Restablecer Fábrica", "Restablecer", "Cancelar")) {
+            sendCommand({ comando: "FACTORY_RESET" });
+            showToast("Orden de restablecimiento de fábrica enviada al equipo.");
         }
     };
 }
