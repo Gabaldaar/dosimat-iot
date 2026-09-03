@@ -279,9 +279,9 @@ function updatePanelEstadoBadges() {
 const HELP_TOPICS = {
     "compensacion-temperatura": {
         title: "Compensación de Temperatura",
-        text: "El equipo medirá la temperatura de su sensor interno y dosificará refuerzos automáticos (doble dosis) según corresponda:\n" +
-            "• Entre 29°C y 32°C: activa un refuerzo cada 4 días.\n" +
-            "• Mayor a 32°C: activa un refuerzo cada 3 días."
+        text: "El equipo medirá la temperatura de su sensor interno y dosificará refuerzos automáticos (doble dosis) según corresponda:\n\n" +
+            "• **Entre 29°C y 32°C:** activa un refuerzo cada 4 días.\n" +
+            "• **Mayor a 32°C:** activa un refuerzo cada 3 días."
     },
     "soporte-tecnico": {
         title: "Soporte Técnico",
@@ -294,26 +294,26 @@ const HELP_TOPICS = {
     "panel-estado": {
         title: "Panel Principal y LED",
         text: "Monitorea el estado actual del dosificador, bomba activa y temperatura. Permite iniciar dosis manuales, activar refuerzo y pausar el equipo.\n\n" +
-            "PATRONES DEL LED:\n" +
-            "• Destello breve c/ 4s: En espera del próximo evento\n" +
-            "• Destello breve c/ 2s: En espera de Bluetooth\n" +
-            "• Doble destello c/ 4s: En Espera con Refuerzo programado\n" +
-            "• Parpadeo lento (1s): Dosificando cloro \n" +
-            "• Encendido casi fijo (apaga breve): Dosificando con Refuerzo\n" +
-            "• Parpadeo intermedio (0.5s): Solo bomba (Filtrando sin cloro)\n" +
-            "• Parpadeo rápido (0.2s): Mantenimiento / Pausa"
+            "**PATRONES DEL LED:**\n" +
+            "• **Destello breve c/ 4s:** En espera del próximo evento\n" +
+            "• **Destello breve c/ 2s:** En espera de Bluetooth\n" +
+            "• **Doble destello c/ 4s:** En Espera con Refuerzo programado\n" +
+            "• **Parpadeo lento (1s):** Dosificando cloro\n" +
+            "• **Encendido casi fijo (apaga breve):** Dosificando con Refuerzo\n" +
+            "• **Parpadeo intermedio (0.5s):** Solo bomba (Filtrando sin cloro)\n" +
+            "• **Parpadeo rápido (0.2s):** Mantenimiento / Pausa"
     },
     "cronograma-filtrado": {
         title: "Programación de Cronogramas",
-        text: "Configura hasta 10 horarios de Filtrado/Dosificación independientes. Permite seleccionar Horario, Días de la semana en que se repetirá el ciclo y si en ese horario debe dosificar cloro o no. Se recomienda establecer las dosis en horarios nocturnos. Programa Automático: establece 3 horarios estándar de filtrado, uno de ellos con dosificación."
+        text: "Configura hasta 10 horarios de Filtrado/Dosificación independientes. Permite seleccionar **Horario**, **Días de la semana** en que se repetirá el ciclo y si en ese horario debe dosificar cloro o no. Se recomienda establecer las dosis en horarios nocturnos. **Programa Automático:** establece 3 horarios estándar de filtrado, uno de ellos con dosificación."
     },
     "tiempos-dosificador": {
         title: "Ajustes de Parámetros",
-        text: "Modifica los tiempos del Dosificador de cloro.\n\n" +
-            "• Tiempo de Espera: filtrado previo a la dosificación, para estabilizar el caudal de agua.\n" +
-            "• Duración de Dosis: tiempo durante el cual se dosificará cloro. Se verá afectado por el Refuerzo y el Ajuste estacional.\n" +
-            "• Ajuste por Temporada: especifica qué porcentaje de la dosis, definida en Duración, se colocará durante la temporada baja .\n" +
-            "• Inicio/Fin de Temporada Alta: define el intervalo de fechas en las que se aplicará la dosis sin ajuste estacional."
+        text: "Modifica los tiempos del Dosificador de cloro:\n\n" +
+            "• **Tiempo de Espera:** filtrado previo a la dosificación, para estabilizar el caudal de agua.\n" +
+            "• **Duración de Dosis:** tiempo durante el cual se dosificará cloro. Se verá afectado por el Refuerzo y el Ajuste estacional.\n" +
+            "• **Ajuste por Temporada:** especifica qué porcentaje de la dosis, definida en Duración, se colocará durante la temporada baja.\n" +
+            "• **Inicio/Fin de Temporada Alta:** define el intervalo de fechas en las que se aplicará la dosis sin ajuste estacional."
     },
     "vinculo-ble": {
         title: "Vínculo Bluetooth",
@@ -326,38 +326,35 @@ const HELP_TOPICS = {
     "guia-conexion": {
         title: "Guía de Conexión y Registro",
         text: "Sigue estos 4 simples pasos para poner en marcha tu equipo:\n\n" +
-            "1️⃣ Ingresá a la aplicación con la cuenta de correo con la que quieras registrarte (Todavía no tendrás control del equipo).\n\n" +
-            "2️⃣ Abrí Ajustes y Tocá 'Buscar Dosificador por BLE'. Aquí ya estás conectado a tu equipo, por Bluetooth.\n\n" +
-            "3️⃣ Para configurar el WiFi de tu casa: En la pestaña de Ajustes (Conectividad WiFi local), ingresá el Nombre (SSID) y Contraseña de tu WiFi domiciliario y presioná 'Registrar Red WiFi'. El equipo se reiniciará y se conectará a la Nube. Ya podés ingresar desde cualquier lugar con tu usuario y clave.\n\n" +
-            "4️⃣ Si tu red WiFi no llega hasta el Dosimat, simplemente conectate por BLE cuando quieras controlarlo."
+            "1️⃣ **Ingreso:** Ingresá a la aplicación con tu correo para registrarte.\n\n" +
+            "2️⃣ **Vínculo BLE:** Abrí Ajustes y tocá **Buscar Dosificador por BLE** para conectar en forma directa.\n\n" +
+            "3️⃣ **Registro WiFi:** En la tarjeta **Conectividad WiFi local**, ingresá el Nombre (SSID) y Contraseña de tu red y presioná **Registrar Red WiFi**. El equipo se reiniciará y se vinculará a la Nube.\n\n" +
+            "4️⃣ **Uso sin WiFi:** Si la señal WiFi no llega hasta el Dosimat, simplemente conectate por BLE cuando quieras controlarlo."
     },
     "guia-tecnico": {
         title: "Guía de Operaciones Técnicas",
-        text: "🛠️ MANUAL RÁPIDO PARA TÉCNICOS E INSTALADORES\n\n" +
-            "1️⃣ CÓMO CONECTARSE A UN EQUIPO:\n" +
-            "• Remoto (WiFi / Nube): En este Portal Técnico, busca el equipo en la lista y pulsa 'Conectar', o escribe la MAC y pulsa 'Conectar'. Verás la barra roja superior con los datos del cliente.\n" +
-            "• Local (Bluetooth / BLE): Útil en instalaciones nuevas o sin internet. Ve a la solapa Ajustes > Vinculación Bluetooth y presiona 'Buscar Dosificador por BLE'.\n\n" +
-            "2️⃣ CÓMO REGISTRAR UNA NUEVA RED WIFI:\n" +
-            "• Conéctate al dosificador primero por Bluetooth (BLE) desde Ajustes.\n" +
-            "• En la tarjeta 'Conectividad WiFi local', escribe el Nombre (SSID) y Contraseña del WiFi del cliente.\n" +
-            "• Presiona 'Registrar Red WiFi'. El equipo guardará los datos en memoria, se reiniciará y se vinculará a la nube.\n\n" +
-            "3️⃣ CÓMO MODIFICAR EL MODELO DE EQUIPO (CB / SCB):\n" +
-            "• Conéctate al equipo (por BLE o Nube).\n" +
-            "• Ve a la solapa Ajustes > Modelo de Equipo.\n" +
-            "• Elige entre 'CB' (Con Control de Bomba) o 'SCB' (Sin Control de Bomba).\n" +
-            "• Si estás usando el teléfono del cliente o sin sesión iniciada, pulsa '🔑 Desbloquear con PIN' e ingresa el PIN maestro.\n" +
-            "• Presiona 'Guardar Modelo de Placa' y confirma."
+        text: "🛠️ **MANUAL RÁPIDO PARA TÉCNICOS E INSTALADORES**\n\n" +
+            "1️⃣ **CÓMO CONECTARSE A UN EQUIPO:**\n" +
+            "• **Remoto (WiFi / Nube):** En este Portal Técnico, busca el equipo en la lista y pulsa **Conectar**, o escribe la MAC y pulsa **Conectar**.\n" +
+            "• **Local (Bluetooth / BLE):** Útil en instalaciones nuevas. Ve a Ajustes > Vinculación Bluetooth y presiona **Buscar Dosificador por BLE**.\n\n" +
+            "2️⃣ **CÓMO REGISTRAR UNA NUEVA RED WIFI:**\n" +
+            "• Conéctate al dosificador por Bluetooth (BLE) desde Ajustes.\n" +
+            "• En **Conectividad WiFi local**, escribe el Nombre (SSID) y Contraseña del WiFi del cliente y presiona **Registrar Red WiFi**.\n\n" +
+            "3️⃣ **CÓMO MODIFICAR EL MODELO DE EQUIPO (CB / SCB):**\n" +
+            "• Conéctate al equipo y ve a Ajustes > Modelo de Equipo.\n" +
+            "• Elige entre **CB** (Con Bomba) o **SCB** (Sin Bomba).\n" +
+            "• Si es necesario, pulsa **🔑 Desbloquear con PIN** e ingresa el PIN maestro."
     },
     "bidon-calculadora": {
         title: "Nivel de Cloro y Autonomía",
-        text: "🛢️ ESTIMADOR DE NIVEL DE BIDÓN Y AUTONOMÍA:\n\n" +
-            "• Muestra el nivel de cloro restante y los días de autonomía estimados según tu cronograma activo y los registros del equipo.\n" +
-            "• Registrar Recarga: Permite registrar los bidones repuestos y la fecha de reposición (reiniciando el contador del equipo).\n" +
-            "• Ajustar Nivel: Permite configurar la cantidad total de bidones instalados (27L c/u), corregir el nivel actual y definir los umbrales de alerta de nivel bajo."
+        text: "🛢️ **ESTIMADOR DE NIVEL DE BIDÓN Y AUTONOMÍA:**\n\n" +
+            "• Muestra el nivel de cloro restante y los días de autonomía estimados según tu cronograma activo y los registros del equipo.\n\n" +
+            "• **Registrar Recarga:** Permite registrar los bidones repuestos y la fecha de reposición (reiniciando el contador del equipo).\n\n" +
+            "• **Ajustar Nivel:** Permite configurar la cantidad total de bidones instalados (27L c/u), corregir el nivel actual y definir los umbrales de alerta de nivel bajo."
     },
     "calculadora-piscina": {
         title: "Calculadora de Piscina y Dosis",
-        text: "Configurá cuánto Cloro querés colocar en cada dosis (Para Verano) o dejá el valor sugerido según el volumen de tu pileta. Utilizá la dosis de Agua para calibrar tu dosificador. Podés encontrar las instrucciones en la sección Ayuda"
+        text: "Configurá cuánto Cloro querés colocar en cada dosis (Para Verano) o dejá el valor sugerido según el volumen de tu pileta. Utilizá la **dosis de Agua** para calibrar tu dosificador. Podés encontrar las instrucciones en la sección Ayuda."
     },
     "ubicacion-clima": {
         title: "Ubicación y Clima Local",
@@ -365,9 +362,9 @@ const HELP_TOPICS = {
     },
     "portal-reposicion": {
         title: "Sistema de Reposición",
-        text: "🚚 SISTEMA DE REPOSICIÓN DE CLORO A DOMICILIO:\n\n" +
+        text: "🚚 **SISTEMA DE REPOSICIÓN DE CLORO A DOMICILIO:**\n\n" +
             "• Consulta las próximas fechas de entrega programadas en las hojas de ruta de Dosimat.\n" +
-            "• Permite solicitar bidones de Cloro (27L) y Ácido (10L) directamente al sistema.\n" +
+            "• Permite solicitar bidones de **Cloro (27L)** y **Ácido (10L)** directamente al sistema.\n" +
             "• Permite consultar tu estado de cuenta y cancelar pedidos pendientes."
     }
 };
@@ -517,6 +514,17 @@ function showToast(msg, isWarning = false) {
     }, 4000);
 }
 
+function formatModalMessage(text) {
+    if (!text) return "";
+    let str = String(text);
+    if (str.includes("<") && str.includes(">")) {
+        return str.replace(/\n/g, "<br>");
+    }
+    return escapeHtml(str)
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\n/g, '<br>');
+}
+
 function customConfirm(message, title = "Confirmar acción", confirmText = "Confirmar", cancelText = "Cancelar") {
     return new Promise((resolve) => {
         const modal = document.getElementById('customModal');
@@ -524,12 +532,13 @@ function customConfirm(message, title = "Confirmar acción", confirmText = "Conf
         const btnCancel = document.getElementById('btnModalCancel');
 
         if (!modal || !btnConfirm || !btnCancel) {
-            resolve(confirm(`${title}\n\n${message}`));
+            resolve(confirm(`${title}\n\n${message.replace(/<[^>]*>/g, '').replace(/\*\*/g, '')}`));
             return;
         }
 
         document.getElementById('modalTitle').innerText = title;
-        document.getElementById('modalMessage').innerText = message;
+        const msgEl = document.getElementById('modalMessage');
+        if (msgEl) msgEl.innerHTML = formatModalMessage(message);
         btnCancel.style.display = 'inline-block';
         btnCancel.innerText = cancelText;
         btnConfirm.style.display = 'inline-block';
@@ -556,13 +565,14 @@ function customAlert(message, title = "Información", btnText = "Cerrar") {
         const btnCancel = document.getElementById('btnModalCancel');
 
         if (!modal || !btnConfirm) {
-            alert(`${title}\n\n${message}`);
+            alert(`${title}\n\n${message.replace(/<[^>]*>/g, '').replace(/\*\*/g, '')}`);
             resolve(true);
             return;
         }
 
         document.getElementById('modalTitle').innerText = title;
-        document.getElementById('modalMessage').innerText = message;
+        const msgEl = document.getElementById('modalMessage');
+        if (msgEl) msgEl.innerHTML = formatModalMessage(message);
         if (btnCancel) btnCancel.style.display = 'none';
         btnConfirm.style.display = 'inline-block';
         btnConfirm.innerText = btnText;
@@ -592,12 +602,13 @@ function customPrompt(message, title = "Ingreso de datos", placeholder = "", inp
         const modalInput = document.getElementById('modalInput');
 
         if (!modal || !btnConfirm || !btnCancel || !modalInput) {
-            resolve(prompt(`${title}\n\n${message}`) || null);
+            resolve(prompt(`${title}\n\n${message.replace(/<[^>]*>/g, '').replace(/\*\*/g, '')}`) || null);
             return;
         }
 
         document.getElementById('modalTitle').innerText = title;
-        document.getElementById('modalMessage').innerText = message;
+        const msgEl = document.getElementById('modalMessage');
+        if (msgEl) msgEl.innerHTML = formatModalMessage(message);
         if (inputContainer) inputContainer.style.display = 'block';
         modalInput.value = "";
         modalInput.placeholder = placeholder;
@@ -1735,6 +1746,27 @@ function ejecutarReintentoNube() {
     }, 3000);
 }
 
+function ignorarAlertaSesion(alertId) {
+    try {
+        const ignored = JSON.parse(sessionStorage.getItem("dosimat_ignored_alerts") || "[]");
+        if (!ignored.includes(alertId)) {
+            ignored.push(alertId);
+            sessionStorage.setItem("dosimat_ignored_alerts", JSON.stringify(ignored));
+        }
+    } catch(e) {}
+    evaluarAlertasSistema();
+    showToast("Sugerencia descartada por esta sesión.");
+}
+
+function estaAlertaIgnoradaSesion(alertId) {
+    try {
+        const ignored = JSON.parse(sessionStorage.getItem("dosimat_ignored_alerts") || "[]");
+        return Array.isArray(ignored) && ignored.includes(alertId);
+    } catch(e) {
+        return false;
+    }
+}
+
 function evaluarAlertasSistema() {
     const container = document.getElementById('systemAlertsContainer');
     if (!container) return;
@@ -1945,10 +1977,14 @@ function evaluarAlertasSistema() {
                 title: "Sugerencia Meteorológica: Calor Intenso",
                 desc: `Se pronostican temperaturas de hasta ${Math.round(todayMax)}°C. Se sugiere activar el refuerzo de cloro para evitar algas.`,
                 btnText: "Activar Refuerzo",
+                secondaryBtnText: "Ignorar",
                 action: () => {
                     const pRef = document.getElementById('panelRefuerzo');
                     if (pRef) pRef.click();
                     else sendCommand({ comando: "SET_REFUERZO", valor: 1 });
+                },
+                secondaryAction: () => {
+                    ignorarAlertaSesion("alerta_clima_calor");
                 },
                 notifTitle: "Dosimat Clima",
                 notifBody: `Calor intenso pronosticado (${Math.round(todayMax)}°C). Sugerencia: Reforzar dosis de cloro.`
@@ -1961,10 +1997,14 @@ function evaluarAlertasSistema() {
                 title: "Sugerencia Meteorológica: Lluvias Fuertes",
                 desc: `Se pronostican precipitaciones (${todayRainProb}% prob. · ${todayRainMm}mm). El agua de lluvia alterará el balance de cloro.`,
                 btnText: "Activar Refuerzo",
+                secondaryBtnText: "Ignorar",
                 action: () => {
                     const pRef = document.getElementById('panelRefuerzo');
                     if (pRef) pRef.click();
                     else sendCommand({ comando: "SET_REFUERZO", valor: 1 });
+                },
+                secondaryAction: () => {
+                    ignorarAlertaSesion("alerta_clima_lluvia");
                 },
                 notifTitle: "Dosimat Clima",
                 notifBody: `Lluvias intensas previstas (${todayRainProb}% prob). Sugerencia: Reforzar dosis de cloro.`
@@ -2012,8 +2052,11 @@ function evaluarAlertasSistema() {
         }
     }
 
+    // Filtrar alertas ignoradas en esta sesión
+    const activeAlerts = alerts.filter(item => !estaAlertaIgnoradaSesion(item.id));
+
     // Renderizar
-    if (alerts.length === 0) {
+    if (activeAlerts.length === 0) {
         container.style.display = "none";
         container.innerHTML = "";
         return;
@@ -2022,7 +2065,7 @@ function evaluarAlertasSistema() {
     container.innerHTML = "";
     container.style.display = "block";
 
-    alerts.forEach(item => {
+    activeAlerts.forEach(item => {
         dispararNotificacionLocal(item.notifTitle, item.notifBody, item.id);
 
         const card = document.createElement('div');
