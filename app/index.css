@@ -718,6 +718,36 @@ nav::-webkit-scrollbar {
     font-size: 1.25rem;
 }
 
+.btn-step-adjust {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    border-radius: 6px;
+    border: 1px solid var(--card-border, #e2e8f0);
+    background: var(--card-bg, #ffffff);
+    color: var(--text-main, #0f172a);
+    font-weight: 800;
+    font-size: 1.15rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.15s ease;
+    padding: 0;
+    line-height: 1;
+}
+
+.btn-step-adjust:hover {
+    background: rgba(2, 132, 199, 0.12);
+    color: var(--accent, #0284c7);
+    border-color: var(--accent, #0284c7);
+}
+
+.btn-step-adjust:active {
+    transform: scale(0.92);
+}
+
 .historial-list {
     display: flex;
     flex-direction: column;

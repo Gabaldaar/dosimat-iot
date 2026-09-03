@@ -138,7 +138,10 @@ function renderModeloUI() {
     } else {
         HELP_TOPICS["cronograma-filtrado"] = {
             title: "Programación de Cronogramas",
-            text: "Configura hasta 10 horarios de Filtrado/Dosificación independientes. Permite seleccionar Horario, Días de la semana en que se repetirá el ciclo y si en ese horario debe dosificar cloro o no. Se recomienda establecer las dosis en horarios nocturnos. Programa Automático: establece 3 horarios estándar de filtrado, uno de ellos con dosificación."
+            text: "Configurá hasta 10 horarios de Filtrado/Dosificación independientes.\n" +
+                "Podés seleccionar **Horario**, **Días de la semana** en que se repetirá el ciclo y si en ese horario debe dosificar cloro o no.\n" +
+                "Se recomienda establecer las dosis en horarios nocturnos.\n" +
+                "**Programa Automático:** establece 3 horarios estándar de filtrado, uno de ellos con dosificación."
         };
     }
 
@@ -289,7 +292,9 @@ const HELP_TOPICS = {
     },
     "info-equipo": {
         title: "Información del Equipo",
-        text: "Muestra el identificador único (MAC) de tu equipo Dosimat IoT y la hora sincronizada del reloj en tiempo real. Este identificador puede ser solicitado por el servicio técnico para un chequeo remoto del equipo."
+        text: "Muestra el identificador único (MAC) de tu equipo Dosimat IoT y la hora sincronizada del reloj interno. Este identificador puede ser solicitado por el servicio técnico para un chequeo remoto del equipo.\n" +
+            "**Restablecer Valores de Fábrica:** vuelve el equipo a su estado original de fábrica. Utilizá este comando sólo si estás muy seguro/a. No se puede deshacer." 
+            
     },
     "panel-estado": {
         title: "Panel Principal y LED",
@@ -305,14 +310,17 @@ const HELP_TOPICS = {
     },
     "cronograma-filtrado": {
         title: "Programación de Cronogramas",
-        text: "Configura hasta 10 horarios de Filtrado/Dosificación independientes. Permite seleccionar **Horario**, **Días de la semana** en que se repetirá el ciclo y si en ese horario debe dosificar cloro o no. Se recomienda establecer las dosis en horarios nocturnos. **Programa Automático:** establece 3 horarios estándar de filtrado, uno de ellos con dosificación."
+        text: "Configurá hasta 10 horarios de Filtrado/Dosificación independientes.\n" +
+            "Podés seleccionar **Horario**, **Días de la semana** en que se repetirá el ciclo y si en ese horario debe dosificar cloro o no.\n" +
+            "Se recomienda establecer las dosis en horarios nocturnos.\n" +
+            "**Programa Automático:** establece 3 horarios estándar de filtrado, uno de ellos con dosificación."
     },
     "tiempos-dosificador": {
         title: "Ajustes de Parámetros",
         text: "Modifica los tiempos del Dosificador de cloro:\n\n" +
             "• **Tiempo de Espera:** filtrado previo a la dosificación, para estabilizar el caudal de agua.\n" +
             "• **Duración de Dosis:** tiempo durante el cual se dosificará cloro. Se verá afectado por el Refuerzo y el Ajuste estacional.\n" +
-            "• **Ajuste por Temporada:** especifica qué porcentaje de la dosis, definida en Duración, se colocará durante la temporada baja.\n" +
+            "• **Ajuste por Temporada:** especifica qué porcentaje de la dosis, definida en Duración, se colocará durante la temporada baja.(Recomendado: 50%)\n" +
             "• **Inicio/Fin de Temporada Alta:** define el intervalo de fechas en las que se aplicará la dosis sin ajuste estacional."
     },
     "vinculo-ble": {
@@ -354,11 +362,13 @@ const HELP_TOPICS = {
     },
     "calculadora-piscina": {
         title: "Calculadora de Piscina y Dosis",
-        text: "Configurá cuánto Cloro querés colocar en cada dosis (Para Verano) o dejá el valor sugerido según el volumen de tu pileta. Utilizá la **dosis de Agua** para calibrar tu dosificador. Podés encontrar las instrucciones en la sección Ayuda."
+        text: "Configurá cuánto Cloro querés colocar en cada dosis (Para Verano) o dejá el valor sugerido según el volumen de tu pileta.\n" +
+            "Utilizá la **dosis de Agua** para calibrar tu dosificador.\n" +
+            "Podés encontrar las instrucciones en la sección **Ayuda**."
     },
     "ubicacion-clima": {
         title: "Ubicación y Clima Local",
-        text: "Configura la ubicación geográfica de tu equipo por GPS o búsqueda manual para consultar el pronóstico del tiempo (Open-Meteo) y recibir sugerencias inteligentes de refuerzo de cloro ante olas de calor o lluvias intensas."
+        text: "Configura la ubicación geográfica de tu equipo por GPS o búsqueda manual para consultar el pronóstico del tiempo y recibir sugerencias inteligentes de refuerzo de cloro, ante olas de calor o lluvias intensas."
     },
     "portal-reposicion": {
         title: "Sistema de Reposición",
@@ -379,9 +389,9 @@ function initHelpButtons() {
             } else {
                 customAlert(
                         "Seleccioná aquí el hardware de tu equipo.\n\n"+
-                        "Modelo Dosimat_IoT SCB:\n"+
+                        "**Modelo Dosimat_IoT SCB:**\n"+
                         "Equipo sin control de la bomba de filtrado.\n\n"+
-                        "Modelo Dosimat_IoT CB:\n"+
+                        "**Modelo Dosimat_IoT CB:**\n"+
                         "Equipo con control de la bomba de filtrado.\n\n"+
                         "Este ajuste sólo está disponible para personal técnico.",
                         "Ayuda"
@@ -5424,6 +5434,25 @@ function initPoolCalculator() {
     if (inpLargo) inpLargo.oninput = recalcularPiscina;
     if (inpProf) inpProf.oninput = recalcularPiscina;
     if (inpDosisLitros) inpDosisLitros.oninput = recalcularPiscina;
+
+    const btnIncDosis = document.getElementById('btnIncDosisLitros');
+    const btnDecDosis = document.getElementById('btnDecDosisLitros');
+    if (btnIncDosis && inpDosisLitros) {
+        btnIncDosis.onclick = () => {
+            let val = parseFloat(inpDosisLitros.value) || 2.0;
+            val = Math.min(20.0, Math.round((val + 0.1) * 10) / 10);
+            inpDosisLitros.value = val.toFixed(1);
+            recalcularPiscina();
+        };
+    }
+    if (btnDecDosis && inpDosisLitros) {
+        btnDecDosis.onclick = () => {
+            let val = parseFloat(inpDosisLitros.value) || 2.0;
+            val = Math.max(0.1, Math.round((val - 0.1) * 10) / 10);
+            inpDosisLitros.value = val.toFixed(1);
+            recalcularPiscina();
+        };
+    }
 
     const btnToggleCalc = document.getElementById('btnTogglePoolCalc');
     const calcBody = document.getElementById('poolCalcBody');

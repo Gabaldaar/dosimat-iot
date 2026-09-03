@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Dosimat IoT</title>
     <link rel="manifest" href="manifest.json">
-    <link rel="stylesheet" href="index.css?v=7.44">
+    <link rel="stylesheet" href="index.css?v=7.45">
     <!-- Google Fonts & Icons -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -104,7 +104,7 @@
     <header>
         <div class="header-title" style="align-items: flex-start; margin-top: 5px;">
             <div style="display: flex; flex-direction: column;">
-                <h1 style="margin-bottom: 0;"><span id="lblHeaderTitle">Dosimat IoT CB</span> <span style="font-size: 0.7rem; color: var(--accent); margin-left: 5px;">v7.44</span></h1>
+                <h1 style="margin-bottom: 0;"><span id="lblHeaderTitle">Dosimat IoT CB</span> <span style="font-size: 0.7rem; color: var(--accent); margin-left: 5px;">v7.45</span></h1>
                 <div id="lblUserName" style="font-size: 0.85rem; font-weight: 300; color: var(--text-muted); display: none;"></div>
             </div>
         </div>
@@ -458,14 +458,16 @@
 
                     <!-- Configuración de Dosis de Cloro y Dosis de Agua para Calibración -->
                     <div style="background: var(--bg-color); border: 1px solid var(--card-border); border-radius: 8px; padding: 0.8rem; display: flex; flex-direction: column; gap: 0.6rem;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; gap: 0.5rem;">
-                            <div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                            <div style="min-width: 140px;">
                                 <div style="font-size: 0.82rem; font-weight: 700; color: var(--text-main);">Dosis de Cloro por Ciclo:</div>
                                 <div style="font-size: 0.74rem; color: var(--text-muted);">Cantidad de cloro colocada en cada ciclo de verano</div>
                             </div>
-                            <div style="display: flex; align-items: center; gap: 0.3rem;">
-                                <input type="number" id="inpDosisConfigLitros" step="0.1" min="0.1" max="20" value="2.0" style="width: 75px; padding: 0.4rem; text-align: center; font-weight: 700;">
-                                <span style="font-size: 0.82rem; font-weight: 600; color: var(--text-main);">L</span>
+                            <div style="display: flex; align-items: center; gap: 0.35rem; margin-left: auto;">
+                                <button type="button" id="btnDecDosisLitros" class="btn-step-adjust" title="Disminuir 0.1 L">−</button>
+                                <input type="number" id="inpDosisConfigLitros" step="0.1" min="0.1" max="20" value="2.0" style="width: 60px; padding: 0.4rem; text-align: center; font-weight: 700;">
+                                <button type="button" id="btnIncDosisLitros" class="btn-step-adjust" title="Aumentar 0.1 L">+</button>
+                                <span style="font-size: 0.82rem; font-weight: 600; color: var(--text-main); margin-left: 2px;">L</span>
                             </div>
                         </div>
                         <div style="display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; border-top: 1px dashed var(--card-border); padding-top: 0.5rem;">
@@ -1347,15 +1349,18 @@
             </div>
 
             <div class="form-group" style="margin-top: 0.8rem;">
-                <label>Corregir Nivel de Cloro por Bidón (0 a 32 L):</label>
-                <div style="display: flex; align-items: center; gap: 0.6rem;">
+                <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px;">
+                    <label style="margin-bottom: 0;">Nivel por Bidón (0 a 32 L):</label>
+                    <span id="lblAjusteNivelVal" style="font-weight: 800; font-size: 1rem; color: var(--accent);">27.0 L / bidón</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                    <span style="font-size: 0.76rem; color: var(--text-muted);">Nivel Total Acumulado:</span>
+                    <span id="lblAjusteNivelLitros" style="font-size: 0.85rem; color: var(--text-main); font-weight: 700; background: rgba(2, 132, 199, 0.1); padding: 2px 8px; border-radius: 6px; border: 1px solid rgba(2, 132, 199, 0.2);">Total: 27.0 Litros</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.6rem; margin-top: 4px;">
                     <span style="font-size: 0.75rem; color: var(--text-muted); min-width: 25px;">0 L</span>
                     <input type="range" id="rngAjusteNivel" min="0" max="32" step="0.5" value="27" style="flex: 1; accent-color: var(--accent);">
                     <span style="font-size: 0.75rem; color: var(--text-muted); min-width: 30px; text-align: right;">32 L</span>
-                </div>
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
-                    <span id="lblAjusteNivelLitros" style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600;">Total: 27.0 Litros</span>
-                    <span id="lblAjusteNivelVal" style="font-weight: 800; font-size: 0.95rem; color: var(--accent);">27.0 L / bidón</span>
                 </div>
             </div>
 
@@ -1622,6 +1627,6 @@
         </div>
     </div>
 
-    <script type="module" src="app.js?v=7.44"></script>
+    <script type="module" src="app.js?v=7.45"></script>
 </body>
 </html>
