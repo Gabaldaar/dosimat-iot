@@ -67,6 +67,8 @@ var lastProgramasData = null;
 var unsavedChanges = false;
 var unsavedProgramasChanges = false;
 var isTechRemoteActive = false;
+var isCurrentMacShared = false;
+var currentMacOwnerEmail = "";
 
 var globalModelo = "CB";
 var globalBombaOn = 0;
@@ -376,6 +378,14 @@ const HELP_TOPICS = {
             "• Consulta las próximas fechas de entrega programadas en las hojas de ruta de Dosimat.\n" +
             "• Permite solicitar bidones de **Cloro (27L)** y **Ácido (10L)** directamente al sistema.\n" +
             "• Permite consultar tu estado de cuenta y cancelar pedidos pendientes."
+    },
+    "cuentas-compartidas": {
+        title: "Cuentas Compartidas",
+        text: "👥 **GESTIÓN DE CUENTAS COMPARTIDAS:**\n\n" +
+            "• Permite autorizar a otras personas para que controlen este equipo desde su propio usuario de la app.\n\n" +
+            "• **Control Operativo:** Las personas autorizadas pueden ver el estado del dosificador, activar dosis manuales, refuerzo y controlar la bomba.\n\n" +
+            "• **Seguridad del Titular:** Las cuentas compartidas **no pueden modificar la titularidad ni eliminar el equipo**.\n\n" +
+            "• **Revocación Inmediata:** Como titular, podés dar de baja a cualquier cuenta autorizada en cualquier momento presionando **Dar de baja**."
     }
 };
 
@@ -742,6 +752,10 @@ async function switchTab(btn, target) {
     if (target === "tecnicos" && typeof loadAdminGlobal === "function") {
         loadAdminGlobal();
         loadTecnicosUI();
+    }
+
+    if (target === "configuracion" && typeof loadCuentasCompartidasUI === "function") {
+        loadCuentasCompartidasUI();
     }
 
     initHelpButtons();
@@ -1181,8 +1195,11 @@ onAuthStateChanged(auth, async (user) => {
         }
 
         try {
-            const userDoc = await getDoc(doc(db, "usuarios", user.uid));
+            isCurrentMacShared = false;
+            currentMacOwnerEmail = "";
             let macToConnect = null;
+
+            const userDoc = await getDoc(doc(db, "usuarios", user.uid));
             if (userDoc.exists()) {
                 const udata = userDoc.data();
                 if (udata.id_equipo) macToConnect = udata.id_equipo;
@@ -1194,16 +1211,40 @@ onAuthStateChanged(auth, async (user) => {
                     macToConnect = snap.docs[0].id;
                 }
             }
+
+            // Si no tiene equipo propio, verificar si tiene Cuentas Compartidas asignadas
+            if (!macToConnect && user.email) {
+                try {
+                    const qShared = query(
+                        collection(db, "accesos_compartidos"),
+                        where("email", "==", user.email.toLowerCase()),
+                        where("activo", "==", true)
+                    );
+                    const sharedSnap = await getDocs(qShared);
+                    if (!sharedSnap.empty) {
+                        const sharedData = sharedSnap.docs[0].data();
+                        macToConnect = sharedData.mac;
+                        isCurrentMacShared = true;
+                        currentMacOwnerEmail = sharedData.owner_email || "el titular del equipo";
+                    }
+                } catch (errShared) {
+                    console.warn("Aviso buscando accesos compartidos:", errShared);
+                }
+            }
+
             if (!macToConnect) {
-                // Si no tiene equipo, no conectar automáticamente.
+                // Si no tiene equipo propio ni compartido, no conectar automáticamente.
                 currentMac = null;
                 const status = document.getElementById('connectStatus');
-                if (status) status.innerText = "No tienes equipos vinculados. Vincula tu equipo por Bluetooth.";
+                if (status) status.innerText = "No tienes equipos vinculados ni compartidos. Vincula tu equipo por Bluetooth.";
                 const lblMac = document.getElementById('lblMac');
                 if (lblMac) lblMac.innerText = "-";
             } else {
                 currentMac = macToConnect;
                 connectNube();
+                if (isCurrentMacShared) {
+                    showToast(`Conectado a equipo compartido (Autorizado por ${currentMacOwnerEmail})`);
+                }
             }
         } catch (e) {
             console.error("Error buscando equipos de usuario:", e);
@@ -2337,6 +2378,10 @@ function connectNube() {
         }, (err) => {
             console.warn("Firestore snapshot programas:", err.message);
         });
+    }
+
+    if (typeof loadCuentasCompartidasUI === "function") {
+        loadCuentasCompartidasUI();
     }
 }
 
@@ -3700,6 +3745,204 @@ if (btnGuardarWifi) {
     };
 }
 
+// === GESTIÓN DE CUENTAS COMPARTIDAS ===
+async function loadCuentasCompartidasUI() {
+    const card = document.getElementById('cardCuentasCompartidas');
+    const listElem = document.getElementById('listaCuentasCompartidas');
+    const countBadge = document.getElementById('badgeCuentasCompartidasCount');
+    const guestBanner = document.getElementById('bannerSharedAccountGuestInfo');
+    const guestOwnerEmail = document.getElementById('lblSharedOwnerEmail');
+    const ownerContent = document.getElementById('cuentasCompartidasOwnerContent');
+
+    if (!card || !listElem) return;
+
+    if (!currentMac) {
+        card.style.display = 'none';
+        return;
+    }
+    card.style.display = 'block';
+
+    // Si el usuario actual es un invitado con cuenta compartida:
+    if (isCurrentMacShared) {
+        if (guestBanner) {
+            guestBanner.style.display = 'block';
+            if (guestOwnerEmail) guestOwnerEmail.innerText = currentMacOwnerEmail || "el titular del equipo";
+        }
+        if (ownerContent) ownerContent.style.display = 'none';
+        if (countBadge) countBadge.style.display = 'none';
+        return;
+    }
+
+    // Si es el propietario / admin:
+    if (guestBanner) guestBanner.style.display = 'none';
+    if (ownerContent) ownerContent.style.display = 'block';
+    if (countBadge) countBadge.style.display = 'inline-block';
+
+    try {
+        const snap = await getDocs(collection(db, "equipos", currentMac, "cuentas_compartidas"));
+        let items = [];
+        snap.forEach(d => {
+            const data = d.data();
+            if (data && data.activo !== false) {
+                items.push(data);
+            }
+        });
+
+        if (countBadge) countBadge.innerText = `${items.length} activa${items.length === 1 ? '' : 's'}`;
+
+        if (items.length === 0) {
+            listElem.innerHTML = `
+                <div style="text-align: center; padding: 0.9rem; color: var(--text-muted); font-size: 0.8rem; background: var(--bg-color); border-radius: 8px; border: 1px dashed var(--card-border);">
+                    No hay cuentas compartidas autorizadas en este equipo.
+                </div>
+            `;
+            return;
+        }
+
+        listElem.innerHTML = '';
+        items.forEach(item => {
+            const row = document.createElement('div');
+            row.style.display = 'flex';
+            row.style.alignItems = 'center';
+            row.style.justifyContent = 'space-between';
+            row.style.padding = '0.6rem 0.8rem';
+            row.style.background = 'var(--bg-color)';
+            row.style.borderRadius = '8px';
+            row.style.border = '1px solid var(--card-border)';
+            row.style.gap = '0.5rem';
+
+            const fechaStr = item.creado_el ? new Date(item.creado_el).toLocaleDateString() : '';
+            const notaHtml = item.nota ? `<span style="font-size: 0.75rem; color: var(--text-muted); display: block;">${escapeHtml(item.nota)} · ${fechaStr}</span>` : `<span style="font-size: 0.72rem; color: var(--text-muted); display: block;">Autorizado el ${fechaStr}</span>`;
+
+            row.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 0.5rem; min-width: 0;">
+                    <span class="material-symbols-outlined" style="color: var(--accent); font-size: 1.3rem;">person</span>
+                    <div style="min-width: 0; overflow: hidden; text-overflow: ellipsis;">
+                        <strong style="font-size: 0.85rem; color: var(--text-main); word-break: break-all;">${escapeHtml(item.email)}</strong>
+                        ${notaHtml}
+                    </div>
+                </div>
+                <button class="btn danger" style="width: auto; padding: 0.3rem 0.65rem; font-size: 0.75rem; background: var(--danger); white-space: nowrap;">
+                    Dar de baja
+                </button>
+            `;
+            const btnBaja = row.querySelector('button');
+            if (btnBaja) {
+                btnBaja.onclick = () => window.revokeCuentaCompartida(item.email);
+            }
+            listElem.appendChild(row);
+        });
+
+    } catch (e) {
+        console.warn("Error cargando cuentas compartidas:", e);
+        listElem.innerHTML = `<div style="color: var(--danger); font-size: 0.8rem;">Error al cargar cuentas: ${escapeHtml(e.message)}</div>`;
+    }
+}
+
+async function addCuentaCompartida(email, nota) {
+    if (!currentMac) {
+        customAlert("No hay ningún equipo conectado actualmente.");
+        return;
+    }
+    if (!currentUser) {
+        customAlert("Debes iniciar sesión como titular para compartir el equipo.");
+        return;
+    }
+
+    const cleanEmail = String(email || "").trim().toLowerCase();
+    if (!cleanEmail || !cleanEmail.includes("@") || !cleanEmail.includes(".")) {
+        customAlert("Por favor ingresa un correo electrónico válido.");
+        return;
+    }
+
+    if (currentUser.email && cleanEmail === currentUser.email.toLowerCase()) {
+        customAlert("No puedes compartir el equipo con tu propia cuenta de titular.");
+        return;
+    }
+
+    const emailKey = cleanEmail.replace(/[^a-zA-Z0-9]/g, "_");
+
+    try {
+        const payloadEquipo = {
+            email: cleanEmail,
+            nota: String(nota || "").trim(),
+            creado_el: Date.now(),
+            creado_por: currentUser.email || "Titular",
+            activo: true
+        };
+
+        const payloadAccesoGlobal = {
+            email: cleanEmail,
+            mac: currentMac,
+            nota: String(nota || "").trim(),
+            owner_email: currentUser.email || "Titular",
+            owner_uid: currentUser.uid,
+            activo: true,
+            creado_el: Date.now()
+        };
+
+        // 1. Guardar en subcoleccion del equipo
+        await setDoc(doc(db, "equipos", currentMac, "cuentas_compartidas", emailKey), payloadEquipo, { merge: true });
+
+        // 2. Guardar en coleccion global de accesos compartidos
+        await setDoc(doc(db, "accesos_compartidos", `${emailKey}_${currentMac}`), payloadAccesoGlobal, { merge: true });
+
+        showToast(`✅ Cuenta ${cleanEmail} autorizada exitosamente.`);
+
+        const inpE = document.getElementById('inpShareEmail');
+        const inpN = document.getElementById('inpShareNota');
+        if (inpE) inpE.value = "";
+        if (inpN) inpN.value = "";
+
+        loadCuentasCompartidasUI();
+    } catch (e) {
+        console.error("Error al autorizar cuenta compartida:", e);
+        showToast("Error al autorizar cuenta: " + e.message, true);
+    }
+}
+
+async function revokeCuentaCompartida(email) {
+    if (!currentMac) return;
+    const cleanEmail = String(email || "").trim().toLowerCase();
+    if (!cleanEmail) return;
+
+    const confirmed = await customConfirm(
+        `¿Estás seguro de dar de baja a la cuenta compartida ${cleanEmail}?\n\nEsta persona perderá el acceso y control del dosificador de forma inmediata.`,
+        "Dar de Baja Cuenta Compartida",
+        "Dar de baja",
+        "Cancelar"
+    );
+
+    if (!confirmed) return;
+
+    const emailKey = cleanEmail.replace(/[^a-zA-Z0-9]/g, "_");
+
+    try {
+        await deleteDoc(doc(db, "equipos", currentMac, "cuentas_compartidas", emailKey));
+        await deleteDoc(doc(db, "accesos_compartidos", `${emailKey}_${currentMac}`));
+
+        showToast(`Acceso revocado para ${cleanEmail}.`);
+        loadCuentasCompartidasUI();
+    } catch (e) {
+        console.error("Error al revocar cuenta:", e);
+        showToast("Error al revocar cuenta: " + e.message, true);
+    }
+}
+
+window.revokeCuentaCompartida = revokeCuentaCompartida;
+window.loadCuentasCompartidasUI = loadCuentasCompartidasUI;
+
+const btnAddShare = document.getElementById('btnAddCuentaCompartida');
+if (btnAddShare) {
+    btnAddShare.onclick = () => {
+        const inpE = document.getElementById('inpShareEmail');
+        const inpN = document.getElementById('inpShareNota');
+        const email = inpE ? inpE.value.trim() : "";
+        const nota = inpN ? inpN.value.trim() : "";
+        addCuentaCompartida(email, nota);
+    };
+}
+
 // === HISTORIAL / LOGS DEL SISTEMA ===
 const btnPedirHistorial = document.getElementById('btnPedirHistorial');
 if (btnPedirHistorial) {
@@ -3857,6 +4100,10 @@ function ejecutarFlujoFactoryReset() {
 const btnResetFabrica = document.getElementById('btnResetFabrica');
 if (btnResetFabrica) {
     btnResetFabrica.onclick = async () => {
+        if (isCurrentMacShared) {
+            customAlert("Esta función solo está disponible para el propietario / titular del equipo.");
+            return;
+        }
         if (await customConfirm("¿Estás seguro de restablecer el equipo a valores de fábrica? Se borrarán las configuraciones WiFi, cronogramas y parámetros guardados.", "Restablecer Fábrica", "Restablecer", "Cancelar")) {
             sendCommand({ comando: "FACTORY_RESET" });
             ejecutarFlujoFactoryReset();

@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Dosimat IoT</title>
     <link rel="manifest" href="manifest.json">
-    <link rel="stylesheet" href="index.css?v=7.45">
+    <link rel="stylesheet" href="index.css?v=7.46">
     <!-- Google Fonts & Icons -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -729,6 +729,55 @@
                 </div>
             </div>
             <button class="btn outline" id="btnGuardarWifi">Registrar Red WiFi</button>
+        </div>
+
+        <!-- Tarjeta: Cuentas Compartidas -->
+        <div class="card" id="cardCuentasCompartidas">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem;">
+                <h2 style="margin: 0; display: flex; align-items: center; gap: 6px;">
+                    <span>Cuentas Compartidas</span>
+                    <span class="material-symbols-outlined btn-help" data-help="cuentas-compartidas">help</span>
+                </h2>
+                <span class="badge" id="badgeCuentasCompartidasCount" style="background: rgba(2, 132, 199, 0.12); color: var(--accent); font-weight: 700; padding: 3px 9px; border-radius: 12px; font-size: 0.75rem;">0 activas</span>
+            </div>
+            <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1rem;">
+                Autorizá a otras personas para que puedan monitorear y controlar este dosificador desde sus propios dispositivos. Podés revocar el acceso en cualquier momento.
+            </p>
+
+            <!-- Banner informativo para usuarios invitados -->
+            <div id="bannerSharedAccountGuestInfo" style="display: none; background: rgba(2, 132, 199, 0.08); border: 1px solid rgba(2, 132, 199, 0.25); border-radius: 8px; padding: 0.8rem; margin-bottom: 0.8rem; font-size: 0.82rem; color: var(--text-main);">
+                <div style="display: flex; align-items: center; gap: 0.4rem; font-weight: 700; color: var(--accent); margin-bottom: 0.2rem;">
+                    <span class="material-symbols-outlined" style="font-size: 1.1rem;">group</span>
+                    <span>Acceso mediante Cuenta Compartida</span>
+                </div>
+                <div>Estás utilizando este dosificador con una autorización otorgada por <strong id="lblSharedOwnerEmail">--</strong>.</div>
+            </div>
+
+            <!-- Contenido del Titular / Administrador -->
+            <div id="cuentasCompartidasOwnerContent">
+                <div id="listaCuentasCompartidas" style="display: flex; flex-direction: column; gap: 0.6rem; margin-bottom: 1rem;">
+                    <!-- Se llena dinámicamente -->
+                </div>
+
+                <!-- Formulario para autorizar nueva cuenta -->
+                <div style="background: var(--bg-color); border: 1px dashed var(--card-border); border-radius: 8px; padding: 0.9rem;">
+                    <div style="font-size: 0.82rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.6rem; display: flex; align-items: center; gap: 0.35rem;">
+                        <span class="material-symbols-outlined" style="font-size: 1.1rem; color: var(--accent);">person_add</span>
+                        <span>Compartir con una nueva cuenta</span>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0.5rem;">
+                        <label style="font-size: 0.75rem;">Correo Electrónico del usuario:</label>
+                        <input type="email" id="inpShareEmail" placeholder="usuario@gmail.com" style="padding: 0.55rem; font-size: 0.85rem;">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0.8rem;">
+                        <label style="font-size: 0.75rem;">Nota o referencia opcional:</label>
+                        <input type="text" id="inpShareNota" placeholder="Ej: Familiar / Casa Verano" style="padding: 0.55rem; font-size: 0.85rem;">
+                    </div>
+                    <button class="btn" id="btnAddCuentaCompartida" style="width: 100%; padding: 0.6rem; font-size: 0.85rem; background: var(--accent); color: white;">
+                        <span>Autorizar Cuenta Compartida</span>
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -1627,6 +1676,6 @@
         </div>
     </div>
 
-    <script type="module" src="app.js?v=7.45"></script>
+    <script type="module" src="app.js?v=7.46"></script>
 </body>
 </html>
