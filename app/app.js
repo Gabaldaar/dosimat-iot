@@ -1055,6 +1055,132 @@ if (btnGoogleAuth) {
     };
 }
 
+async function loginAsSharedGuest(guestEmail) {
+    let cleanEmail = String(guestEmail || "").trim().toLowerCase();
+    
+    if (!cleanEmail) {
+        const txtE = document.getElementById('txtEmail');
+        if (txtE && txtE.value.trim()) {
+            cleanEmail = txtE.value.trim().toLowerCase();
+        }
+    }
+
+    if (!cleanEmail || !cleanEmail.includes("@") || !cleanEmail.includes(".")) {
+        const prompted = await customPrompt(
+            "Ingresá el correo electrónico donde fuiste autorizado como Cuenta Compartida:",
+            "Acceso Cuenta Compartida (Sin Clave)",
+            "ejemplo@correo.com"
+        );
+        if (!prompted) return;
+        cleanEmail = String(prompted).trim().toLowerCase();
+    }
+
+    if (!cleanEmail || !cleanEmail.includes("@") || !cleanEmail.includes(".")) {
+        customAlert("Por favor ingresa un correo electrónico válido.");
+        return;
+    }
+
+    showToast("Verificando autorización en la nube...");
+
+    try {
+        if (!auth.currentUser) {
+            await signInAnonymously(auth);
+        }
+
+        const emailKey = cleanEmail.replace(/[^a-zA-Z0-9]/g, "_");
+        let foundMac = null;
+        let ownerEmail = "el titular del equipo";
+
+        // 1. Buscar en accesos_compartidos
+        try {
+            const qShared = query(
+                collection(db, "accesos_compartidos"),
+                where("email", "==", cleanEmail),
+                where("activo", "==", true)
+            );
+            const sharedSnap = await getDocs(qShared);
+            if (!sharedSnap.empty) {
+                const sdata = sharedSnap.docs[0].data();
+                foundMac = sdata.mac;
+                ownerEmail = sdata.owner_email || ownerEmail;
+            }
+        } catch (e1) {
+            console.warn("Consulta accesos_compartidos:", e1);
+        }
+
+        // 2. Fallback directo en subcolecciones
+        if (!foundMac) {
+            try {
+                const eqSnap = await getDocs(collection(db, "equipos"));
+                for (const eqDoc of eqSnap.docs) {
+                    try {
+                        const shareDoc = await getDoc(doc(db, "equipos", eqDoc.id, "cuentas_compartidas", emailKey));
+                        if (shareDoc.exists() && shareDoc.data().activo !== false) {
+                            foundMac = eqDoc.id;
+                            ownerEmail = shareDoc.data().creado_por || ownerEmail;
+                            setDoc(doc(db, "accesos_compartidos", `${emailKey}_${eqDoc.id}`), {
+                                email: cleanEmail,
+                                mac: eqDoc.id,
+                                owner_email: ownerEmail,
+                                activo: true,
+                                creado_el: Date.now()
+                            }, { merge: true }).catch(() => {});
+                            break;
+                        }
+                    } catch (errSub) {}
+                }
+            } catch (e2) {
+                console.warn("Consulta fallback equipos:", e2);
+            }
+        }
+
+        if (!foundMac) {
+            customAlert(
+                `El correo ${cleanEmail} no cuenta con autorizaciones activas de ningún dosificador.\n\nSolicita al titular del equipo que agregue tu correo en la sección Ajustes > Cuentas Compartidas.`,
+                "Acceso No Autorizado"
+            );
+            return;
+        }
+
+        // 3. Acceso confirmado: guardar en localStorage
+        localStorage.setItem("dosimat_guest_email", cleanEmail);
+        isCurrentMacShared = true;
+        currentMacOwnerEmail = ownerEmail;
+        currentMac = foundMac;
+
+        const authOverlay = document.getElementById('authOverlay');
+        const userBar = document.getElementById('userBar');
+        const lblUserName = document.getElementById('lblUserName');
+        if (authOverlay) authOverlay.style.display = 'none';
+        if (userBar) userBar.style.display = 'flex';
+        if (lblUserName) {
+            lblUserName.innerText = `${cleanEmail} (Invitado)`;
+            lblUserName.style.display = 'block';
+        }
+
+        connectNube();
+        if (typeof syncDosimatProClient === "function") syncDosimatProClient();
+        if (typeof syncEquipmentLocation === "function" && currentMac) syncEquipmentLocation(currentMac);
+
+        showToast(`🎉 Conectado a equipo compartido (Autorizado por ${ownerEmail})`);
+
+    } catch (err) {
+        console.error("Error al ingresar como invitado:", err);
+        customAlert("Error al verificar acceso: " + err.message);
+    }
+}
+
+window.loginAsSharedGuest = loginAsSharedGuest;
+
+const btnGuestAuth = document.getElementById('btnGuestAuth');
+if (btnGuestAuth) {
+    btnGuestAuth.onclick = () => {
+        const txtE = document.getElementById('txtEmail');
+        const email = txtE ? txtE.value.trim() : "";
+        loginAsSharedGuest(email);
+    };
+}
+
 const btnSignOut = document.getElementById('btnSignOut') || document.getElementById('btnLogout');
 if (btnSignOut) {
     btnSignOut.onclick = async () => {
@@ -1075,6 +1201,7 @@ if (btnSignOut) {
             if (unsubscribeLogs) { unsubscribeLogs(); unsubscribeLogs = null; }
             if (mqttClient) { try { mqttClient.disconnect(); } catch (e) { } mqttClient = null; }
 
+            localStorage.removeItem("dosimat_guest_email");
             await signOut(auth);
             showToast("Sesión cerrada.");
         }
@@ -1161,20 +1288,23 @@ onAuthStateChanged(auth, async (user) => {
     if (user) {
         if (authOverlay) authOverlay.style.display = 'none';
         if (userBar) userBar.style.display = 'flex';
+        const guestEmailStored = localStorage.getItem("dosimat_guest_email");
         if (lblUserName) {
-            lblUserName.innerText = user.displayName || user.email;
+            lblUserName.innerText = user.displayName || user.email || (guestEmailStored ? `${guestEmailStored} (Invitado)` : "Invitado");
             lblUserName.style.display = 'block';
         }
 
         checkUserRole(user);
 
         // Ensure root document exists so it can be queried by getDocs(collection(db, "usuarios"))
-        const uDocRef = doc(db, "usuarios", user.uid);
-        setDoc(uDocRef, {
-            email: user.email,
-            nombre: user.displayName || user.email,
-            ultima_conexion: new Date()
-        }, { merge: true }).catch(e => console.error("Error setting user doc:", e));
+        if (!user.isAnonymous && user.email) {
+            const uDocRef = doc(db, "usuarios", user.uid);
+            setDoc(uDocRef, {
+                email: user.email,
+                nombre: user.displayName || user.email,
+                ultima_conexion: new Date()
+            }, { merge: true }).catch(e => console.error("Error setting user doc:", e));
+        }
         
         const pendingMac = localStorage.getItem('pending_link_mac');
         if (pendingMac && user) {
@@ -1199,22 +1329,25 @@ onAuthStateChanged(auth, async (user) => {
             currentMacOwnerEmail = "";
             let macToConnect = null;
 
-            const userDoc = await getDoc(doc(db, "usuarios", user.uid));
-            if (userDoc.exists()) {
-                const udata = userDoc.data();
-                if (udata.id_equipo) macToConnect = udata.id_equipo;
-                else if (udata.equipos && udata.equipos.length > 0) macToConnect = udata.equipos[0];
-            }
-            if (!macToConnect) {
-                const snap = await getDocs(collection(db, "usuarios", user.uid, "equipos_asignados"));
-                if (!snap.empty) {
-                    macToConnect = snap.docs[0].id;
+            if (!user.isAnonymous) {
+                const userDoc = await getDoc(doc(db, "usuarios", user.uid));
+                if (userDoc.exists()) {
+                    const udata = userDoc.data();
+                    if (udata.id_equipo) macToConnect = udata.id_equipo;
+                    else if (udata.equipos && udata.equipos.length > 0) macToConnect = udata.equipos[0];
+                }
+                if (!macToConnect) {
+                    const snap = await getDocs(collection(db, "usuarios", user.uid, "equipos_asignados"));
+                    if (!snap.empty) {
+                        macToConnect = snap.docs[0].id;
+                    }
                 }
             }
 
             // Si no tiene equipo propio, verificar si tiene Cuentas Compartidas asignadas
-            if (!macToConnect && user.email) {
-                const uEmail = user.email.toLowerCase().trim();
+            const effectiveEmail = (user.email || guestEmailStored || "").toLowerCase().trim();
+            if (!macToConnect && effectiveEmail) {
+                const uEmail = effectiveEmail;
                 try {
                     const qShared = query(
                         collection(db, "accesos_compartidos"),
@@ -3088,9 +3221,19 @@ function agregarFilaCronograma(inicio = "21:00", duracion = 60, dosifica = true,
 
     const btnDel = topRow.querySelector('.btn-del');
     if (btnDel) {
-        btnDel.onclick = () => {
-            div.remove();
-            markProgramasChanged();
+        btnDel.onclick = async () => {
+            const hora = topRow.querySelector('.inp-time')?.value || inicio;
+            const confirmed = await customConfirm(
+                `¿Estás seguro de eliminar el horario de las ${hora}?`,
+                "Eliminar Horario",
+                "Eliminar",
+                "Cancelar"
+            );
+            if (confirmed) {
+                div.remove();
+                markProgramasChanged();
+                showToast(`Horario de las ${hora} eliminado.`);
+            }
         };
     }
 
