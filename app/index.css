@@ -644,25 +644,29 @@ nav::-webkit-scrollbar {
 }
 
 .btn-del {
-    position: absolute;
-    top: 6px;
-    right: 6px;
-    background-color: transparent;
+    background: transparent;
     color: var(--danger, #ef4444);
     border: none;
     border-radius: 6px;
     cursor: pointer;
-    padding: 4px;
-    display: flex;
+    padding: 0;
+    margin: 0;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    transition: background-color 0.2s, color 0.2s, transform 0.1s;
-    z-index: 2;
+    width: 28px;
+    height: 20px;
+    transition: background-color 0.2s, transform 0.1s;
+}
+
+.btn-del .material-symbols-outlined {
+    font-size: 1.3rem;
+    color: var(--danger, #ef4444);
+    line-height: 1;
 }
 
 .btn-del:hover {
     background-color: var(--danger-light, rgba(239, 68, 68, 0.15));
-    color: var(--danger, #ef4444);
 }
 
 .btn-del:active {
@@ -1558,19 +1562,20 @@ nav::-webkit-scrollbar {
     color: var(--text-main);
 }
 
-/* Fields grid inside schedule row */
+/* Fields flex/grid inside schedule row */
 .crono-fields-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 0.4rem;
-    align-items: flex-end;
-    padding-right: 1.8rem;
+    display: flex;
+    gap: 0.45rem;
+    align-items: flex-start;
+    justify-content: space-between;
 }
 
 .crono-field {
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
+    flex: 1;
+    min-width: 0;
 }
 
 .crono-field label {
@@ -1578,11 +1583,18 @@ nav::-webkit-scrollbar {
     font-weight: 700;
     color: var(--text-muted);
     margin: 0;
+    line-height: 1.2;
 }
 
-.checkbox-field {
-    justify-content: flex-end;
-    padding-bottom: 0.55rem;
+.crono-field.checkbox-field {
+    flex: 1;
+}
+
+.crono-field.del-field {
+    flex: 0 0 auto;
+    align-items: flex-end;
+    justify-content: flex-start;
+    padding-top: 0;
 }
 
 /* PWA Install Banner */

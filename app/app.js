@@ -3015,16 +3015,6 @@ function agregarFilaCronograma(inicio = "21:00", duracion = 60, dosifica = true,
     const div = document.createElement('div');
     div.className = 'crono-row';
 
-    const btnDel = document.createElement('button');
-    btnDel.className = 'btn-del';
-    btnDel.title = 'Eliminar horario';
-    btnDel.type = 'button';
-    btnDel.innerHTML = `<span class="material-symbols-outlined" style="font-size: 1.25rem;">delete</span>`;
-    btnDel.onclick = () => {
-        div.remove();
-        markProgramasChanged();
-    };
-
     const topRow = document.createElement('div');
     topRow.className = 'crono-fields-grid';
 
@@ -3043,7 +3033,20 @@ function agregarFilaCronograma(inicio = "21:00", duracion = 60, dosifica = true,
                 <input type="checkbox" class="inp-dosis" ${dosifica ? 'checked' : ''}> Cloro
             </label>
         </div>
+        <div class="crono-field del-field">
+            <button class="btn-del" title="Eliminar este horario" type="button">
+                <span class="material-symbols-outlined">delete</span>
+            </button>
+        </div>
     `;
+
+    const btnDel = topRow.querySelector('.btn-del');
+    if (btnDel) {
+        btnDel.onclick = () => {
+            div.remove();
+            markProgramasChanged();
+        };
+    }
 
     topRow.querySelectorAll('input').forEach(inp => {
         inp.addEventListener('input', () => {
@@ -3066,7 +3069,6 @@ function agregarFilaCronograma(inicio = "21:00", duracion = 60, dosifica = true,
         diasRow.appendChild(btn);
     });
 
-    div.appendChild(btnDel);
     div.appendChild(topRow);
     div.appendChild(diasRow);
     container.appendChild(div);
