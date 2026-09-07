@@ -27,6 +27,15 @@ service cloud.firestore {
       allow read, write: if isAuthenticated();
     }
 
+    // Cuentas y Accesos Compartidos
+    match /accesos_compartidos/{docId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    match /config_global/{docId} {
+      allow read, write: if isAuthenticated();
+    }
+
     // Colección de Equipos y todas sus Subcolecciones (estado, config, programas, comandos, logs)
     match /equipos/{chipId} {
       allow read, write: if isAuthenticated();

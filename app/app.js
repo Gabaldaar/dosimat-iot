@@ -1214,10 +1214,11 @@ onAuthStateChanged(auth, async (user) => {
 
             // Si no tiene equipo propio, verificar si tiene Cuentas Compartidas asignadas
             if (!macToConnect && user.email) {
+                const uEmail = user.email.toLowerCase().trim();
                 try {
                     const qShared = query(
                         collection(db, "accesos_compartidos"),
-                        where("email", "==", user.email.toLowerCase()),
+                        where("email", "==", uEmail),
                         where("activo", "==", true)
                     );
                     const sharedSnap = await getDocs(qShared);
@@ -1229,6 +1230,35 @@ onAuthStateChanged(auth, async (user) => {
                     }
                 } catch (errShared) {
                     console.warn("Aviso buscando accesos compartidos:", errShared);
+                }
+
+                // Fallback directo: Si no se encontró en accesos_compartidos, verificar subcolecciones de equipos
+                if (!macToConnect) {
+                    try {
+                        const emailKey = uEmail.replace(/[^a-zA-Z0-9]/g, "_");
+                        const eqSnap = await getDocs(collection(db, "equipos"));
+                        for (const eqDoc of eqSnap.docs) {
+                            try {
+                                const shareDoc = await getDoc(doc(db, "equipos", eqDoc.id, "cuentas_compartidas", emailKey));
+                                if (shareDoc.exists() && shareDoc.data().activo !== false) {
+                                    macToConnect = eqDoc.id;
+                                    isCurrentMacShared = true;
+                                    currentMacOwnerEmail = shareDoc.data().creado_por || "el titular del equipo";
+                                    // Sincronizar en la colección raíz accesos_compartidos
+                                    setDoc(doc(db, "accesos_compartidos", `${emailKey}_${eqDoc.id}`), {
+                                        email: uEmail,
+                                        mac: eqDoc.id,
+                                        owner_email: currentMacOwnerEmail,
+                                        activo: true,
+                                        creado_el: Date.now()
+                                    }, { merge: true }).catch(() => {});
+                                    break;
+                                }
+                            } catch (errSub) {}
+                        }
+                    } catch (errFall) {
+                        console.warn("Aviso fallback cuentas compartidas:", errFall);
+                    }
                 }
             }
 
@@ -3808,6 +3838,19 @@ async function loadCuentasCompartidasUI() {
             const data = d.data();
             if (data && data.activo !== false) {
                 items.push(data);
+                // Sincronizar automáticamente en la colección raíz accesos_compartidos
+                if (data.email) {
+                    const emailKey = String(data.email).toLowerCase().replace(/[^a-zA-Z0-9]/g, "_");
+                    setDoc(doc(db, "accesos_compartidos", `${emailKey}_${currentMac}`), {
+                        email: String(data.email).toLowerCase(),
+                        mac: currentMac,
+                        nota: data.nota || "",
+                        owner_email: currentUser.email || "Titular",
+                        owner_uid: currentUser.uid,
+                        activo: true,
+                        creado_el: data.creado_el || Date.now()
+                    }, { merge: true }).catch(() => {});
+                }
             }
         });
 
