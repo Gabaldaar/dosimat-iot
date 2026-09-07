@@ -644,18 +644,29 @@ nav::-webkit-scrollbar {
 }
 
 .btn-del {
-    background-color: var(--danger-light);
-    color: var(--danger);
-    border: 1px solid var(--card-border);
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    background-color: transparent;
+    color: var(--danger, #ef4444);
+    border: none;
     border-radius: 6px;
-    font-weight: bold;
     cursor: pointer;
-    padding: 0.2rem 0.4rem;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s, color 0.2s, transform 0.1s;
+    z-index: 2;
 }
 
 .btn-del:hover {
-    background-color: var(--danger);
-    color: white;
+    background-color: var(--danger-light, rgba(239, 68, 68, 0.15));
+    color: var(--danger, #ef4444);
+}
+
+.btn-del:active {
+    transform: scale(0.9);
 }
 
 /* === ESTILOS DEL HISTORIAL DE EVENTOS (Estilo Smart Riego) === */
@@ -1550,9 +1561,10 @@ nav::-webkit-scrollbar {
 /* Fields grid inside schedule row */
 .crono-fields-grid {
     display: grid;
-    grid-template-columns: 2fr 2fr 2.2fr 0.8fr;
+    grid-template-columns: 1fr 1fr 1fr;
     gap: 0.4rem;
     align-items: flex-end;
+    padding-right: 1.8rem;
 }
 
 .crono-field {
