@@ -1083,24 +1083,20 @@ async function loginAsSharedGuest(guestEmail) {
     showToast("Verificando autorización en la nube...");
 
     try {
-        const guestPass = "Dosimat_Guest_2026!";
-        if (!auth.currentUser || (auth.currentUser.email && auth.currentUser.email.toLowerCase() !== cleanEmail)) {
+        const GUEST_SYSTEM_EMAIL = "guest_access@dosimat.iot";
+        const GUEST_SYSTEM_PASS = "DosimatGuest2026!Secure";
+
+        // Asegurar autenticación del sistema para invitados
+        if (!auth.currentUser || auth.currentUser.email !== GUEST_SYSTEM_EMAIL) {
             try {
-                await signInWithEmailAndPassword(auth, cleanEmail, guestPass);
+                await signInWithEmailAndPassword(auth, GUEST_SYSTEM_EMAIL, GUEST_SYSTEM_PASS);
             } catch (eAuth) {
                 if (eAuth.code === 'auth/user-not-found' || eAuth.code === 'auth/invalid-credential' || eAuth.code === 'auth/invalid-login-credentials') {
                     try {
-                        await createUserWithEmailAndPassword(auth, cleanEmail, guestPass);
+                        await createUserWithEmailAndPassword(auth, GUEST_SYSTEM_EMAIL, GUEST_SYSTEM_PASS);
                     } catch (eCreate) {
-                        if (eCreate.code === 'auth/email-already-in-use') {
-                            customAlert("Este correo ya tiene una contraseña personal registrada.\n\nPor favor ingresá con tu correo y contraseña en el formulario superior.", "Cuenta Registrada");
-                            return;
-                        }
-                        throw eCreate;
+                        await signInWithEmailAndPassword(auth, GUEST_SYSTEM_EMAIL, GUEST_SYSTEM_PASS);
                     }
-                } else if (eAuth.code === 'auth/wrong-password') {
-                    customAlert("Este correo ya tiene una contraseña personal registrada.\n\nPor favor ingresá con tu correo y contraseña en el formulario superior.", "Cuenta Registrada");
-                    return;
                 } else {
                     throw eAuth;
                 }
@@ -1155,6 +1151,7 @@ async function loginAsSharedGuest(guestEmail) {
         }
 
         if (!foundMac) {
+            localStorage.removeItem("dosimat_guest_email");
             await signOut(auth).catch(() => {});
             customAlert(
                 `El correo ${cleanEmail} no cuenta con autorizaciones activas de ningún dosificador.\n\nSolicita al titular del equipo que agregue tu correo en la sección Ajustes > Cuentas Compartidas.`,
@@ -1306,42 +1303,59 @@ onAuthStateChanged(auth, async (user) => {
     const userBar = document.getElementById('userBar');
     const lblUserName = document.getElementById('lblUserName');
 
+    const GUEST_SYSTEM_EMAIL = "guest_access@dosimat.iot";
+    const isGuest = user && user.email && user.email.toLowerCase() === GUEST_SYSTEM_EMAIL;
+    const guestEmailStored = localStorage.getItem("dosimat_guest_email");
+
     if (user) {
+        if (isGuest && !guestEmailStored) {
+            if (authOverlay) authOverlay.style.display = 'flex';
+            if (userBar) userBar.style.display = 'none';
+            if (lblUserName) lblUserName.style.display = 'none';
+            setConexionModo("OFFLINE");
+            return;
+        }
+
         if (authOverlay) authOverlay.style.display = 'none';
         if (userBar) userBar.style.display = 'flex';
-        const guestEmailStored = localStorage.getItem("dosimat_guest_email");
         if (lblUserName) {
-            lblUserName.innerText = user.displayName || user.email || (guestEmailStored ? `${guestEmailStored} (Invitado)` : "Invitado");
+            if (isGuest && guestEmailStored) {
+                lblUserName.innerText = `${guestEmailStored} (Invitado)`;
+            } else {
+                lblUserName.innerText = user.displayName || user.email;
+            }
             lblUserName.style.display = 'block';
         }
 
-        checkUserRole(user);
+        if (!isGuest) {
+            checkUserRole(user);
 
-        // Ensure root document exists so it can be queried by getDocs(collection(db, "usuarios"))
-        if (!user.isAnonymous && user.email) {
-            const uDocRef = doc(db, "usuarios", user.uid);
-            setDoc(uDocRef, {
-                email: user.email,
-                nombre: user.displayName || user.email,
-                ultima_conexion: new Date()
-            }, { merge: true }).catch(e => console.error("Error setting user doc:", e));
-        }
-        
-        const pendingMac = localStorage.getItem('pending_link_mac');
-        if (pendingMac && user) {
-            await vincularEquipo(pendingMac);
-            currentMac = pendingMac;
-            localStorage.removeItem('pending_link_mac');
+            // Ensure root document exists so it can be queried by getDocs(collection(db, "usuarios"))
+            if (user.email) {
+                const uDocRef = doc(db, "usuarios", user.uid);
+                setDoc(uDocRef, {
+                    email: user.email,
+                    nombre: user.displayName || user.email,
+                    ultima_conexion: new Date()
+                }, { merge: true }).catch(e => console.error("Error setting user doc:", e));
+            }
+            
+            const pendingMac = localStorage.getItem('pending_link_mac');
+            if (pendingMac) {
+                await vincularEquipo(pendingMac);
+                currentMac = pendingMac;
+                localStorage.removeItem('pending_link_mac');
 
-            const pendingSsid = localStorage.getItem('pending_wifi_ssid');
-            const pendingPwd = localStorage.getItem('pending_wifi_pwd');
-            if (pendingSsid) {
-                sendCommand({ comando: "SET_WIFI", ssid: pendingSsid, pwd: pendingPwd || "" });
-                localStorage.removeItem('pending_wifi_ssid');
-                localStorage.removeItem('pending_wifi_pwd');
-                showToast(`Equipo ${pendingMac} vinculado a tu cuenta y datos de WiFi enviados.`);
-            } else {
-                showToast(`Equipo ${pendingMac} vinculado a tu cuenta.`);
+                const pendingSsid = localStorage.getItem('pending_wifi_ssid');
+                const pendingPwd = localStorage.getItem('pending_wifi_pwd');
+                if (pendingSsid) {
+                    sendCommand({ comando: "SET_WIFI", ssid: pendingSsid, pwd: pendingPwd || "" });
+                    localStorage.removeItem('pending_wifi_ssid');
+                    localStorage.removeItem('pending_wifi_pwd');
+                    showToast(`Equipo ${pendingMac} vinculado a tu cuenta y datos de WiFi enviados.`);
+                } else {
+                    showToast(`Equipo ${pendingMac} vinculado a tu cuenta.`);
+                }
             }
         }
 
@@ -1350,7 +1364,7 @@ onAuthStateChanged(auth, async (user) => {
             currentMacOwnerEmail = "";
             let macToConnect = null;
 
-            if (!user.isAnonymous) {
+            if (!isGuest) {
                 const userDoc = await getDoc(doc(db, "usuarios", user.uid));
                 if (userDoc.exists()) {
                     const udata = userDoc.data();
@@ -1365,8 +1379,8 @@ onAuthStateChanged(auth, async (user) => {
                 }
             }
 
-            // Si no tiene equipo propio, verificar si tiene Cuentas Compartidas asignadas
-            const effectiveEmail = (user.email || guestEmailStored || "").toLowerCase().trim();
+            // Si es invitado o no tiene equipo propio, verificar si tiene Cuentas Compartidas asignadas
+            const effectiveEmail = (isGuest ? guestEmailStored : user.email || "").toLowerCase().trim();
             if (!macToConnect && effectiveEmail) {
                 const uEmail = effectiveEmail;
                 try {
@@ -1414,6 +1428,16 @@ onAuthStateChanged(auth, async (user) => {
                         console.warn("Aviso fallback cuentas compartidas:", errFall);
                     }
                 }
+            }
+
+            if (isGuest && !macToConnect) {
+                localStorage.removeItem("dosimat_guest_email");
+                await signOut(auth).catch(() => {});
+                if (authOverlay) authOverlay.style.display = 'flex';
+                if (userBar) userBar.style.display = 'none';
+                if (lblUserName) lblUserName.style.display = 'none';
+                customAlert("Tu acceso compartido ya no está activo o fue revocado por el titular.", "Acceso Revocado");
+                return;
             }
 
             if (!macToConnect) {
