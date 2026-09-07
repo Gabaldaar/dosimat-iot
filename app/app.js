@@ -1082,9 +1082,28 @@ async function loginAsSharedGuest(guestEmail) {
 
     showToast("Verificando autorización en la nube...");
 
-    try {
-        if (!auth.currentUser) {
-            await signInAnonymously(auth);
+        const guestPass = "Dosimat_Guest_2026!";
+        if (!auth.currentUser || (auth.currentUser.email && auth.currentUser.email.toLowerCase() !== cleanEmail)) {
+            try {
+                await signInWithEmailAndPassword(auth, cleanEmail, guestPass);
+            } catch (eAuth) {
+                if (eAuth.code === 'auth/user-not-found' || eAuth.code === 'auth/invalid-credential' || eAuth.code === 'auth/invalid-login-credentials') {
+                    try {
+                        await createUserWithEmailAndPassword(auth, cleanEmail, guestPass);
+                    } catch (eCreate) {
+                        if (eCreate.code === 'auth/email-already-in-use') {
+                            customAlert("Este correo ya tiene una contraseña personal registrada.\n\nPor favor ingresá con tu correo y contraseña en el formulario superior.", "Cuenta Registrada");
+                            return;
+                        }
+                        throw eCreate;
+                    }
+                } else if (eAuth.code === 'auth/wrong-password') {
+                    customAlert("Este correo ya tiene una contraseña personal registrada.\n\nPor favor ingresá con tu correo y contraseña en el formulario superior.", "Cuenta Registrada");
+                    return;
+                } else {
+                    throw eAuth;
+                }
+            }
         }
 
         const emailKey = cleanEmail.replace(/[^a-zA-Z0-9]/g, "_");
@@ -1135,6 +1154,7 @@ async function loginAsSharedGuest(guestEmail) {
         }
 
         if (!foundMac) {
+            await signOut(auth).catch(() => {});
             customAlert(
                 `El correo ${cleanEmail} no cuenta con autorizaciones activas de ningún dosificador.\n\nSolicita al titular del equipo que agregue tu correo en la sección Ajustes > Cuentas Compartidas.`,
                 "Acceso No Autorizado"
