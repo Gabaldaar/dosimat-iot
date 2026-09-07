@@ -1082,6 +1082,7 @@ async function loginAsSharedGuest(guestEmail) {
 
     showToast("Verificando autorización en la nube...");
 
+    try {
         const guestPass = "Dosimat_Guest_2026!";
         if (!auth.currentUser || (auth.currentUser.email && auth.currentUser.email.toLowerCase() !== cleanEmail)) {
             try {
