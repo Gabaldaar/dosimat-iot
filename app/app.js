@@ -2896,6 +2896,22 @@ if (pDosisManual) {
                     return;
                 }
             }
+
+            // En modelo CB, si la bomba está funcionando (FILTRO_MANUAL, FILTRO, etc.),
+            // enviamos CANCEL_CYCLE y tras 250ms START_CYCLE para que el hardware lo tome en IDLE sin obligar a apagar la bomba.
+            const isBombaOnCB = (globalModelo !== "SCB" && (globalEstadoDosificador === "FILTRO_MANUAL" || globalEstadoDosificador === "FILTRO" || globalEstadoDosificador.startsWith("FILTRO") || globalBombaOn === 1));
+
+            if (isBombaOnCB) {
+                globalModoCiclo = "MANUAL";
+                globalEstadoDosificador = "FILTRO_PRE";
+                updateUI({ estado: "FILTRO_PRE", modo: "MANUAL" });
+                sendCommand({ comando: "CANCEL_CYCLE" });
+                setTimeout(() => {
+                    sendCommand({ comando: "START_CYCLE", refuerzo: false });
+                }, 250);
+                return;
+            }
+
             globalModoCiclo = "MANUAL";
             globalEstadoDosificador = "FILTRO_PRE";
             updateUI({ estado: "FILTRO_PRE", modo: "MANUAL" });
