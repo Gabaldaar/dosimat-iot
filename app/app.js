@@ -4841,22 +4841,46 @@ async function loadTecnicosUI() {
     try {
         const snap = await getDocs(collection(db, "administradores"));
         container.innerHTML = '';
+        if (snap.empty) {
+            container.innerHTML = '<p style="color: var(--text-muted); font-size: 0.85rem;">No hay técnicos registrados.</p>';
+            return;
+        }
         snap.forEach(docSnap => {
             const data = docSnap.data();
+            const email = docSnap.id;
+            const nombre = data.nombre || 'Técnico';
+            const clave = data.clave || '';
+
             const div = document.createElement('div');
             div.style.display = 'flex';
             div.style.alignItems = 'center';
             div.style.justifyContent = 'space-between';
-            div.style.padding = '0.5rem 0.75rem';
+            div.style.gap = '0.5rem';
+            div.style.padding = '0.6rem 0.75rem';
             div.style.background = 'var(--bg-color)';
-            div.style.borderRadius = '6px';
+            div.style.borderRadius = '8px';
             div.style.border = '1px solid var(--card-border)';
+            div.style.flexWrap = 'wrap';
+
+            const safeNombre = String(nombre).replace(/"/g, '&quot;').replace(/'/g, "\\'");
+            const safeEmail = String(email).replace(/"/g, '&quot;').replace(/'/g, "\\'");
+            const safeClave = String(clave).replace(/"/g, '&quot;').replace(/'/g, "\\'");
 
             div.innerHTML = `
-                <div>
-                    <strong>${data.nombre || 'Técnico'}</strong> (${docSnap.id})
+                <div style="display: flex; flex-direction: column; gap: 3px; min-width: 180px; flex: 1;">
+                    <div style="font-weight: 600; font-size: 0.95rem; color: var(--text-color);">${nombre}</div>
+                    <div style="font-size: 0.82rem; color: var(--text-muted); display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                        <span>📧 ${email}</span>
+                        ${clave ? `<span style="background: rgba(16,185,129,0.12); color: #10b981; padding: 1px 6px; border-radius: 4px; font-size: 0.75rem; font-weight: 500;">🔑 Clave: ${clave}</span>` : `<span style="background: rgba(245,158,11,0.12); color: #f59e0b; padding: 1px 6px; border-radius: 4px; font-size: 0.75rem; font-weight: 500;">⚠️ Sin clave guardada</span>`}
+                    </div>
                 </div>
-                <button class="btn danger" style="width: auto; padding: 0.2rem 0.5rem; font-size: 0.75rem; background: var(--danger);" onclick="deleteTecnico('${docSnap.id}')">Eliminar</button>
+                <div style="display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap;">
+                    <button class="btn outline" style="width: auto; padding: 0.35rem 0.65rem; font-size: 0.8rem; display: flex; align-items: center; gap: 0.3rem; border-color: var(--accent); color: var(--accent);" onclick="copyRegisteredTecnicoData('${safeEmail}', '${safeNombre}', '${safeClave}')" title="Copiar datos para WhatsApp">
+                        <span class="material-symbols-outlined" style="font-size: 1rem;">content_copy</span>
+                        <span>Copiar para WhatsApp</span>
+                    </button>
+                    <button class="btn danger" style="width: auto; padding: 0.35rem 0.6rem; font-size: 0.8rem; background: var(--danger);" onclick="deleteTecnico('${safeEmail}')">Eliminar</button>
+                </div>
             `;
             container.appendChild(div);
         });
@@ -4864,6 +4888,69 @@ async function loadTecnicosUI() {
         console.error("Error cargando técnicos:", e);
     }
 }
+
+async function copyRegisteredTecnicoData(email, nombre, clave) {
+    if (!email) return;
+    
+    let password = clave;
+    if (!password) {
+        const setClavePrompt = await customPrompt(
+            `El técnico ${email} no tiene una clave registrada en Firestore.\n\nIngresá una clave (mín 6 car.) para guardarla y copiarla, o dejá vacío para copiar sólo los datos de acceso:`,
+            "Asignar Clave a Técnico",
+            "Contraseña"
+        );
+        if (setClavePrompt && setClavePrompt.trim().length >= 6) {
+            password = setClavePrompt.trim();
+            try {
+                showToast("Guardando clave del técnico...");
+                await setDoc(doc(db, "administradores", email), { clave: password }, { merge: true });
+                
+                // Intentar registrar en Firebase Auth si no existía
+                const tempAppName = "tempTecnicoUpd_" + Date.now();
+                let tempApp = null;
+                try {
+                    tempApp = initializeApp(firebaseConfig, tempAppName);
+                    const tempAuth = getAuth(tempApp);
+                    try {
+                        const res = await createUserWithEmailAndPassword(tempAuth, email, password);
+                        if (nombre) await updateProfile(res.user, { displayName: nombre });
+                    } catch(aErr) {}
+                    await signOut(tempAuth);
+                } catch(e) {}
+                finally {
+                    if (tempApp) { try { await deleteApp(tempApp); } catch(e){} }
+                }
+                loadTecnicosUI();
+            } catch(e) {
+                console.warn("Error guardando clave:", e);
+            }
+        }
+    }
+
+    let texto = `🛠️ *Acceso Técnico - Dosimat IoT*\n\n`;
+    if (nombre) texto += `👤 *Nombre:* ${nombre}\n`;
+    texto += `📧 *Email:* ${email}\n`;
+    if (password) texto += `🔑 *Contraseña:* ${password}\n`;
+    texto += `\n🌐 *App Web:* https://dosimat-iot-v2.web.app\n\n_Ingresá con estas credenciales para acceder al Portal Técnico y configurar equipos._`;
+
+    try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(texto);
+        } else {
+            const ta = document.createElement('textarea');
+            ta.value = texto;
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+        }
+        showToast(`📋 Datos de ${nombre || email} copiados para WhatsApp`);
+    } catch (err) {
+        showToast("No se pudo copiar: " + err.message, true);
+    }
+}
+
+window.copyRegisteredTecnicoData = copyRegisteredTecnicoData;
 
 async function loadPinTecnicoAdmin() {
     const inp = document.getElementById('inpPinTecnicoAdmin');
@@ -4972,8 +5059,10 @@ if (btnAddTecnico) {
         try {
             showToast("Registrando técnico y permisos...");
             
-            // 1. Guardar rol en Firestore administradores
-            await setDoc(doc(db, "administradores", email), { nombre: nombre, rol: "tecnico", ts: Date.now() });
+            // 1. Guardar rol y clave en Firestore administradores
+            const docPayload = { nombre: nombre, rol: "tecnico", ts: Date.now() };
+            if (password) docPayload.clave = password;
+            await setDoc(doc(db, "administradores", email), docPayload, { merge: true });
 
             // 2. Si se especificó contraseña, crear o actualizar la cuenta en Firebase Auth sin desloguear al admin
             let authMsg = "";
