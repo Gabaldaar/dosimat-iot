@@ -988,6 +988,8 @@ const btnActionAuth = document.getElementById('btnActionAuth');
 const lnkAuthSwitch = document.getElementById('lnkAuthSwitch');
 const lblAuthSwitchText = document.getElementById('lblAuthSwitchText');
 const groupNombre = document.getElementById('groupNombre');
+const wrapForgotPassword = document.getElementById('wrapForgotPassword');
+const lnkForgotPassword = document.getElementById('lnkForgotPassword');
 const lblAuthError = document.getElementById('lblAuthError');
 let authMode = "LOGIN";
 
@@ -998,15 +1000,57 @@ if (lnkAuthSwitch) {
         if (authMode === "LOGIN") {
             authMode = "REGISTER";
             if (groupNombre) groupNombre.style.display = "block";
+            if (wrapForgotPassword) wrapForgotPassword.style.display = "none";
             if (btnActionAuth) btnActionAuth.innerText = "Registrarse";
             if (lblAuthSwitchText) lblAuthSwitchText.innerText = "¿Ya tienes cuenta?";
             lnkAuthSwitch.innerText = "Inicia sesión";
         } else {
             authMode = "LOGIN";
             if (groupNombre) groupNombre.style.display = "none";
+            if (wrapForgotPassword) wrapForgotPassword.style.display = "block";
             if (btnActionAuth) btnActionAuth.innerText = "Iniciar Sesión";
             if (lblAuthSwitchText) lblAuthSwitchText.innerText = "¿No tienes cuenta?";
             lnkAuthSwitch.innerText = "Regístrate";
+        }
+    };
+}
+
+if (lnkForgotPassword) {
+    lnkForgotPassword.onclick = async (e) => {
+        e.preventDefault();
+        let email = (txtEmail ? txtEmail.value : "").trim().toLowerCase();
+        if (!email || !email.includes("@") || !email.includes(".")) {
+            const prompted = await customPrompt(
+                "Ingresá tu correo electrónico registrado para enviarte el enlace de recuperación:",
+                "Recuperar Contraseña",
+                "ejemplo@correo.com"
+            );
+            if (!prompted) return;
+            email = String(prompted).trim().toLowerCase();
+        }
+        if (!email || !email.includes("@") || !email.includes(".")) {
+            customAlert("Por favor ingresá un correo electrónico válido.", "Correo Inválido");
+            return;
+        }
+
+        try {
+            showToast("Enviando correo de recuperación...");
+            await sendPasswordResetEmail(auth, email);
+            customAlert(
+                `Te enviamos un correo a:\n${email}\n\nRevisá tu bandeja de entrada o carpeta de Spam y hacé clic en el enlace para generar tu nueva contraseña.`,
+                "Enlace Enviado"
+            );
+        } catch (err) {
+            console.error("Error al enviar email de recuperación:", err);
+            let msg = "No se pudo enviar el correo de recuperación.";
+            if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') {
+                msg = "No existe ninguna cuenta registrada con ese correo electrónico.";
+            } else if (err.code === 'auth/invalid-email') {
+                msg = "El formato del correo electrónico no es válido.";
+            } else if (err.message) {
+                msg += " (" + err.message + ")";
+            }
+            customAlert(msg, "Error");
         }
     };
 }

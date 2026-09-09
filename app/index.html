@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Dosimat IoT</title>
     <link rel="manifest" href="manifest.json">
-    <link rel="stylesheet" href="index.css?v=7.54">
+    <link rel="stylesheet" href="index.css?v=7.55">
     <!-- Google Fonts & Icons -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -30,11 +30,14 @@
                 <label for="txtNombre">Nombre Completo</label>
                 <input type="text" id="txtNombre" placeholder="Tu nombre">
             </div>
-            <div class="form-group">
+            <div class="form-group" id="groupPassword">
                 <label for="txtPassword">Contraseña</label>
                 <div class="pass-wrapper">
                     <input type="password" id="txtPassword" placeholder="Mínimo 6 caracteres">
                     <span class="material-symbols-outlined btn-toggle-pass" id="btnToggleAuthPass">visibility</span>
+                </div>
+                <div id="wrapForgotPassword" style="text-align: right; margin-top: 0.35rem;">
+                    <a href="#" id="lnkForgotPassword" style="font-size: 0.8rem; color: var(--accent); text-decoration: none; font-weight: 500;">¿Olvidaste tu contraseña?</a>
                 </div>
             </div>
             
@@ -115,7 +118,7 @@
     <header>
         <div class="header-title" style="align-items: flex-start; margin-top: 5px;">
             <div style="display: flex; flex-direction: column;">
-                <h1 style="margin-bottom: 0;"><span id="lblHeaderTitle">Dosimat IoT CB</span> <span style="font-size: 0.7rem; color: var(--accent); margin-left: 5px;">v7.54</span></h1>
+                <h1 style="margin-bottom: 0;"><span id="lblHeaderTitle">Dosimat IoT CB</span> <span style="font-size: 0.7rem; color: var(--accent); margin-left: 5px;">v7.55</span></h1>
                 <div id="lblUserName" style="font-size: 0.85rem; font-weight: 300; color: var(--text-muted); display: none;"></div>
             </div>
         </div>
@@ -1687,6 +1690,6 @@
         </div>
     </div>
 
-    <script type="module" src="app.js?v=7.54"></script>
+    <script type="module" src="app.js?v=7.55"></script>
 </body>
 </html>
