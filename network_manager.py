@@ -373,4 +373,4 @@ async def tarea_tx_queue():
                 except Exception as e:
                     print("[NET_TX] Error publicando telemetría MQTT:", e)
         feed_watchdog()
-        await asyncio.sleep_ms(50)
+        await asyncio.sleep_ms(10)

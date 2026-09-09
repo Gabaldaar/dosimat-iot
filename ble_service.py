@@ -124,7 +124,7 @@ async def send_json_async(datos_dict):
             except Exception as e:
                 print("[BLE_TX] Error en notify:", e)
                 break
-            await asyncio.sleep_ms(60)  # Breve retardo para no saturar el buffer del host
+            await asyncio.sleep_ms(20)  # Retardo óptimo para transmisión BLE fluida y rápida
         print("[BLE_TX] Envío completado exitosamente.")
     except Exception as e:
         print("[BLE_TX] Error en envío BLE:", e)

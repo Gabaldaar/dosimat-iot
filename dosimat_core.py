@@ -21,6 +21,13 @@ class AsyncQueue:
         self._event = asyncio.Event()
 
     async def put(self, item):
+        if isinstance(item, dict) and item.get("tipo") == "TELEMETRIA":
+            # Si ya hay un paquete de telemetría en cola, actualizarlo en lugar de encolar duplicados obsoletos
+            for i in range(len(self._queue)):
+                if isinstance(self._queue[i], dict) and self._queue[i].get("tipo") == "TELEMETRIA":
+                    self._queue[i] = item
+                    self._event.set()
+                    return
         self._queue.append(item)
         self._event.set()
 
