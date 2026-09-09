@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Dosimat IoT</title>
     <link rel="manifest" href="manifest.json">
-    <link rel="stylesheet" href="index.css?v=7.70">
+    <link rel="stylesheet" href="index.css?v=7.71">
     <!-- Google Fonts & Icons -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -118,7 +118,7 @@
     <header>
         <div class="header-title" style="align-items: flex-start; margin-top: 5px;">
             <div style="display: flex; flex-direction: column;">
-                <h1 style="margin-bottom: 0;"><span id="lblHeaderTitle">Dosimat IoT CB</span> <span style="font-size: 0.7rem; color: var(--accent); margin-left: 5px;">v7.70</span></h1>
+                <h1 style="margin-bottom: 0;"><span id="lblHeaderTitle">Dosimat IoT CB</span> <span style="font-size: 0.7rem; color: var(--accent); margin-left: 5px;">v7.71</span></h1>
                 <div id="lblUserName" style="font-size: 0.85rem; font-weight: 300; color: var(--text-muted); display: none;"></div>
             </div>
         </div>
@@ -443,18 +443,22 @@
                         Ingresá las medidas de tu pileta para estimar el volumen de agua y calcular la dosis de cloro recomendada.
                     </p>
                     
-                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.5rem; margin-bottom: 0.8rem;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1.3fr; gap: 0.4rem; margin-bottom: 0.8rem; align-items: flex-end;">
                         <div class="form-group" style="margin-bottom: 0;">
-                            <label style="font-size: 0.75rem;">Ancho (m)</label>
-                            <input type="number" id="inpPoolAncho" step="0.1" min="1" max="50" placeholder="Ej: 4.0" style="padding: 0.45rem; text-align: center;">
+                            <label style="font-size: 0.75rem; font-weight: 600;">Ancho (m)</label>
+                            <input type="number" id="inpPoolAncho" inputmode="decimal" step="0.1" min="1" max="50" placeholder="Ej: 4.0" style="padding: 0.45rem; text-align: center; font-weight: 700;">
                         </div>
                         <div class="form-group" style="margin-bottom: 0;">
-                            <label style="font-size: 0.75rem;">Largo (m)</label>
-                            <input type="number" id="inpPoolLargo" step="0.1" min="1" max="50" placeholder="Ej: 8.0" style="padding: 0.45rem; text-align: center;">
+                            <label style="font-size: 0.75rem; font-weight: 600;">Largo (m)</label>
+                            <input type="number" id="inpPoolLargo" inputmode="decimal" step="0.1" min="1" max="50" placeholder="Ej: 8.0" style="padding: 0.45rem; text-align: center; font-weight: 700;">
                         </div>
                         <div class="form-group" style="margin-bottom: 0;">
-                            <label style="font-size: 0.75rem;">Prof. Prom (m)</label>
-                            <input type="number" id="inpPoolProf" step="0.1" min="0.5" max="10" placeholder="Ej: 1.5" style="padding: 0.45rem; text-align: center;">
+                            <label style="font-size: 0.75rem; font-weight: 600;">Prof. Prom (m)</label>
+                            <div style="display: flex; align-items: center; gap: 2px;">
+                                <button type="button" id="btnDecPoolProf" class="btn-step-adjust" style="width: 26px; height: 34px; min-width: 26px; font-size: 1.1rem; border-radius: 6px;" title="Disminuir 0.1 m">−</button>
+                                <input type="number" id="inpPoolProf" inputmode="decimal" step="0.1" min="0.3" max="10" placeholder="1.5" style="padding: 0.45rem 2px; text-align: center; width: 100%; min-width: 36px; font-weight: 700;">
+                                <button type="button" id="btnIncPoolProf" class="btn-step-adjust" style="width: 26px; height: 34px; min-width: 26px; font-size: 1.1rem; border-radius: 6px;" title="Aumentar 0.1 m">+</button>
+                            </div>
                         </div>
                     </div>
 
@@ -1705,6 +1709,6 @@
         </div>
     </div>
 
-    <script type="module" src="app.js?v=7.70"></script>
+    <script type="module" src="app.js?v=7.71"></script>
 </body>
 </html>

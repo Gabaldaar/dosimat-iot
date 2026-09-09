@@ -6569,10 +6569,17 @@ function initPoolCalculator() {
     if (inpDosisLitros) inpDosisLitros.value = bidonConfig.dosisLitros;
 
     const recalcularPiscina = () => {
-        const a = parseFloat(inpAncho ? inpAncho.value : 0) || 0;
-        const l = parseFloat(inpLargo ? inpLargo.value : 0) || 0;
-        const p = parseFloat(inpProf ? inpProf.value : 0) || 0;
-        const dL = parseFloat(inpDosisLitros ? inpDosisLitros.value : 2.0) || 2.0;
+        const parseCoord = (inp, fallback = 0) => {
+            if (!inp || !inp.value) return fallback;
+            const clean = String(inp.value).replace(',', '.');
+            const n = parseFloat(clean);
+            return isNaN(n) ? fallback : n;
+        };
+
+        const a = parseCoord(inpAncho, 0);
+        const l = parseCoord(inpLargo, 0);
+        const p = parseCoord(inpProf, 0);
+        const dL = parseCoord(inpDosisLitros, 2.0);
 
         poolDims = { ancho: a, largo: l, prof: p };
         bidonConfig.dosisLitros = dL;
@@ -6601,11 +6608,30 @@ function initPoolCalculator() {
     if (inpProf) inpProf.oninput = recalcularPiscina;
     if (inpDosisLitros) inpDosisLitros.oninput = recalcularPiscina;
 
+    const btnIncProf = document.getElementById('btnIncPoolProf');
+    const btnDecProf = document.getElementById('btnDecPoolProf');
+    if (btnIncProf && inpProf) {
+        btnIncProf.onclick = () => {
+            let val = parseFloat(String(inpProf.value).replace(',', '.')) || 1.5;
+            val = Math.min(10.0, Math.round((val + 0.1) * 10) / 10);
+            inpProf.value = val.toFixed(1);
+            recalcularPiscina();
+        };
+    }
+    if (btnDecProf && inpProf) {
+        btnDecProf.onclick = () => {
+            let val = parseFloat(String(inpProf.value).replace(',', '.')) || 1.5;
+            val = Math.max(0.3, Math.round((val - 0.1) * 10) / 10);
+            inpProf.value = val.toFixed(1);
+            recalcularPiscina();
+        };
+    }
+
     const btnIncDosis = document.getElementById('btnIncDosisLitros');
     const btnDecDosis = document.getElementById('btnDecDosisLitros');
     if (btnIncDosis && inpDosisLitros) {
         btnIncDosis.onclick = () => {
-            let val = parseFloat(inpDosisLitros.value) || 2.0;
+            let val = parseFloat(String(inpDosisLitros.value).replace(',', '.')) || 2.0;
             val = Math.min(20.0, Math.round((val + 0.1) * 10) / 10);
             inpDosisLitros.value = val.toFixed(1);
             recalcularPiscina();
@@ -6613,7 +6639,7 @@ function initPoolCalculator() {
     }
     if (btnDecDosis && inpDosisLitros) {
         btnDecDosis.onclick = () => {
-            let val = parseFloat(inpDosisLitros.value) || 2.0;
+            let val = parseFloat(String(inpDosisLitros.value).replace(',', '.')) || 2.0;
             val = Math.max(0.1, Math.round((val - 0.1) * 10) / 10);
             inpDosisLitros.value = val.toFixed(1);
             recalcularPiscina();
