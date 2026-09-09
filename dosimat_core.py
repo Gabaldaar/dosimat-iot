@@ -175,7 +175,7 @@ async def enviar_telemetria():
 
 async def procesar_comando(cmd_dict):
     global estado_dosimat, tiempo_restante, refuerzo_activo, dosis_anuladas, ultima_dosis_ts, ultimo_evento_warning
-    global ciclo_suspendido, fase_actual_interrumpida, tiempo_acumulado_fase, modo_ciclo, tfiltro_restante
+    global ciclo_suspendido, fase_actual_interrumpida, tiempo_acumulado_fase, modo_ciclo, tfiltro_restante, cached_wifi_ssid
     
     cmd = cmd_dict.get("comando")
     origen = cmd_dict.get("_origen", "ALL")
@@ -329,7 +329,6 @@ async def procesar_comando(cmd_dict):
         ssid = cmd_dict.get("ssid", "")
         password = cmd_dict.get("pass") or cmd_dict.get("pwd")
         if cmd != "CLEAR_WIFI" and ssid:
-            global cached_wifi_ssid
             cached_wifi_ssid = ssid
             await config_manager.guardar_wifi_config(ssid, password)
             await tx_queue.put({"tipo": "ACK_WIFI", "ssid": ssid, "_destino": origen})
@@ -342,7 +341,6 @@ async def procesar_comando(cmd_dict):
                 os.remove(config_manager.WIFI_CONFIG_FILE)
             except OSError:
                 pass
-            global cached_wifi_ssid
             cached_wifi_ssid = ""
             await tx_queue.put({"tipo": "ACK_CLEAR_WIFI", "status": "OK", "_destino": origen})
             async def reboot_after_delay():
@@ -450,7 +448,6 @@ async def procesar_comando(cmd_dict):
         except Exception: pass
             
     elif cmd == "FACTORY_RESET":
-        global cached_wifi_ssid
         cached_wifi_ssid = ""
         try:
             try: os.remove(config_manager.CONFIG_FILE)
@@ -617,6 +614,29 @@ async def cron_scheduler_task():
         
         await asyncio.sleep(10)
 
+async def monitor_bomba_task():
+    """Monitorea reactivamente cambios en el estado de la bomba (relé o sensor ADC) y despacha telemetría de inmediato"""
+    last_bomba_state = None
+    while True:
+        try:
+            current_bomba_state = bomba_esta_encendida()
+            if last_bomba_state is not None and current_bomba_state != last_bomba_state:
+                print(f"[CORE] Cambio en estado de bomba detectado ({last_bomba_state} -> {current_bomba_state}). Emitiendo telemetría...")
+                await enviar_telemetria()
+            last_bomba_state = current_bomba_state
+        except Exception as e:
+            print("[CORE] Error en monitor_bomba_task:", e)
+        await asyncio.sleep_ms(500)
+
+async def periodic_telemetry_task():
+    """Emite un latido periódico de telemetría para mantener sincronizados en vivo los clientes BLE y MQTT"""
+    while True:
+        try:
+            await enviar_telemetria()
+        except Exception as e:
+            print("[CORE] Error en periodic_telemetry_task:", e)
+        await asyncio.sleep(4)
+
 async def dispenser_loop():
     global estado_dosimat, tiempo_restante, refuerzo_activo, dosis_anuladas
     global ciclo_suspendido, fase_actual_interrumpida, tiempo_acumulado_fase
@@ -629,7 +649,9 @@ async def dispenser_loop():
     set_relays(bomba_on=False, valvula_on=False)
     
     asyncio.create_task(cron_scheduler_task())
-    print("[CORE] Bucle del dosificador iniciado.")
+    asyncio.create_task(monitor_bomba_task())
+    asyncio.create_task(periodic_telemetry_task())
+    print("[CORE] Bucle del dosificador iniciado con monitoreo reactivo y telemetría periódica.")
     
     while True:
         abort_event.clear()

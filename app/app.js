@@ -5385,6 +5385,10 @@ let bleLogsTemp = [];
 
 async function onDisconnected() {
     console.log("Servidor GATT BLE desconectado.");
+    if (window.blePollInterval) {
+        clearInterval(window.blePollInterval);
+        window.blePollInterval = null;
+    }
     rxCharacteristic = null;
     txCharacteristic = null;
     logsSyncTriggered = false;
@@ -5712,6 +5716,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 // RTC sync inicial
                 syncRtcBLE();
                 sendCommand({comando: "GET_STATE"}, true);
+
+                // Sondeo periódico de respaldo para BLE
+                if (window.blePollInterval) clearInterval(window.blePollInterval);
+                window.blePollInterval = setInterval(() => {
+                    if (modoConexion === "BLE" && bleDevice && bleDevice.gatt && bleDevice.gatt.connected && rxCharacteristic && !isBleTxActive && bleTxQueue.length === 0) {
+                        sendCommand({ comando: "GET_STATE" }, true);
+                    }
+                }, 2000);
 
             } catch (e) {
                 status.innerText = `Error BLE: ${e.message}`;
