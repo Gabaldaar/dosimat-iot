@@ -1803,6 +1803,201 @@ details.accordion[open] {
     animation: spin-fan 1.5s linear infinite !important;
 }
 
+    padding: 0.75rem 0.9rem;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    z-index: 99;
+    animation: slideUpInstall 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes slideUpInstall {
+    from {
+        opacity: 0;
+        transform: translate(-50%, 8px);
+    }
+    to {
+        opacity: 1;
+        transform: translate(-50%, 0);
+    }
+}
+
+.install-banner-content {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.install-icon {
+    font-size: 2.2rem;
+    color: var(--accent);
+}
+
+/* Help icons on cards */
+.btn-help {
+    font-size: 1.15rem;
+    color: var(--text-muted);
+    cursor: pointer;
+    margin-left: auto;
+    transition: color 0.15s ease;
+    user-select: none;
+}
+
+.btn-help:hover {
+    color: var(--accent);
+}
+
+/* Accordion Styles (Soporte) */
+details.accordion {
+    background-color: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: var(--border-radius);
+    margin-bottom: 0.8rem;
+    overflow: hidden;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+details.accordion summary {
+    padding: 1rem;
+    font-weight: 600;
+    color: var(--text-main);
+    cursor: pointer;
+    list-style: none; /* Oculta el marcador por defecto */
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    user-select: none;
+    transition: background-color 0.2s ease;
+}
+
+details.accordion summary::-webkit-details-marker {
+    display: none; /* Safari */
+}
+
+details.accordion summary:hover {
+    background-color: rgba(0,0,0,0.02);
+}
+body.dark-mode details.accordion summary:hover {
+    background-color: rgba(255,255,255,0.02);
+}
+
+details.accordion summary::after {
+    content: "expand_more";
+    font-family: "Material Symbols Outlined";
+    font-size: 1.5rem;
+    color: var(--text-muted);
+    transition: transform 0.3s ease;
+}
+
+details.accordion[open] summary::after {
+    transform: rotate(180deg);
+}
+
+details.accordion[open] {
+    box-shadow: var(--shadow);
+    border-color: var(--accent);
+}
+
+.accordion-content {
+    padding: 0 1rem 1rem 1rem;
+    color: var(--text-muted);
+    font-size: 0.95rem;
+    line-height: 1.6;
+    animation: accordion-slide-down 0.3s ease-out;
+}
+
+.accordion-content ol, .accordion-content ul {
+    margin-left: 1.5rem;
+    margin-top: 0.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.accordion-content li {
+    margin-bottom: 0.25rem;
+}
+
+@keyframes accordion-slide-down {
+    from { opacity: 0; transform: translateY(-5px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+
+/* Animaciones de Telemetra */
+@keyframes spin-fast {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+@keyframes drop-fall {
+    0% { transform: translateY(-5px); opacity: 0; }
+    30% { opacity: 1; }
+    80% { transform: translateY(5px); opacity: 1; }
+    100% { transform: translateY(10px); opacity: 0; }
+}
+
+@keyframes clock-tick {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.anim-spin {
+    animation: spin-fast 1.2s linear infinite;
+    display: inline-block;
+}
+
+.anim-drop {
+    animation: drop-fall 1.5s ease-in-out infinite;
+    display: inline-block;
+    color: var(--accent); /* Un color azul para la gota */
+}
+
+.anim-clock {
+    animation: clock-tick 4s linear infinite;
+    display: inline-block;
+}
+
+/* Temporada Panel */
+.panel-temporada {
+    background: linear-gradient(135deg, var(--accent-light) 0%, rgba(0,0,0,0) 100%);
+    border-radius: var(--border-radius);
+    padding: 1rem;
+    margin-top: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    border: 1px solid var(--card-border);
+}
+.panel-temporada .material-symbols-outlined {
+    font-size: 2rem;
+    color: var(--accent);
+}
+.panel-temporada-content {
+    flex: 1;
+}
+.panel-temporada-title {
+    font-weight: 600;
+    color: var(--text-main);
+    font-size: 1.1rem;
+    margin-bottom: 0.2rem;
+}
+.panel-temporada-dates {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+
+#lblHeaderTime {
+    font-size: 0.82rem !important;
+    font-weight: 500 !important;
+    opacity: 0.9;
+    margin-top: 1px;
+}
+
+.anim-fan {
+    display: inline-block !important;
+    animation: spin-fan 1.5s linear infinite !important;
+}
+
 @keyframes spin-fan {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
@@ -1816,4 +2011,33 @@ details.accordion[open] {
 @keyframes pulse-drop {
     0%, 100% { transform: scale(1); opacity: 1; }
     50% { transform: scale(1.25); opacity: 0.7; }
+}
+
+.conn-badge {
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.3s ease;
+}
+
+.conn-badge.conn-nube {
+    background: rgba(16, 185, 129, 0.15);
+    color: #10b981;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.conn-badge.conn-ble {
+    background: rgba(2, 132, 199, 0.15);
+    color: #0284c7;
+    border: 1px solid rgba(2, 132, 199, 0.3);
+}
+
+.conn-badge.conn-offline {
+    background: rgba(239, 68, 68, 0.15);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.3);
 }
