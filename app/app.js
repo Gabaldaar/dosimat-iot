@@ -1,5 +1,5 @@
 import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, GoogleAuthProvider, signInWithPopup, updateProfile, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, GoogleAuthProvider, signInWithPopup, updateProfile, signInAnonymously, deleteUser } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, collection, addDoc, deleteDoc, getDocs, query, where, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 window.onerror = function (msg, url, lineNo, columnNo, error) {
@@ -5120,12 +5120,93 @@ if (btnAddTecnico) {
 }
 
 async function deleteTecnico(email) {
-    if (await customConfirm(`¿Eliminar al técnico ${email}?`, "Eliminar Técnico")) {
+    if (!email) return;
+    const cleanEmail = email.toLowerCase().trim();
+    const emailKey = cleanEmail.replace(/\./g, '_');
+
+    if (await customConfirm(`¿Eliminar definitivamente al técnico ${cleanEmail}?\n\nEsta acción borrará sus permisos, dará de baja su cuenta y removerá su acceso en todas las bases.`, "Eliminar Técnico")) {
+        showToast(`Eliminando cuenta y accesos de ${cleanEmail}...`);
         try {
-            await deleteDoc(doc(db, "administradores", email));
-            showToast("Técnico eliminado.");
+            // 1. Obtener datos antes de borrar (para ver si tiene clave guardada y eliminar de Firebase Auth)
+            let savedClave = "";
+            try {
+                const admSnap = await getDoc(doc(db, "administradores", cleanEmail));
+                if (admSnap.exists() && admSnap.data().clave) {
+                    savedClave = admSnap.data().clave;
+                }
+            } catch(e) {}
+
+            // 2. Intentar eliminar usuario de Firebase Auth
+            if (savedClave) {
+                const tempAppName = "tempDelAuth_" + Date.now();
+                let tempApp = null;
+                try {
+                    tempApp = initializeApp(firebaseConfig, tempAppName);
+                    const tempAuth = getAuth(tempApp);
+                    const uCred = await signInWithEmailAndPassword(tempAuth, cleanEmail, savedClave);
+                    if (uCred.user) {
+                        await deleteUser(uCred.user);
+                    }
+                } catch(authErr) {
+                    console.warn("Aviso eliminando cuenta en Auth:", authErr);
+                } finally {
+                    if (tempApp) {
+                        try { await deleteApp(tempApp); } catch(e) {}
+                    }
+                }
+            }
+
+            // 3. Borrar de colección administradores
+            try {
+                await deleteDoc(doc(db, "administradores", cleanEmail));
+            } catch(e) {}
+
+            // 4. Borrar de colección usuarios y sus subcolecciones si existía
+            try {
+                const uSnap = await getDocs(collection(db, "usuarios"));
+                for (const uDoc of uSnap.docs) {
+                    const uData = uDoc.data();
+                    const uEmail = (uData.email || "").toLowerCase().trim();
+                    if (uEmail === cleanEmail || uDoc.id === cleanEmail) {
+                        try {
+                            const asigSnap = await getDocs(collection(db, "usuarios", uDoc.id, "equipos_asignados"));
+                            for (const asigDoc of asigSnap.docs) {
+                                await deleteDoc(asigDoc.ref);
+                            }
+                        } catch(e) {}
+                        await deleteDoc(uDoc.ref);
+                    }
+                }
+            } catch(e) {
+                console.warn("Aviso limpiando en usuarios:", e);
+            }
+
+            // 5. Borrar de accesos_compartidos globales
+            try {
+                const acSnap = await getDocs(collection(db, "accesos_compartidos"));
+                for (const acDoc of acSnap.docs) {
+                    const acData = acDoc.data();
+                    const acEmail = (acData.email || "").toLowerCase().trim();
+                    if (acEmail === cleanEmail || acDoc.id.startsWith(`${emailKey}_`) || acDoc.id.startsWith(`${cleanEmail}_`)) {
+                        await deleteDoc(acDoc.ref);
+                    }
+                }
+            } catch(e) {}
+
+            // 6. Borrar referencias de cuentas_compartidas dentro de cada equipo
+            try {
+                const eqSnap = await getDocs(collection(db, "equipos"));
+                for (const eqDoc of eqSnap.docs) {
+                    try {
+                        await deleteDoc(doc(db, "equipos", eqDoc.id, "cuentas_compartidas", emailKey));
+                    } catch(e) {}
+                }
+            } catch(e) {}
+
+            showToast("Técnico eliminado y dado de baja de todas las bases.");
             loadTecnicosUI();
         } catch (e) {
+            console.error("Error al eliminar técnico:", e);
             showToast("Error al eliminar técnico: " + e.message, true);
         }
     }
