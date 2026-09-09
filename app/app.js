@@ -60,6 +60,7 @@ var globalTempOffset = 0.0;
 var globalRawTemp = null;
 var globalUltRefTs = 0;
 var currentDosisSec = 0;
+var expectedPhaseEndTs = 0;
 var globalTemp = null;
 var globalWifiSSID = "";
 var lastConfigData = null;
@@ -2812,8 +2813,31 @@ function updateUI(raw_data) {
         if (lblTempValOffset) lblTempValOffset.innerText = (globalTempOffset > 0 ? "+" : "") + globalTempOffset.toFixed(1) + "°C";
     }
 
-    let tr = data.tr !== undefined ? data.tr : 0;
-    currentDosisSec = tr;
+    if (data.tr !== undefined) {
+        const incomingTr = Number(data.tr);
+        if (globalEstadoDosificador === "FILTRO_MANUAL") {
+            currentDosisSec = incomingTr;
+        } else if (globalEstadoDosificador !== "IDLE" && globalEstadoDosificador !== "PAUSA" && globalEstadoDosificador !== "RESET") {
+            if (incomingTr > 0) {
+                const now = Date.now();
+                const calculatedRemaining = expectedPhaseEndTs > 0 ? Math.max(0, Math.round((expectedPhaseEndTs - now) / 1000)) : 0;
+                // Si la diferencia es pequeña (<= 2s por jitter normal de red), ajustar suavemente el target sin saltar en UI
+                if (expectedPhaseEndTs > 0 && Math.abs(calculatedRemaining - incomingTr) <= 2) {
+                    expectedPhaseEndTs = now + (incomingTr * 1000);
+                } else {
+                    // Sincronización inicial o cambio de fase
+                    expectedPhaseEndTs = now + (incomingTr * 1000);
+                    currentDosisSec = incomingTr;
+                }
+            } else {
+                expectedPhaseEndTs = 0;
+                currentDosisSec = 0;
+            }
+        } else {
+            expectedPhaseEndTs = 0;
+            currentDosisSec = 0;
+        }
+    }
 
     let temp = data.temp !== undefined ? data.temp : (data.temperatura !== undefined ? data.temperatura : (data.temp_rtc !== undefined ? data.temp_rtc : null));
     if (temp !== null) {
@@ -3178,13 +3202,26 @@ setInterval(() => {
     if (globalEstadoDosificador === "FILTRO_MANUAL") {
         currentDosisSec++;
         updateSubtexto();
-    } else if (currentDosisSec > 0 && globalEstadoDosificador !== "IDLE" && globalEstadoDosificador !== "PAUSA" && globalEstadoDosificador !== "RESET") {
-        currentDosisSec--;
-        updateSubtexto();
-        if (currentDosisSec === 0) {
-            globalEstadoDosificador = "IDLE";
+    } else if (globalEstadoDosificador !== "IDLE" && globalEstadoDosificador !== "PAUSA" && globalEstadoDosificador !== "RESET") {
+        if (expectedPhaseEndTs > 0) {
+            const now = Date.now();
+            const remaining = Math.max(0, Math.round((expectedPhaseEndTs - now) / 1000));
+            currentDosisSec = remaining;
             updateSubtexto();
-            updateUI({ estado: "IDLE", tr: 0 });
+            if (remaining === 0) {
+                expectedPhaseEndTs = 0;
+                globalEstadoDosificador = "IDLE";
+                updateSubtexto();
+                updateUI({ estado: "IDLE", tr: 0 });
+            }
+        } else if (currentDosisSec > 0) {
+            currentDosisSec--;
+            updateSubtexto();
+            if (currentDosisSec === 0) {
+                globalEstadoDosificador = "IDLE";
+                updateSubtexto();
+                updateUI({ estado: "IDLE", tr: 0 });
+            }
         }
     }
 }, 1000);
