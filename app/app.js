@@ -1,4 +1,4 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, GoogleAuthProvider, signInWithPopup, updateProfile, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, collection, addDoc, deleteDoc, getDocs, query, where, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
@@ -4914,18 +4914,63 @@ if (btnAddTecnico) {
     btnAddTecnico.onclick = async () => {
         const inpEmail = document.getElementById('inpNewTecnico');
         const inpNombre = document.getElementById('inpNewTecnicoNombre');
+        const inpPass = document.getElementById('inpNewTecnicoPass');
+        
         if (!inpEmail || !inpEmail.value.trim()) {
             customAlert("Ingresa el email del técnico.");
             return;
         }
         const email = inpEmail.value.trim().toLowerCase();
         const nombre = inpNombre ? inpNombre.value.trim() : "";
+        const password = inpPass ? inpPass.value.trim() : "";
+
+        if (password && password.length < 6) {
+            customAlert("La contraseña debe tener al menos 6 caracteres.", "Contraseña Corta");
+            return;
+        }
 
         try {
+            showToast("Registrando técnico y permisos...");
+            
+            // 1. Guardar rol en Firestore administradores
             await setDoc(doc(db, "administradores", email), { nombre: nombre, rol: "tecnico", ts: Date.now() });
-            showToast("Técnico agregado.");
+
+            // 2. Si se especificó contraseña, crear o actualizar la cuenta en Firebase Auth sin desloguear al admin
+            let authMsg = "";
+            if (password) {
+                const tempAppName = "tempTecnicoAuth_" + Date.now();
+                let tempApp = null;
+                try {
+                    tempApp = initializeApp(firebaseConfig, tempAppName);
+                    const tempAuth = getAuth(tempApp);
+                    const res = await createUserWithEmailAndPassword(tempAuth, email, password);
+                    if (nombre) {
+                        await updateProfile(res.user, { displayName: nombre });
+                    }
+                    await signOut(tempAuth);
+                    authMsg = " Cuenta de acceso creada con éxito.";
+                } catch (authErr) {
+                    if (authErr.code === 'auth/email-already-in-use') {
+                        authMsg = " (El correo ya existía en Auth, se le asignaron permisos de técnico).";
+                    } else {
+                        console.warn("Aviso al crear en Auth:", authErr);
+                        authMsg = ` (Aviso Auth: ${authErr.message})`;
+                    }
+                } finally {
+                    if (tempApp) {
+                        try { await deleteApp(tempApp); } catch(e) {}
+                    }
+                }
+            }
+
+            customAlert(
+                `Técnico ${email} guardado con éxito.${authMsg}\n\nPuede ingresar a la App con ese correo` + (password ? ` y la clave asignada.` : `.`),
+                "Técnico Registrado"
+            );
+            
             inpEmail.value = "";
             if (inpNombre) inpNombre.value = "";
+            if (inpPass) inpPass.value = "";
             loadTecnicosUI();
         } catch (e) {
             showToast("Error agregando técnico: " + e.message, true);
