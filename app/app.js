@@ -5082,7 +5082,7 @@ async function deleteRemoteDevice(mac) {
             console.warn("Aviso MQTT al dar de baja:", mqttErr);
         }
 
-        // 2. Eliminar referencias en todos los usuarios
+        // 2. Eliminar referencias en todos los usuarios registrados
         try {
             const userSnap = await getDocs(collection(db, "usuarios"));
             for (const userDoc of userSnap.docs) {
@@ -5093,9 +5093,18 @@ async function deleteRemoteDevice(mac) {
 
                 try {
                     const udata = userDoc.data();
+                    let needsUpdate = false;
+                    let updatePayload = {};
                     if (udata.equipos && Array.isArray(udata.equipos) && udata.equipos.includes(mac)) {
-                        const newEquipos = udata.equipos.filter(e => e !== mac);
-                        await updateDoc(doc(db, "usuarios", userDoc.id), { equipos: newEquipos });
+                        updatePayload.equipos = udata.equipos.filter(e => e !== mac);
+                        needsUpdate = true;
+                    }
+                    if (udata.id_equipo === mac) {
+                        updatePayload.id_equipo = (updatePayload.equipos && updatePayload.equipos.length > 0) ? updatePayload.equipos[0] : "";
+                        needsUpdate = true;
+                    }
+                    if (needsUpdate) {
+                        await updateDoc(doc(db, "usuarios", userDoc.id), updatePayload);
                     }
                 } catch(e) {}
             }
@@ -5103,7 +5112,20 @@ async function deleteRemoteDevice(mac) {
             console.warn("Aviso eliminando referencias en usuarios:", userErr);
         }
 
-        // 3. Eliminar subcolecciones conocidas y root doc en /equipos/${mac}
+        // 3. Eliminar accesos compartidos globales vinculados a este equipo
+        try {
+            const acSnap = await getDocs(collection(db, "accesos_compartidos"));
+            for (const acDoc of acSnap.docs) {
+                const acData = acDoc.data();
+                if (acDoc.id.endsWith(`_${mac}`) || acDoc.id.includes(mac) || acData.mac === mac || acData.id_equipo === mac) {
+                    await deleteDoc(acDoc.ref);
+                }
+            }
+        } catch(e) {
+            console.warn("Aviso eliminando accesos_compartidos:", e);
+        }
+
+        // 4. Eliminar todas las subcolecciones conocidas y documento raíz en /equipos/${mac}
         try { await deleteDoc(doc(db, "equipos", mac, "estado", "actual")); } catch(e) {}
         try { await deleteDoc(doc(db, "equipos", mac, "config", "actual")); } catch(e) {}
         try { await deleteDoc(doc(db, "equipos", mac, "programas", "actual")); } catch(e) {}
@@ -5114,8 +5136,18 @@ async function deleteRemoteDevice(mac) {
         } catch(e) {}
 
         try {
+            const hdSnap = await getDocs(collection(db, "equipos", mac, "historial_dosis"));
+            for (const d of hdSnap.docs) { await deleteDoc(d.ref); }
+        } catch(e) {}
+
+        try {
             const propSnap = await getDocs(collection(db, "equipos", mac, "propietarios"));
             for (const d of propSnap.docs) { await deleteDoc(d.ref); }
+        } catch(e) {}
+
+        try {
+            const ccSnap = await getDocs(collection(db, "equipos", mac, "cuentas_compartidas"));
+            for (const d of ccSnap.docs) { await deleteDoc(d.ref); }
         } catch(e) {}
 
         try {
@@ -5125,7 +5157,19 @@ async function deleteRemoteDevice(mac) {
 
         try { await deleteDoc(doc(db, "equipos", mac)); } catch(e) {}
 
-        // 4. Si el equipo dado de baja era el activo actualmente, desconectar
+        // 5. Limpieza de claves en LocalStorage asociadas al equipo
+        try {
+            localStorage.removeItem("dosimat_pro_client_id_" + mac);
+            localStorage.removeItem("dosimat_pro_email_" + mac);
+            localStorage.removeItem("dosimat_ignorar_banner_repo_" + mac);
+            localStorage.removeItem("dosimat_nombre_" + mac);
+            localStorage.removeItem("dosimat_litros_" + mac);
+            localStorage.removeItem("dosimat_pileta_vol_" + mac);
+            localStorage.removeItem("dosimat_wifi_cred_" + mac);
+            localStorage.removeItem("dosimat_sync_time_" + mac);
+        } catch(e) {}
+
+        // 6. Si el equipo dado de baja era el activo actualmente, desconectar y limpiar sesión
         if (currentMac === mac) {
             currentMac = "";
             localStorage.removeItem("dosimat_mac");
@@ -5133,6 +5177,8 @@ async function deleteRemoteDevice(mac) {
             const headerTech = document.getElementById('headerTechMode');
             if (headerTech) headerTech.style.display = 'none';
             setConexionModo("OFFLINE");
+            const lbl = document.getElementById('lblMac');
+            if (lbl) lbl.innerText = "--:--:--:--:--:--";
         }
 
         showToast(`Equipo ${mac} dado de baja exitosamente.`);
