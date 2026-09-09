@@ -163,6 +163,78 @@ function renderModeloUI() {
     }
 }
 
+async function updateEquipoInfoAyuda(mac) {
+    const lblPropietarioInfo = document.getElementById('lblPropietarioInfo');
+    const lblMac = document.getElementById('lblMac');
+    const targetMac = mac || currentMac;
+    if (lblMac) lblMac.innerText = targetMac || "-";
+    if (!lblPropietarioInfo) return;
+
+    if (!targetMac) {
+        lblPropietarioInfo.innerText = "-";
+        return;
+    }
+
+    lblPropietarioInfo.innerText = "Consultando...";
+
+    try {
+        // 1. Si es equipo compartido con titular conocido
+        if (isCurrentMacShared && currentMacOwnerEmail) {
+            lblPropietarioInfo.innerText = currentMacOwnerEmail;
+            return;
+        }
+
+        // 2. Si el usuario logueado es el dueño
+        if (currentUser && !currentUser.isAnonymous && currentUser.email) {
+            const uDoc = await getDoc(doc(db, "usuarios", currentUser.uid));
+            if (uDoc.exists()) {
+                const udata = uDoc.data();
+                if (udata.id_equipo === targetMac || (udata.equipos && udata.equipos.includes(targetMac))) {
+                    const ownerStr = (udata.nombre && udata.nombre !== udata.email) ? `${udata.nombre} (${udata.email})` : udata.email;
+                    lblPropietarioInfo.innerText = ownerStr;
+                    return;
+                }
+            }
+        }
+
+        // 3. Buscar en la colección usuarios quién tiene este equipo en su array "equipos"
+        const q = query(collection(db, "usuarios"), where("equipos", "array-contains", targetMac));
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+            const udata = snap.docs[0].data();
+            const ownerStr = (udata.nombre && udata.nombre !== udata.email) ? `${udata.nombre} (${udata.email})` : (udata.email || "Usuario registrado");
+            lblPropietarioInfo.innerText = ownerStr;
+            return;
+        }
+
+        // 4. Buscar en subcolección equipos_asignados
+        const allUsers = await getDocs(collection(db, "usuarios"));
+        for (const uDoc of allUsers.docs) {
+            try {
+                const asigSnap = await getDoc(doc(db, "usuarios", uDoc.id, "equipos_asignados", targetMac));
+                if (asigSnap.exists() && asigSnap.data().activo !== false) {
+                    const udata = uDoc.data();
+                    const ownerStr = (udata.nombre && udata.nombre !== udata.email) ? `${udata.nombre} (${udata.email})` : (udata.email || "Usuario registrado");
+                    lblPropietarioInfo.innerText = ownerStr;
+                    return;
+                }
+            } catch (eSub) {}
+        }
+
+        // 5. Fallback en doc root de equipos
+        const eqDoc = await getDoc(doc(db, "equipos", targetMac));
+        if (eqDoc.exists() && eqDoc.data().owner_email) {
+            lblPropietarioInfo.innerText = eqDoc.data().owner_email;
+            return;
+        }
+
+        lblPropietarioInfo.innerText = "No asignado / Sin titular";
+    } catch (e) {
+        console.warn("Aviso al consultar propietario del equipo:", e);
+        lblPropietarioInfo.innerText = "No disponible";
+    }
+}
+
 function actualizarModeloControlPermisos() {
     const sel = document.getElementById('selModeloEquipo');
     const btn = document.getElementById('btnGuardarModelo');
@@ -756,6 +828,10 @@ async function switchTab(btn, target) {
 
     if (target === "configuracion" && typeof loadCuentasCompartidasUI === "function") {
         loadCuentasCompartidasUI();
+    }
+
+    if (target === "ayuda" && typeof updateEquipoInfoAyuda === "function") {
+        updateEquipoInfoAyuda();
     }
 
     initHelpButtons();
@@ -2464,6 +2540,7 @@ function connectNube() {
 
     const lblMac = document.getElementById('lblMac');
     if (lblMac) lblMac.innerText = currentMac;
+    if (typeof updateEquipoInfoAyuda === "function") updateEquipoInfoAyuda(currentMac);
 
     if (mqttClient) {
         try { mqttClient.disconnect(); } catch (e) { }

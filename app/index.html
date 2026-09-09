@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Dosimat IoT</title>
     <link rel="manifest" href="manifest.json">
-    <link rel="stylesheet" href="index.css?v=7.56">
+    <link rel="stylesheet" href="index.css?v=7.57">
     <!-- Google Fonts & Icons -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -118,7 +118,7 @@
     <header>
         <div class="header-title" style="align-items: flex-start; margin-top: 5px;">
             <div style="display: flex; flex-direction: column;">
-                <h1 style="margin-bottom: 0;"><span id="lblHeaderTitle">Dosimat IoT CB</span> <span style="font-size: 0.7rem; color: var(--accent); margin-left: 5px;">v7.56</span></h1>
+                <h1 style="margin-bottom: 0;"><span id="lblHeaderTitle">Dosimat IoT CB</span> <span style="font-size: 0.7rem; color: var(--accent); margin-left: 5px;">v7.57</span></h1>
                 <div id="lblUserName" style="font-size: 0.85rem; font-weight: 300; color: var(--text-muted); display: none;"></div>
             </div>
         </div>
@@ -1190,8 +1190,9 @@
                 <span>Información del Equipo</span>
                 <span class="material-symbols-outlined btn-help" data-help="info-equipo">help</span>
             </h2>
-            <div style="text-align: left; background: var(--bg-color); padding: 1rem; border-radius: 8px; border: 1px solid var(--card-border); margin: 1rem 0;">
+            <div style="text-align: left; background: var(--bg-color); padding: 1rem; border-radius: 8px; border: 1px solid var(--card-border); margin: 1rem 0; display: flex; flex-direction: column; gap: 0.4rem;">
                 <div><strong>ID/MAC del Chip:</strong> <span id="lblMac">-</span> <button id="btnCopyMac" class="btn-icon" style="padding: 2px; vertical-align: middle;"><span class="material-symbols-outlined" style="font-size: 18px;">content_copy</span></button></div>
+                <div><strong>Propietario / Titular:</strong> <span id="lblPropietarioInfo" style="color: var(--accent); font-weight: 700;">-</span></div>
                 <div><strong>Modelo de Placa:</strong> <span id="lblModeloInfo" style="font-weight: bold; color: var(--accent);">Dosimat_IoT CB</span></div>
                 <div><strong>Hora del RTC:</strong> <span id="lblRTC">-</span></div>
             </div>
@@ -1696,6 +1697,6 @@
         </div>
     </div>
 
-    <script type="module" src="app.js?v=7.56"></script>
+    <script type="module" src="app.js?v=7.57"></script>
 </body>
 </html>
