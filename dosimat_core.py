@@ -325,14 +325,26 @@ async def procesar_comando(cmd_dict):
         await tx_queue.put({"tipo": "ACK_SET_DOSIS", "status": "OK", "valor": val, "_destino": origen})
         await enviar_telemetria()
             
-    elif cmd in ("config_wifi", "SET_WIFI"):
-        ssid = cmd_dict.get("ssid")
+    elif cmd in ("config_wifi", "SET_WIFI", "CLEAR_WIFI"):
+        ssid = cmd_dict.get("ssid", "")
         password = cmd_dict.get("pass") or cmd_dict.get("pwd")
-        if ssid:
+        if cmd != "CLEAR_WIFI" and ssid:
             global cached_wifi_ssid
             cached_wifi_ssid = ssid
             await config_manager.guardar_wifi_config(ssid, password)
             await tx_queue.put({"tipo": "ACK_WIFI", "ssid": ssid, "_destino": origen})
+            async def reboot_after_delay():
+                await asyncio.sleep(2)
+                machine.reset()
+            asyncio.create_task(reboot_after_delay())
+        else:
+            try:
+                os.remove(config_manager.WIFI_CONFIG_FILE)
+            except OSError:
+                pass
+            global cached_wifi_ssid
+            cached_wifi_ssid = ""
+            await tx_queue.put({"tipo": "ACK_CLEAR_WIFI", "status": "OK", "_destino": origen})
             async def reboot_after_delay():
                 await asyncio.sleep(2)
                 machine.reset()

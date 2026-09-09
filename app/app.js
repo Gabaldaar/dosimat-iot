@@ -4030,6 +4030,45 @@ if (btnGuardarWifi) {
     };
 }
 
+const btnBorrarWifi = document.getElementById('btnBorrarWifi');
+if (btnBorrarWifi) {
+    btnBorrarWifi.onclick = async () => {
+        if (!currentMac) {
+            customAlert("Conéctate primero al dosificador (por Bluetooth o Nube) para enviar la orden de borrado.");
+            return;
+        }
+
+        const confirmed = await customConfirm(
+            "¿Estás seguro de que deseas eliminar las credenciales de WiFi guardadas en el equipo?\n\nEl dosificador borrará los datos de red, se reiniciará y funcionará exclusivamente por Bluetooth (BLE) sin intentar conectarse a ninguna red WiFi.",
+            "Borrar Credenciales WiFi",
+            "Borrar y Reiniciar en BLE",
+            "Cancelar"
+        );
+
+        if (!confirmed) return;
+
+        showToast("Enviando orden para borrar credenciales WiFi...");
+        sendCommand({ comando: "CLEAR_WIFI", ssid: "" }, true);
+
+        const ssidInp = document.getElementById('inpWifiSsid');
+        const pwdInp = document.getElementById('inpWifiPwd');
+        if (ssidInp) ssidInp.value = "";
+        if (pwdInp) pwdInp.value = "";
+
+        if (currentMac) {
+            localStorage.removeItem(`dosimat_wifi_ssid_${currentMac}`);
+        }
+        localStorage.removeItem('dosimat_wifi_ssid');
+        globalWifiSSID = "";
+
+        setConexionModo("BLE", "", "Solo BLE");
+        customAlert(
+            "Se enviaron las instrucciones al dosificador.\n\nLas credenciales WiFi fueron eliminadas de la memoria Flash del equipo. El dosificador se reiniciará en modo Solo Bluetooth (BLE).",
+            "WiFi Eliminado"
+        );
+    };
+}
+
 // === GESTIÓN DE CUENTAS COMPARTIDAS ===
 async function loadCuentasCompartidasUI() {
     const card = document.getElementById('cardCuentasCompartidas');

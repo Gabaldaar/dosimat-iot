@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Dosimat IoT</title>
     <link rel="manifest" href="manifest.json">
-    <link rel="stylesheet" href="index.css?v=7.55">
+    <link rel="stylesheet" href="index.css?v=7.56">
     <!-- Google Fonts & Icons -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -118,7 +118,7 @@
     <header>
         <div class="header-title" style="align-items: flex-start; margin-top: 5px;">
             <div style="display: flex; flex-direction: column;">
-                <h1 style="margin-bottom: 0;"><span id="lblHeaderTitle">Dosimat IoT CB</span> <span style="font-size: 0.7rem; color: var(--accent); margin-left: 5px;">v7.55</span></h1>
+                <h1 style="margin-bottom: 0;"><span id="lblHeaderTitle">Dosimat IoT CB</span> <span style="font-size: 0.7rem; color: var(--accent); margin-left: 5px;">v7.56</span></h1>
                 <div id="lblUserName" style="font-size: 0.85rem; font-weight: 300; color: var(--text-muted); display: none;"></div>
             </div>
         </div>
@@ -742,7 +742,13 @@
                     <span class="material-symbols-outlined btn-toggle-pass" id="btnToggleWifiPass">visibility</span>
                 </div>
             </div>
-            <button class="btn outline" id="btnGuardarWifi">Registrar Red WiFi</button>
+            <div style="display: flex; flex-direction: column; gap: 0.6rem; margin-top: 1rem;">
+                <button class="btn outline" id="btnGuardarWifi" style="font-weight: 700;">Registrar Red WiFi</button>
+                <button class="btn outline" id="btnBorrarWifi" style="color: var(--danger, #ef4444); border-color: var(--danger, #ef4444); display: flex; align-items: center; justify-content: center; gap: 0.4rem; font-size: 0.85rem; padding: 0.55rem;">
+                    <span class="material-symbols-outlined" style="font-size: 1.15rem;">wifi_off</span>
+                    Borrar Credenciales WiFi (Modo Solo BLE)
+                </button>
+            </div>
         </div>
 
         <!-- Tarjeta: Cuentas Compartidas -->
@@ -1690,6 +1696,6 @@
         </div>
     </div>
 
-    <script type="module" src="app.js?v=7.55"></script>
+    <script type="module" src="app.js?v=7.56"></script>
 </body>
 </html>
