@@ -94,7 +94,7 @@ function renderModeloUI() {
     const panelBomba = document.getElementById('panelBomba');
     const iconBomba = document.getElementById('iconBomba');
     if (isSCB) {
-        const isBombaOn = (globalBombaOn === 1 || globalEstadoDosificador === "DOSIS" || globalEstadoDosificador.startsWith("FILTRO"));
+        const isBombaOn = (globalBombaOn === 1);
         if (lblBomba) lblBomba.innerText = isBombaOn ? "Encendida" : "Apagada";
         if (panelBomba) {
             if (isBombaOn) {

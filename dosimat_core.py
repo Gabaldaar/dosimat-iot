@@ -824,6 +824,13 @@ async def dispenser_loop():
             while tiempo_restante > 0:
                 if abort_event.is_set():
                     break
+                if config_ref.get("modelo", "CB") == "SCB" and not bomba_esta_encendida():
+                    print("[CORE-SCB] Bomba se apagó en FILTRO_POST. Finalizando ciclo...")
+                    set_relays(False, False)
+                    estado_dosimat = "IDLE"
+                    await sys_log.log_event({"tipo": "info", "msg": "Post-filtrado finalizado: Bomba apagada"})
+                    await enviar_telemetria()
+                    break
                 await asyncio.sleep_ms(250)
                 elapsed_s = time.ticks_diff(time.ticks_ms(), start_ticks) // 1000
                 nuevo_tr = max(0, total_fase - elapsed_s)
@@ -854,6 +861,12 @@ async def dispenser_loop():
             ultimo_envio = 0
             while True:
                 if abort_event.is_set():
+                    break
+                if config_ref.get("modelo", "CB") == "SCB" and not bomba_esta_encendida():
+                    print("[CORE-SCB] Bomba se apagó en FILTRO_MANUAL. Finalizando...")
+                    set_relays(False, False)
+                    estado_dosimat = "IDLE"
+                    await enviar_telemetria()
                     break
                 await asyncio.sleep_ms(250)
                 elapsed_s = time.ticks_diff(time.ticks_ms(), start_ticks) // 1000
