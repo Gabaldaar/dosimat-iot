@@ -679,7 +679,7 @@ async def dispenser_loop():
             if fase_actual_interrumpida == "FILTRO_PRE" and tiempo_acumulado_fase > 0:
                 tiempo_restante = tiempo_acumulado_fase
             else:
-                tiempo_restante = int(config_ref.get("tespera_seg", 1800))
+                tiempo_restante = int(config_ref.get("tespera_seg", 90))
                 
             fase_actual_interrumpida = None
             tiempo_acumulado_fase = 0
@@ -687,7 +687,11 @@ async def dispenser_loop():
             set_relays(bomba_on=True, valvula_on=False)
             await enviar_telemetria()
             
+            total_fase = tiempo_restante
+            start_ticks = time.ticks_ms()
             while tiempo_restante > 0:
+                if abort_event.is_set():
+                    break
                 if config_ref.get("modelo", "CB") == "SCB" and not bomba_esta_encendida():
                     print("[CORE-SCB] Bomba se apagó en FILTRO_PRE. Cancelando ciclo...")
                     set_relays(False, False)
@@ -696,13 +700,13 @@ async def dispenser_loop():
                     await sys_log.log_event({"tipo": "warning", "msg": "Ciclo detenido: Bomba apagada"})
                     await enviar_telemetria()
                     break
-                try:
-                    await asyncio.wait_for(abort_event.wait(), timeout=1.0)
-                    break
-                except asyncio.TimeoutError:
-                    tiempo_restante -= 1
+                await asyncio.sleep_ms(250)
+                elapsed_s = time.ticks_diff(time.ticks_ms(), start_ticks) // 1000
+                nuevo_tr = max(0, total_fase - elapsed_s)
+                if nuevo_tr != tiempo_restante:
+                    tiempo_restante = nuevo_tr
                     
-            if estado_dosimat == "FILTRO_PRE":
+            if estado_dosimat == "FILTRO_PRE" and not abort_event.is_set():
                 estado_dosimat = "DOSIS"
                     
         # ----------------------------------------------------
@@ -712,9 +716,9 @@ async def dispenser_loop():
             if fase_actual_interrumpida == "DOSIS" and tiempo_acumulado_fase > 0:
                 tiempo_restante = tiempo_acumulado_fase
             else:
-                base_time = config_ref.get("tdosis_seg", 300)
+                base_time = config_ref.get("tdosis_seg", 90)
                 if not es_temporada_alta():
-                    porcentaje_baja = config_ref.get("ajuste_baja", 10)
+                    porcentaje_baja = config_ref.get("ajuste_baja", 50)
                     tiempo_restante = int(base_time * (porcentaje_baja / 100.0))
                 else:
                     tiempo_restante = base_time
@@ -736,7 +740,11 @@ async def dispenser_loop():
             set_relays(bomba_on=True, valvula_on=True)
             await enviar_telemetria()
             
+            total_fase = tiempo_restante
+            start_ticks = time.ticks_ms()
             while tiempo_restante > 0:
+                if abort_event.is_set():
+                    break
                 if config_ref.get("modelo", "CB") == "SCB" and not bomba_esta_encendida():
                     print("[CORE-SCB] Bomba se apagó en DOSIS. Cancelando ciclo...")
                     set_relays(False, False)
@@ -745,13 +753,13 @@ async def dispenser_loop():
                     await sys_log.log_event({"tipo": "warning", "msg": "Ciclo detenido: Bomba apagada"})
                     await enviar_telemetria()
                     break
-                try:
-                    await asyncio.wait_for(abort_event.wait(), timeout=1.0)
-                    break
-                except asyncio.TimeoutError:
-                    tiempo_restante -= 1
+                await asyncio.sleep_ms(250)
+                elapsed_s = time.ticks_diff(time.ticks_ms(), start_ticks) // 1000
+                nuevo_tr = max(0, total_fase - elapsed_s)
+                if nuevo_tr != tiempo_restante:
+                    tiempo_restante = nuevo_tr
                     
-            if estado_dosimat == "DOSIS":
+            if estado_dosimat == "DOSIS" and not abort_event.is_set():
                 set_relays(bomba_on=True, valvula_on=False)
                 ultima_dosis_ts = time.time()
                 
@@ -811,14 +819,18 @@ async def dispenser_loop():
             set_relays(bomba_on=True, valvula_on=False)
             await enviar_telemetria()
             
+            total_fase = tiempo_restante
+            start_ticks = time.ticks_ms()
             while tiempo_restante > 0:
-                try:
-                    await asyncio.wait_for(abort_event.wait(), timeout=1.0)
+                if abort_event.is_set():
                     break
-                except asyncio.TimeoutError:
-                    tiempo_restante -= 1
+                await asyncio.sleep_ms(250)
+                elapsed_s = time.ticks_diff(time.ticks_ms(), start_ticks) // 1000
+                nuevo_tr = max(0, total_fase - elapsed_s)
+                if nuevo_tr != tiempo_restante:
+                    tiempo_restante = nuevo_tr
                     
-            if estado_dosimat == "FILTRO_POST":
+            if estado_dosimat == "FILTRO_POST" and not abort_event.is_set():
                 set_relays(False, False)
                 estado_dosimat = "IDLE"
                 
@@ -829,7 +841,7 @@ async def dispenser_loop():
             if fase_actual_interrumpida == "FILTRO_MANUAL" and tiempo_acumulado_fase > 0:
                 tiempo_restante = tiempo_acumulado_fase
             else:
-                tiempo_restante = 0 # Usamos 0 y en UI podemos mostrar como tiempo libre o ascendente
+                tiempo_restante = 0
                 
             fase_actual_interrumpida = None
             tiempo_acumulado_fase = 0
@@ -837,14 +849,19 @@ async def dispenser_loop():
             set_relays(bomba_on=True, valvula_on=False)
             await enviar_telemetria()
             
+            base_accum = tiempo_restante
+            start_ticks = time.ticks_ms()
+            ultimo_envio = 0
             while True:
-                try:
-                    await asyncio.wait_for(abort_event.wait(), timeout=1.0)
+                if abort_event.is_set():
                     break
-                except asyncio.TimeoutError:
-                    tiempo_restante += 1 # Cuenta ascendente
-                    # Opcionalmente enviar telemetria cada 1 minuto
-                    if tiempo_restante % 60 == 0:
+                await asyncio.sleep_ms(250)
+                elapsed_s = time.ticks_diff(time.ticks_ms(), start_ticks) // 1000
+                nuevo_tr = base_accum + elapsed_s
+                if nuevo_tr != tiempo_restante:
+                    tiempo_restante = nuevo_tr
+                    if tiempo_restante > 0 and tiempo_restante % 60 == 0 and tiempo_restante != ultimo_envio:
+                        ultimo_envio = tiempo_restante
                         await enviar_telemetria()
                         
         # ----------------------------------------------------
@@ -855,25 +872,29 @@ async def dispenser_loop():
             await enviar_telemetria()
             await abort_event.wait()
             if estado_dosimat == "PAUSA":
-                estado_dosimat = "IDLE"
+                estado_dosimat = fase_actual_interrumpida if fase_actual_interrumpida else "IDLE"
                 
         # ----------------------------------------------------
         # 5. ESTADO: ANTI (Secuencia Antiatasco)
         # ----------------------------------------------------
         elif estado_dosimat == "ANTI":
             tiempo_restante = 3
+            total_fase = 3
+            start_ticks = time.ticks_ms()
             await sys_log.log_event({"tipo": "estado_anti"})
             await enviar_telemetria()
             
             set_relays(bomba_on=False, valvula_on=True)
             while tiempo_restante > 0:
-                try:
-                    await asyncio.wait_for(abort_event.wait(), timeout=1.0)
+                if abort_event.is_set():
                     break
-                except asyncio.TimeoutError:
-                    tiempo_restante -= 1
+                await asyncio.sleep_ms(250)
+                elapsed_s = time.ticks_diff(time.ticks_ms(), start_ticks) // 1000
+                nuevo_tr = max(0, total_fase - elapsed_s)
+                if nuevo_tr != tiempo_restante:
+                    tiempo_restante = nuevo_tr
                     
-            if estado_dosimat == "ANTI":
+            if estado_dosimat == "ANTI" and not abort_event.is_set():
                 set_relays(False, False)
                 ultima_dosis_ts = time.time()
                 estado_dosimat = fase_actual_interrumpida if fase_actual_interrumpida in ("IDLE", "PAUSA") else "IDLE"
