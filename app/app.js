@@ -73,6 +73,7 @@ var currentMacOwnerEmail = "";
 var globalModelo = "CB";
 var globalBombaOn = 0;
 var globalPinTecnico = localStorage.getItem("dosimat_pin_tecnico") || "2468";
+var lastRefuerzoUserToggleTs = 0;
 const cachedUserRole = localStorage.getItem("dosimat_user_role");
 var userEsTecnicoOAdmin = (cachedUserRole === "super_admin" || cachedUserRole === "tecnico");
 var globalUltWarn = "";
@@ -2778,8 +2779,16 @@ function updateUI(raw_data) {
 
     if (data.modo !== undefined) globalModoCiclo = data.modo;
     if (data.m !== undefined) globalModoCiclo = data.m;
-    if (data.refuerzo !== undefined) globalRefuerzo = data.refuerzo;
-    if (data.ref !== undefined) globalRefuerzo = data.ref;
+    
+    // Protección contra paquetes desactualizados inmediatamente tras un clic del usuario
+    const incomingRef = data.ref !== undefined ? data.ref : data.refuerzo;
+    if (incomingRef !== undefined) {
+        if (Date.now() - lastRefuerzoUserToggleTs > 1500) {
+            globalRefuerzo = Number(incomingRef);
+        } else if (Number(incomingRef) === Number(globalRefuerzo)) {
+            lastRefuerzoUserToggleTs = 0; // Confirmado por el hardware
+        }
+    }
     if (data.anuladas !== undefined) globalDosisAnuladas = data.anuladas;
     if (data.temp_comp !== undefined) {
         globalTempComp = data.temp_comp === 1 || data.temp_comp === true;
@@ -3203,6 +3212,7 @@ if (pRefuerzo) {
         const isRefuerzoOn = (globalRefuerzo === 1 || globalRefuerzo === true);
         const nuevoValor = isRefuerzoOn ? 0 : 1;
         globalRefuerzo = nuevoValor;
+        lastRefuerzoUserToggleTs = Date.now();
         updateUI({});
         sendCommand({ comando: "SET_REFUERZO", refuerzo: nuevoValor === 1 });
     };
@@ -5716,14 +5726,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 // RTC sync inicial
                 syncRtcBLE();
                 sendCommand({comando: "GET_STATE"}, true);
-
-                // Sondeo periódico de respaldo para BLE
-                if (window.blePollInterval) clearInterval(window.blePollInterval);
-                window.blePollInterval = setInterval(() => {
-                    if (modoConexion === "BLE" && bleDevice && bleDevice.gatt && bleDevice.gatt.connected && rxCharacteristic && !isBleTxActive && bleTxQueue.length === 0) {
-                        sendCommand({ comando: "GET_STATE" }, true);
-                    }
-                }, 2000);
 
             } catch (e) {
                 status.innerText = `Error BLE: ${e.message}`;
