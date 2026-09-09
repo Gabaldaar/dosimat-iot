@@ -4099,7 +4099,7 @@ if (btnGuardarWifi) {
             }
         }
 
-        if (currentUser && currentMac) {
+        if (currentUser && currentMac && !userEsTecnicoOAdmin) {
             await vincularEquipo(currentMac);
         }
 
@@ -5086,29 +5086,59 @@ async function onDisconnected() {
 async function vincularEquipo(chipId) {
     if (!currentUser) return false;
     
-    // Verificación de seguridad: ¿Está asignado a otra persona?
+    // Si el usuario es Técnico o Administrador, solo ingresa en modo soporte/instalación sin registrarse como propietario
+    const isTech = (typeof userEsTecnicoOAdmin !== 'undefined' && userEsTecnicoOAdmin) || 
+                   (localStorage.getItem("dosimat_user_role") === "tecnico" || localStorage.getItem("dosimat_user_role") === "super_admin");
+    
+    if (isTech) {
+        showToast("Acceso Técnico: Conectado sin alterar la titularidad del equipo.");
+        return true;
+    }
+
+    // Verificación de seguridad para usuarios clientes: ¿Está asignado a otra persona?
     try {
         const q = query(collection(db, "usuarios"), where("equipos", "array-contains", chipId));
         const snaps = await getDocs(q);
-        let alreadyOwned = false;
-        snaps.forEach(s => {
+        let alreadyOwnedByClient = false;
+        let ownerEmails = [];
+
+        for (const s of snaps.docs) {
             if (s.id !== currentUser.uid) {
-                alreadyOwned = true;
-            }
-        });
-        
-        if (alreadyOwned) {
-            const navTecnicos = document.querySelector('nav [data-target="tecnicos"]');
-            if (typeof checkUserRole === "function" && navTecnicos && navTecnicos.style.display !== "none") {
-                showToast("Equipo de otro usuario (Acceso Técnico)");
-                return true; // Techs can link
-            } else {
-                customAlert("Este equipo ya se encuentra registrado por otro usuario. Si consideras que es un error, solicita un reseteo de fábrica al soporte técnico.");
-                return false;
+                const udata = s.data();
+                const uEmail = (udata.email || "").toLowerCase().trim();
+                
+                // Si el dueño anterior registrado era una cuenta técnica/admin, limpiar la referencia para transferir al cliente real
+                const isPreviousOwnerTech = (uEmail === "gab.aldazabal@gmail.com" || uEmail === "gab.aldazabal@gmail.com.ar");
+                let isTechAdminDoc = false;
+                if (!isPreviousOwnerTech && uEmail) {
+                    try {
+                        const tecDoc = await getDoc(doc(db, "administradores", uEmail));
+                        if (tecDoc.exists() && (tecDoc.data().rol === "tecnico" || tecDoc.data().rol === "admin")) {
+                            isTechAdminDoc = true;
+                        }
+                    } catch (eT) {}
+                }
+
+                if (isPreviousOwnerTech || isTechAdminDoc) {
+                    try {
+                        const techEq = (udata.equipos || []).filter(e => e !== chipId);
+                        await setDoc(doc(db, "usuarios", s.id), { equipos: techEq }, { merge: true });
+                        await deleteDoc(doc(db, "usuarios", s.id, "equipos_asignados", chipId));
+                        await deleteDoc(doc(db, "equipos", chipId, "propietarios", s.id));
+                    } catch (eClean) {}
+                } else {
+                    alreadyOwnedByClient = true;
+                    if (uEmail) ownerEmails.push(uEmail);
+                }
             }
         }
         
-        // Proceder con la vinculación
+        if (alreadyOwnedByClient) {
+            customAlert("Este equipo ya se encuentra registrado por otro usuario" + (ownerEmails.length ? " (" + ownerEmails.join(", ") + ")" : "") + ". Si consideras que es un error, solicita un reseteo de fábrica al soporte técnico.");
+            return false;
+        }
+        
+        // Proceder con la vinculación para el cliente real
         const refProp = doc(db, "equipos", chipId, "propietarios", currentUser.uid);
         await setDoc(refProp, { activo: true }, { merge: true });
         
