@@ -2106,34 +2106,24 @@ function ejecutarReintentoNube() {
     connectNube();
     if (typeof evaluarAlertasSistema === "function") evaluarAlertasSistema();
 
-    const targetMac = currentMac;
     let intento = 0;
-
-    const interval = setInterval(async () => {
+    const interval = setInterval(() => {
         intento++;
-        if (targetMac && typeof db !== 'undefined' && db) {
-            try {
-                const docSnap = await getDoc(doc(db, "equipos", targetMac, "estado", "actual"));
-                if (docSnap.exists()) {
-                    const data = docSnap.data();
-                    const ts = data.timestamp ? (typeof data.timestamp === 'number' ? data.timestamp : new Date(data.timestamp).getTime()) : 0;
-                    if (Date.now() - ts < 60000) {
-                        clearInterval(interval);
-                        window.isReintentandoConexionNube = false;
-                        window.falloReintentoNube = false;
-                        setConexionModo("NUBE", data.wifi_ssid || globalWifiSSID || "");
-                        showToast("¡Equipo conectado a la Nube!");
-                        evaluarAlertasSistema();
-                        return;
-                    }
-                }
-            } catch(e) {}
-        }
-
-        if (intento >= 4) { // ~12 segundos
+        if (modoConexion === "NUBE") {
             clearInterval(interval);
             window.isReintentandoConexionNube = false;
-            window.falloReintentoNube = true;
+            window.falloReintentoNube = false;
+            showToast("¡Equipo conectado a la Nube!");
+            evaluarAlertasSistema();
+            return;
+        }
+
+        if (intento >= 5) { // ~15 segundos
+            clearInterval(interval);
+            window.isReintentandoConexionNube = false;
+            if (modoConexion !== "NUBE") {
+                window.falloReintentoNube = true;
+            }
             evaluarAlertasSistema();
         }
     }, 3000);
@@ -2638,22 +2628,25 @@ function connectNube() {
             mqttClient.subscribe(`dosimat/${currentMac}/programas`);
             mqttClient.subscribe(`dosimat/${currentMac}/logs`);
             
-            // Envío directo de petición de estado por MQTT
-            try {
-                const msg = new Paho.MQTT.Message(JSON.stringify({ comando: "GET_STATE" }));
-                msg.destinationName = `dosimat/${currentMac}/cmd`;
-                mqttClient.send(msg);
-            } catch (e) { }
+            // Envío directo de petición de estado, config y programas por MQTT
+            const sendMqttCmd = (cmdName) => {
+                try {
+                    const msg = new Paho.MQTT.Message(JSON.stringify({ comando: cmdName }));
+                    msg.destinationName = `dosimat/${currentMac}/cmd`;
+                    mqttClient.send(msg);
+                } catch (e) { }
+            };
+            sendMqttCmd("GET_STATE");
+            sendMqttCmd("GET_CONFIG");
+            sendMqttCmd("GET_PROGRAMAS");
             
             if (window.mqttRescuePoll) clearInterval(window.mqttRescuePoll);
             window.mqttRescuePoll = setInterval(() => {
                 if (modoConexion !== "NUBE" && modoConexion !== "BLE") {
-                    console.log("Reintentando GET_STATE...");
-                    try {
-                        const msg = new Paho.MQTT.Message(JSON.stringify({ comando: "GET_STATE" }));
-                        msg.destinationName = `dosimat/${currentMac}/cmd`;
-                        mqttClient.send(msg);
-                    } catch (e) { }
+                    console.log("Reintentando GET_STATE / GET_CONFIG / GET_PROGRAMAS...");
+                    sendMqttCmd("GET_STATE");
+                    sendMqttCmd("GET_CONFIG");
+                    sendMqttCmd("GET_PROGRAMAS");
                 } else {
                     clearInterval(window.mqttRescuePoll);
                 }
@@ -2661,7 +2654,7 @@ function connectNube() {
         },
         onFailure: (err) => {
             console.error("MQTT Failure:", err);
-            if (modoConexion !== "BLE") setConexionModo("OFFLINE");
+            if (modoConexion !== "BLE") setConexionModo("OFFLINE", "", "Fallo Conexión MQTT");
             setTimeout(connectNube, 5000);
         }
     };
@@ -2675,18 +2668,12 @@ function connectNube() {
             const data = docSnap.data();
             updateUI(data);
             
-            if (modoConexion !== "BLE") {
-                if (data.ultima_sincronizacion) {
-                    const now = Date.now();
-                    const syncTime = data.ultima_sincronizacion.toMillis ? data.ultima_sincronizacion.toMillis() : data.ultima_sincronizacion;
-                    if (now - syncTime > 20000) { // 20 segundos sin reportar
-                        setConexionModo("OFFLINE", "", "Equipo Desconectado");
-                    } else {
-                        lastTelemetryReceivedTs = syncTime;
-                        setConexionModo("NUBE", data.wifi_ssid || "");
-                    }
-                } else {
-                    setConexionModo("OFFLINE", "", "Equipo Desconectado");
+            if (modoConexion !== "BLE" && data.ultima_sincronizacion) {
+                const now = Date.now();
+                const syncTime = data.ultima_sincronizacion.toMillis ? data.ultima_sincronizacion.toMillis() : data.ultima_sincronizacion;
+                if (now - syncTime <= 20000) {
+                    lastTelemetryReceivedTs = Math.max(lastTelemetryReceivedTs, syncTime);
+                    setConexionModo("NUBE", data.wifi_ssid || "");
                 }
             }
         }
@@ -2707,7 +2694,10 @@ function connectNube() {
 
         getDoc(doc(db, "equipos", currentMac)).then(snap => {
             if (snap.exists()) {
-                updateConfigUI(snap.data());
+                const rData = snap.data();
+                if (rData.piscina || rData.poolDims || rData.bidon || rData.bidonConfig || rData.ubicacion || rData.userLocation) {
+                    updateConfigUI(rData);
+                }
             }
         }).catch(err => console.warn("Aviso leyendo doc root de equipo:", err));
     }
@@ -2901,7 +2891,7 @@ function updateUI(raw_data) {
         }
     }
 
-    const isLiveTelemetry = (data.tr !== undefined || data.est !== undefined || data.tipo === "TELEMETRIA" || data.fase_real !== undefined || data.bomba_on !== undefined || data.temp !== undefined);
+    const isLiveTelemetry = (raw_data && (raw_data.tipo === "TELEMETRIA" || raw_data.fase_real !== undefined || (raw_data.bomba_on !== undefined && raw_data.modelo !== undefined)));
     if (isLiveTelemetry) {
         lastTelemetryReceivedTs = Date.now();
         if (modoConexion !== "BLE") {
@@ -3291,15 +3281,15 @@ setInterval(() => {
         const isBleGattConnected = (typeof bleDevice !== "undefined" && bleDevice && bleDevice.gatt && bleDevice.gatt.connected);
         if (!isBleGattConnected) {
             setConexionModo("OFFLINE", "", "BLE Desconectado");
-        } else if (lastTelemetryReceivedTs > 0 && (Date.now() - lastTelemetryReceivedTs > 12000)) {
+        } else if (lastTelemetryReceivedTs > 0 && (Date.now() - lastTelemetryReceivedTs > 16000)) {
             setConexionModo("OFFLINE", "", "Sin Respuesta BLE");
         }
     } else if (modoConexion === "NUBE") {
-        if (lastTelemetryReceivedTs === 0 || (Date.now() - lastTelemetryReceivedTs > 12000)) {
+        if (lastTelemetryReceivedTs > 0 && (Date.now() - lastTelemetryReceivedTs > 16000)) {
             setConexionModo("OFFLINE", "", "Equipo Desconectado");
         }
     }
-}, 2500);
+}, 3000);
 
 // === EVENTOS CLICK TARJETAS TÁCTILES DASHBOARD ===
 const pBomba = document.getElementById('panelBomba');
@@ -3855,23 +3845,29 @@ function updateConfigUI(data) {
     }
     actualizarPanelTemporada();
 
-    const espSegs = data.tespera_seg !== undefined ? data.tespera_seg : 90;
-    const inpEspMin = document.getElementById('inpEsperaMin');
-    const inpEspSeg = document.getElementById('inpEsperaSeg');
-    if (inpEspMin) inpEspMin.value = Math.floor(espSegs / 60);
-    if (inpEspSeg) inpEspSeg.value = espSegs % 60;
+    if (data.tespera_seg !== undefined) {
+        const espSegs = parseInt(data.tespera_seg) || 0;
+        const inpEspMin = document.getElementById('inpEsperaMin');
+        const inpEspSeg = document.getElementById('inpEsperaSeg');
+        if (inpEspMin) inpEspMin.value = Math.floor(espSegs / 60);
+        if (inpEspSeg) inpEspSeg.value = espSegs % 60;
+    }
 
-    const dosSegs = data.tdosis_seg !== undefined ? data.tdosis_seg : 90;
-    const inpDosMin = document.getElementById('inpDosisMin');
-    const inpDosSeg = document.getElementById('inpDosisSeg');
-    if (inpDosMin) inpDosMin.value = Math.floor(dosSegs / 60);
-    if (inpDosSeg) inpDosSeg.value = dosSegs % 60;
+    if (data.tdosis_seg !== undefined) {
+        const dosSegs = parseInt(data.tdosis_seg) || 0;
+        const inpDosMin = document.getElementById('inpDosisMin');
+        const inpDosSeg = document.getElementById('inpDosisSeg');
+        if (inpDosMin) inpDosMin.value = Math.floor(dosSegs / 60);
+        if (inpDosSeg) inpDosSeg.value = dosSegs % 60;
+    }
 
-    const ajuste = data.ajuste_baja !== undefined ? data.ajuste_baja : 50;
-    const inpAjuste = document.getElementById('inpAjusteBaja');
-    const lblAjuste = document.getElementById('lblValAjusteBaja');
-    if (inpAjuste) inpAjuste.value = ajuste;
-    if (lblAjuste) lblAjuste.innerText = `${ajuste}%`;
+    if (data.ajuste_baja !== undefined) {
+        const ajuste = parseInt(data.ajuste_baja) || 50;
+        const inpAjuste = document.getElementById('inpAjusteBaja');
+        const lblAjuste = document.getElementById('lblValAjusteBaja');
+        if (inpAjuste) inpAjuste.value = ajuste;
+        if (lblAjuste) lblAjuste.innerText = `${ajuste}%`;
+    }
 
     if (data.temporada_alta_inicio && data.temporada_alta_inicio.includes("-")) {
         const parts = data.temporada_alta_inicio.split("-");
