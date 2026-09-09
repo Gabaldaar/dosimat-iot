@@ -4909,6 +4909,46 @@ if (btnGuardarPinTecnico) {
     };
 }
 
+const btnCopyTecnicoData = document.getElementById('btnCopyTecnicoData');
+if (btnCopyTecnicoData) {
+    btnCopyTecnicoData.onclick = async () => {
+        const inpEmail = document.getElementById('inpNewTecnico');
+        const inpNombre = document.getElementById('inpNewTecnicoNombre');
+        const inpPass = document.getElementById('inpNewTecnicoPass');
+        
+        const email = inpEmail ? inpEmail.value.trim() : "";
+        const nombre = inpNombre ? inpNombre.value.trim() : "";
+        const password = inpPass ? inpPass.value.trim() : "";
+        
+        if (!email && !password) {
+            customAlert("Ingresa al menos el email o contraseña para copiar los datos.", "Campos vacíos");
+            return;
+        }
+
+        let texto = `🛠️ *Acceso Técnico - Dosimat IoT*\n\n`;
+        if (nombre) texto += `👤 *Nombre:* ${nombre}\n`;
+        if (email) texto += `📧 *Email:* ${email}\n`;
+        if (password) texto += `🔑 *Contraseña:* ${password}\n`;
+        texto += `\n🌐 *App Web:* https://dosimat-iot-v2.web.app\n\n_Ingresá con estas credenciales para acceder al Portal Técnico y configurar equipos._`;
+
+        try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                await navigator.clipboard.writeText(texto);
+            } else {
+                const ta = document.createElement('textarea');
+                ta.value = texto;
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+            }
+            showToast("📋 Datos copiados al portapapeles para WhatsApp");
+        } catch (err) {
+            showToast("No se pudo copiar: " + err.message, true);
+        }
+    };
+}
+
 const btnAddTecnico = document.getElementById('btnAddTecnico');
 if (btnAddTecnico) {
     btnAddTecnico.onclick = async () => {
@@ -4961,10 +5001,22 @@ if (btnAddTecnico) {
                         try { await deleteApp(tempApp); } catch(e) {}
                     }
                 }
+
+                // Autocopiar datos para WhatsApp
+                let textoWsp = `🛠️ *Acceso Técnico - Dosimat IoT*\n\n`;
+                if (nombre) textoWsp += `👤 *Nombre:* ${nombre}\n`;
+                textoWsp += `📧 *Email:* ${email}\n`;
+                textoWsp += `🔑 *Contraseña:* ${password}\n`;
+                textoWsp += `\n🌐 *App Web:* https://dosimat-iot-v2.web.app\n\n_Ingresá con estas credenciales para acceder al Portal Técnico y configurar equipos._`;
+                try {
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                        await navigator.clipboard.writeText(textoWsp);
+                    }
+                } catch(e) {}
             }
 
             customAlert(
-                `Técnico ${email} guardado con éxito.${authMsg}\n\nPuede ingresar a la App con ese correo` + (password ? ` y la clave asignada.` : `.`),
+                `Técnico ${email} guardado con éxito.${authMsg}\n\n` + (password ? `📋 Los datos de acceso fueron copiados al portapapeles para que puedas pegarlos en WhatsApp.` : `Puede ingresar a la App con ese correo.`),
                 "Técnico Registrado"
             );
             
