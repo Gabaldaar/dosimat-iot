@@ -14,5 +14,14 @@ try:
 except Exception as e:
     print("[BOOT] Error al inicializar pines en boot.py:", e)
 
+# Inicializar interface WLAN temprana antes de que se fragmente la RAM
+try:
+    import network
+    wlan = network.WLAN(network.STA_IF)
+    wlan.active(False)
+    print("[BOOT] Interfaz WLAN inicializada en reposo.")
+except Exception as e_wlan:
+    print("[BOOT] Aviso inicializando WLAN en boot:", e_wlan)
+
 # Forzar recolección de basura para liberar RAM
 gc.collect()

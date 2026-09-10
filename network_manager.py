@@ -106,8 +106,7 @@ async def conectar_mqtt_async():
 
 def feed_watchdog():
     try:
-        import main
-        main.feed_wdt()
+        dosimat_core.feed_wdt()
     except Exception:
         pass
 
@@ -195,8 +194,18 @@ async def conectar_wifi_non_blocking(wlan):
 async def gestionar_interfaces_network():
     """Orquestador de la máquina de estados de red que garantiza la exclusión mutua de RF"""
     global current_state, wifi_conectado, mqtt_client
-    wlan = network.WLAN(network.STA_IF)
     
+    gc.collect()
+    wlan = None
+    for attempt in range(3):
+        try:
+            wlan = network.WLAN(network.STA_IF)
+            break
+        except Exception as e_wlan:
+            print(f"[NET] Aviso obteniendo interfaz WLAN (intento {attempt+1}/3):", e_wlan)
+            gc.collect()
+            await asyncio.sleep_ms(300)
+
     while True:
         # Verificar credenciales en cada ciclo por si se configuraron nuevas vía BLE
         cred = await config_manager.cargar_wifi_config()
@@ -218,8 +227,11 @@ async def gestionar_interfaces_network():
         # ----------------------------------------------------
         elif current_state == STATE_BLE_ONLY:
             # Exclusión: Asegurar WiFi OFF
-            if wlan.active():
-                wlan.active(False)
+            if wlan and wlan.active():
+                try:
+                    wlan.active(False)
+                except:
+                    pass
                 gc.collect()
                 
             name = f"Dosimat_{dosimat_core.chip_id[-4:]}"
@@ -239,7 +251,7 @@ async def gestionar_interfaces_network():
             await ble_service.stop_ble_service()
             gc.collect()
             await asyncio.sleep_ms(150)
-            if not wlan.active():
+            if wlan and not wlan.active():
                 try:
                     wlan.active(True)
                 except Exception as e_wlan:
@@ -251,7 +263,9 @@ async def gestionar_interfaces_network():
                         pass
             gc.collect()
             
-            success = await conectar_wifi_non_blocking(wlan)
+            success = False
+            if wlan:
+                success = await conectar_wifi_non_blocking(wlan)
             if success:
                 current_state = STATE_WIFI_ONLINE
                 # Volcar logs acumulados en RAM a Flash

@@ -19,19 +19,9 @@ import network_manager
 import led_manager
 import sys_log
 
-system_wdt = None
-
-def feed_wdt():
-    global system_wdt
-    if system_wdt:
-        try:
-            system_wdt.feed()
-        except:
-            pass
-
 async def main():
-    global system_wdt
     print("[MAIN] Inicializando tareas del sistema...")
+    gc.collect()
     
     # 1. Inicializar hardware (Relés, RTC, I2C)
     dosimat_core.init_hardware()
@@ -39,35 +29,35 @@ async def main():
     # 2. Registrar eventos en el log
     await sys_log.log_event({"msg": "Reinicio del equipo"}, wifi_activo=False)
     
-    # 2. Iniciar tareas del LED indicador de forma inmediata
+    # 3. Iniciar tareas del LED indicador de forma inmediata
     asyncio.create_task(led_manager.led_task())
     
-    # 3. Iniciar lógica funcional del dosificador
+    # 4. Iniciar lógica funcional del dosificador
     asyncio.create_task(dosimat_core.dispenser_loop())
     
-    # 4. Iniciar tareas de red y comunicación asíncronas
+    # 5. Iniciar tareas de red y comunicación asíncronas
     asyncio.create_task(network_manager.gestionar_interfaces_network())
     asyncio.create_task(network_manager.procesar_cola_ble())
     asyncio.create_task(network_manager.tarea_tx_queue())
     
-    # 5. Tarea periódica para actualizar el patrón de destello del LED
+    # 6. Tarea periódica para actualizar el patrón de destello del LED
     asyncio.create_task(tarea_actualizar_leds_periodica())
     
-    # 6. Inicializar Watchdog Timer de hardware (WDT)
+    # 7. Inicializar Watchdog Timer de hardware (WDT)
     try:
-        system_wdt = machine.WDT(0, 60000)
+        dosimat_core.system_wdt = machine.WDT(0, 60000)
         print("[MAIN] Watchdog Timer inicializado (60s).")
     except Exception:
         try:
-            system_wdt = machine.WDT(timeout=60000)
+            dosimat_core.system_wdt = machine.WDT(timeout=60000)
             print("[MAIN] Watchdog Timer inicializado (60s).")
         except Exception as e:
             print("[MAIN] WDT no disponible:", e)
-            system_wdt = None
+            dosimat_core.system_wdt = None
         
     # Bucle de vida principal (alimentando WDT)
     while True:
-        feed_wdt()
+        dosimat_core.feed_wdt()
         await asyncio.sleep(1)
 
 async def tarea_actualizar_leds_periodica():

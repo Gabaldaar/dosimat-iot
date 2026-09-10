@@ -13,6 +13,15 @@ BOMBA_PIN = 23    # Bomba de filtrado
 
 valvula = None
 bomba = None
+system_wdt = None
+
+def feed_wdt():
+    global system_wdt
+    if system_wdt:
+        try:
+            system_wdt.feed()
+        except:
+            pass
 
 # Cola de transmisión global (para enviar hacia BLE/MQTT)
 class AsyncQueue:
