@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Dosimat IoT</title>
     <link rel="manifest" href="manifest.json">
-    <link rel="stylesheet" href="index.css?v=7.76">
+    <link rel="stylesheet" href="index.css?v=7.77">
     <!-- Google Fonts & Icons -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -109,7 +109,7 @@
     <header>
         <div class="header-title" style="align-items: flex-start; margin-top: 5px;">
             <div style="display: flex; flex-direction: column;">
-                <h1 style="margin-bottom: 0;"><span id="lblHeaderTitle">Dosimat IoT CB</span> <span style="font-size: 0.7rem; color: var(--accent); margin-left: 5px;">v7.75</span></h1>
+                <h1 style="margin-bottom: 0;"><span id="lblHeaderTitle">Dosimat IoT CB</span> <span style="font-size: 0.7rem; color: var(--accent); margin-left: 5px;">v7.77</span></h1>
                 <div id="lblUserName" style="font-size: 0.85rem; font-weight: 300; color: var(--text-muted); display: none;"></div>
             </div>
         </div>
@@ -847,32 +847,73 @@
             </div>
 
             <!-- Filtro de Eventos de Notificación -->
-            <div style="font-size: 0.82rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.6rem;">Eventos Notificables:</div>
-            <div style="display: flex; flex-direction: column; gap: 0.6rem;">
-                <label style="display: flex; align-items: center; justify-content: space-between; font-size: 0.84rem; cursor: pointer; padding: 0.3rem 0;">
-                    <span>🧪 Inicio de Dosificación (Auto / Manual)</span>
-                    <input type="checkbox" id="chkNotifInicioDosis" class="toggle-switch" checked>
-                </label>
-                <label style="display: flex; align-items: center; justify-content: space-between; font-size: 0.84rem; cursor: pointer; padding: 0.3rem 0; border-top: 1px solid var(--card-border);">
-                    <span>✅ Dosificación Completada</span>
-                    <input type="checkbox" id="chkNotifFinDosis" class="toggle-switch" checked>
-                </label>
-                <label style="display: flex; align-items: center; justify-content: space-between; font-size: 0.84rem; cursor: pointer; padding: 0.3rem 0; border-top: 1px solid var(--card-border);">
-                    <span>⚠️ Dosis Suspendida (Bomba Apagada en SCB)</span>
-                    <input type="checkbox" id="chkNotifBombaApagada" class="toggle-switch" checked>
-                </label>
-                <label style="display: flex; align-items: center; justify-content: space-between; font-size: 0.84rem; cursor: pointer; padding: 0.3rem 0; border-top: 1px solid var(--card-border);">
-                    <span>🛢️ Nivel de Cloro Bajo en Bidón (Al cruzar y 9:00 AM)</span>
-                    <input type="checkbox" id="chkNotifBidonBajo" class="toggle-switch" checked>
-                </label>
-                <label style="display: flex; align-items: center; justify-content: space-between; font-size: 0.84rem; cursor: pointer; padding: 0.3rem 0; border-top: 1px solid var(--card-border);">
-                    <span>⏸️ Recordatorio de Equipo en Pausa (Diario 9:00 AM)</span>
-                    <input type="checkbox" id="chkNotifEquipoPausado" class="toggle-switch" checked>
-                </label>
-                <label style="display: flex; align-items: center; justify-content: space-between; font-size: 0.84rem; cursor: pointer; padding: 0.3rem 0; border-top: 1px solid var(--card-border);">
-                    <span>☀️ Sugerencia Meteorológica (Calor Extremo o Lluvias)</span>
-                    <input type="checkbox" id="chkNotifClimaAlerta" class="toggle-switch" checked>
-                </label>
+            <div style="font-size: 0.88rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.3rem;">Eventos Notificables:</div>
+            <div style="display: flex; flex-direction: column;">
+                <div class="switch-container" style="padding: 0.65rem 0; border-bottom: 1px solid var(--card-border); display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;">
+                    <div style="flex: 1;">
+                        <div style="font-weight: 600; font-size: 0.86rem; color: var(--text-main);">🧪 Inicio de Dosificación</div>
+                        <div style="font-size: 0.76rem; color: var(--text-muted); margin-top: 2px;">Al comenzar dosis automática o manual</div>
+                    </div>
+                    <label class="switch" style="flex-shrink: 0;">
+                        <input type="checkbox" id="chkNotifInicioDosis" checked>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+
+                <div class="switch-container" style="padding: 0.65rem 0; border-bottom: 1px solid var(--card-border); display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;">
+                    <div style="flex: 1;">
+                        <div style="font-weight: 600; font-size: 0.86rem; color: var(--text-main);">✅ Dosificación Completada</div>
+                        <div style="font-size: 0.76rem; color: var(--text-muted); margin-top: 2px;">Al finalizar la inyección con la hora exacta</div>
+                    </div>
+                    <label class="switch" style="flex-shrink: 0;">
+                        <input type="checkbox" id="chkNotifFinDosis" checked>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+
+                <div class="switch-container" style="padding: 0.65rem 0; border-bottom: 1px solid var(--card-border); display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;">
+                    <div style="flex: 1;">
+                        <div style="font-weight: 600; font-size: 0.86rem; color: var(--text-main);">⚠️ Dosis Suspendida (Bomba Apagada)</div>
+                        <div style="font-size: 0.76rem; color: var(--text-muted); margin-top: 2px;">Aviso si no funciona la bomba de filtrado (SCB)</div>
+                    </div>
+                    <label class="switch" style="flex-shrink: 0;">
+                        <input type="checkbox" id="chkNotifBombaApagada" checked>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+
+                <div class="switch-container" style="padding: 0.65rem 0; border-bottom: 1px solid var(--card-border); display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;">
+                    <div style="flex: 1;">
+                        <div style="font-weight: 600; font-size: 0.86rem; color: var(--text-main);">🛢️ Nivel de Cloro Bajo en Bidón</div>
+                        <div style="font-size: 0.76rem; color: var(--text-muted); margin-top: 2px;">Al cruzar el umbral y recordatorio diario 9:00 AM</div>
+                    </div>
+                    <label class="switch" style="flex-shrink: 0;">
+                        <input type="checkbox" id="chkNotifBidonBajo" checked>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+
+                <div class="switch-container" style="padding: 0.65rem 0; border-bottom: 1px solid var(--card-border); display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;">
+                    <div style="flex: 1;">
+                        <div style="font-weight: 600; font-size: 0.86rem; color: var(--text-main);">⏸️ Recordatorio de Equipo en Pausa</div>
+                        <div style="font-size: 0.76rem; color: var(--text-muted); margin-top: 2px;">Aviso diario a las 9:00 AM si continúa pausado</div>
+                    </div>
+                    <label class="switch" style="flex-shrink: 0;">
+                        <input type="checkbox" id="chkNotifEquipoPausado" checked>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+
+                <div class="switch-container" style="padding: 0.65rem 0; border-bottom: none; display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;">
+                    <div style="flex: 1;">
+                        <div style="font-weight: 600; font-size: 0.86rem; color: var(--text-main);">☀️ Sugerencia Meteorológica</div>
+                        <div style="font-size: 0.76rem; color: var(--text-muted); margin-top: 2px;">Avisos por olas de calor o lluvias intensas</div>
+                    </div>
+                    <label class="switch" style="flex-shrink: 0;">
+                        <input type="checkbox" id="chkNotifClimaAlerta" checked>
+                        <span class="slider"></span>
+                    </label>
+                </div>
             </div>
 
             <div style="margin-top: 1rem;">
@@ -1881,6 +1922,6 @@
         </div>
     </div>
 
-    <script type="module" src="app.js?v=7.76"></script>
+    <script type="module" src="app.js?v=7.77"></script>
 </body>
 </html>
