@@ -478,8 +478,50 @@ async def procesar_comando(cmd_dict):
         await asyncio.sleep(1)
         machine.reset()
 
+ultimo_dia_notif_9am = -1
+ultimo_estado_bidon_bajo = False
+
+def evaluar_y_notificar_bidon(es_recordatorio=False):
+    global ultimo_estado_bidon_bajo
+    try:
+        b_cfg = config_ref.get("bidon_config", {})
+        cant_bidones = int(b_cfg.get("totalBidones", b_cfg.get("total_bidones", 1)))
+        cap_total = cant_bidones * 27.0
+        dosis_l = float(b_cfg.get("dosisLitros", b_cfg.get("dosis_litros", 2.0)))
+        dosis_acum = float(config_ref.get("dosis_acumuladas", 0.0))
+        
+        litros_restantes = max(0.0, cap_total - (dosis_acum * dosis_l))
+        
+        cronograma = config_ref.get("cronograma", [])
+        total_dosis_sem = 0
+        if isinstance(cronograma, list):
+            for prog in cronograma:
+                if isinstance(prog, dict) and prog.get("dosifica", True) and int(prog.get("duracion", 0)) > 0:
+                    dias_str = str(prog.get("dias", ""))
+                    total_dosis_sem += len(dias_str)
+        
+        dosis_dia = (total_dosis_sem / 7.0) if total_dosis_sem > 0 else 1.0
+        consumo_diario = dosis_dia * dosis_l
+        dias_restantes = int(litros_restantes / consumo_diario) if consumo_diario > 0 else 0
+        
+        umbral_l = float(b_cfg.get("alertaMinLitros", b_cfg.get("alerta_min_litros", 4.0)))
+        umbral_d = int(b_cfg.get("alertaMinDias", b_cfg.get("alerta_min_dias", 5)))
+        
+        esta_bajo = (litros_restantes <= umbral_l) or (dias_restantes <= umbral_d)
+        
+        if esta_bajo and (not ultimo_estado_bidon_bajo or es_recordatorio):
+            import network_manager
+            network_manager.disparar_webhook_notificacion("bidon_bajo", {
+                "litros": f"{litros_restantes:.1f}",
+                "dias": str(dias_restantes)
+            })
+            
+        ultimo_estado_bidon_bajo = esta_bajo
+    except Exception as e:
+        print("[CORE] Error evaluando alerta de bidón:", e)
+
 async def cron_scheduler_task():
-    global estado_dosimat, modo_ciclo, tfiltro_restante, ultima_dosis_ts, ultimo_minuto_procesado, dosis_anuladas, ventana_scb, ultimo_evento_warning
+    global estado_dosimat, modo_ciclo, tfiltro_restante, ultima_dosis_ts, ultimo_minuto_procesado, dosis_anuladas, ventana_scb, ultimo_evento_warning, ultimo_dia_notif_9am
     while True:
         try:
             t = time.localtime()
@@ -534,6 +576,15 @@ async def cron_scheduler_task():
             
             if t[4] != ultimo_minuto_procesado:
                 ultimo_minuto_procesado = t[4]
+                
+                # Control diario a las 9:00 AM para alertas persistentes
+                if t[3] == 9 and t[4] == 0 and ultimo_dia_notif_9am != t[2]:
+                    ultimo_dia_notif_9am = t[2]
+                    import network_manager
+                    if estado_dosimat == "PAUSA":
+                        network_manager.disparar_webhook_notificacion("equipo_pausado")
+                    evaluar_y_notificar_bidon(es_recordatorio=True)
+                
                 cronograma = config_ref.get("cronograma", [])
                 
                 if estado_dosimat != "PAUSA" and isinstance(cronograma, list):
@@ -743,6 +794,15 @@ async def dispenser_loop():
                 msg_log = f"{tipo_dosis} - Duración: {dur_str}{ref_str} - Temp: {temp_str}"
                 await sys_log.log_event({"msg": msg_log})
                 
+                # Push notification: Inicio de dosis
+                try:
+                    import network_manager
+                    network_manager.disparar_webhook_notificacion("inicio_dosis", {
+                        "msg": f"Se inició la {tipo_dosis.lower()} ({dur_str})."
+                    })
+                except Exception as ex_notif:
+                    print("[CORE] Error notificando inicio dosis:", ex_notif)
+                
             fase_actual_interrumpida = None
             tiempo_acumulado_fase = 0
             
@@ -760,6 +820,11 @@ async def dispenser_loop():
                     estado_dosimat = "IDLE"
                     ultimo_evento_warning = "Ciclo detenido: Bomba apagada"
                     await sys_log.log_event({"tipo": "warning", "msg": "Ciclo detenido: Bomba apagada"})
+                    try:
+                        import network_manager
+                        network_manager.disparar_webhook_notificacion("bomba_apagada")
+                    except Exception as ex_notif:
+                        print("[CORE] Error notificando bomba apagada:", ex_notif)
                     await enviar_telemetria()
                     break
                 await asyncio.sleep_ms(250)
@@ -771,6 +836,15 @@ async def dispenser_loop():
             if estado_dosimat == "DOSIS" and not abort_event.is_set():
                 set_relays(bomba_on=True, valvula_on=False)
                 ultima_dosis_ts = time.time()
+                
+                # Push notification: Fin de dosis
+                try:
+                    t_fin = time.localtime(ultima_dosis_ts)
+                    hora_str = f"{t_fin[3]:02d}:{t_fin[4]:02d}"
+                    import network_manager
+                    network_manager.disparar_webhook_notificacion("fin_dosis", {"hora": hora_str})
+                except Exception as ex_notif:
+                    print("[CORE] Error notificando fin de dosis:", ex_notif)
                 
                 # Acumular contador de dosis exacto para el bidón
                 factor_refuerzo = 2.0 if refuerzo_activo else 1.0
@@ -807,6 +881,10 @@ async def dispenser_loop():
                 refuerzo_activo = False
                 config_ref["refuerzo_activo"] = False
                 await config_manager.guardar_configuracion(config_ref)
+                
+                # Evaluar nivel bajo de bidón tras la dosis
+                evaluar_y_notificar_bidon(es_recordatorio=False)
+                
                 estado_dosimat = "FILTRO_POST"
                 await enviar_telemetria()
                 

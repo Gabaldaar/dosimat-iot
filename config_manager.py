@@ -17,7 +17,15 @@ DEFAULT_CONFIG = {
     "temp_comp_activa": False,         # Compensación automática por altas temperaturas activa
     "temp_offset": 0.0,                # Offset/calibración de temperatura en °C
     "ultimo_refuerzo_temp_ts": 0,      # Timestamp del último refuerzo por temperatura
-    "dosis_acumuladas": 0.0            # Contador persistente de dosis aplicadas desde la última recarga
+    "dosis_acumuladas": 0.0,           # Contador persistente de dosis aplicadas desde la última recarga
+    "notificaciones": {
+        "inicio_dosis": True,
+        "fin_dosis": True,
+        "bomba_apagada": True,
+        "bidon_bajo": True,
+        "equipo_pausado": True,
+        "clima_alerta": True
+    }
 }
 
 config_data = {}

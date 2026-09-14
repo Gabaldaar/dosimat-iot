@@ -454,6 +454,12 @@ const HELP_TOPICS = {
         title: "Ubicación y Clima Local",
         text: "Configura la ubicación geográfica de tu equipo por GPS o búsqueda manual para consultar el pronóstico del tiempo y recibir sugerencias inteligentes de refuerzo de cloro, ante olas de calor o lluvias intensas."
     },
+    "notificaciones-push": {
+        title: "Notificaciones Push y Alertas",
+        text: "Recibe avisos inmediatos en tu celular (con sonido y vibración) o en tu navegador web cada vez que el dosificador trabaje o surja una alerta.\n\n" +
+            "• **Servicio ntfy:** Es un servicio gratuito, libre y sin registro previo. Solo necesitas instalar la app **ntfy** (Android / iOS) o abrir el enlace del canal en tu navegador.\n\n" +
+            "• **Eventos Configurables:** Puedes elegir recibir avisos de inicio y fin de dosis, advertencias de bomba apagada, nivel bajo de bidón, recordatorio diario si el equipo está en pausa o sugerencias meteorológicas."
+    },
     "portal-reposicion": {
         title: "Sistema de Reposición",
         text: "🚚 **SISTEMA DE REPOSICIÓN DE CLORO A DOMICILIO:**\n\n" +
@@ -2074,6 +2080,22 @@ function dispararNotificacionLocal(titulo, cuerpo, id) {
         return;
     }
     lastNotifiedAlerts[id] = Date.now();
+
+    // Disparar push de sugerencia meteorológica a ntfy (con control anti-spam diario)
+    if (id === "alerta_clima_calor" || id === "alerta_clima_lluvia") {
+        const chkNotifClima = document.getElementById('chkNotifClimaAlerta');
+        const notifClimaHabilitada = chkNotifClima ? chkNotifClima.checked : true;
+        const todayStr = new Date().toISOString().split('T')[0];
+        const lastWeatherPushKey = `dosimat_last_weather_push_${id}`;
+        
+        if (notifClimaHabilitada && localStorage.getItem(lastWeatherPushKey) !== todayStr) {
+            localStorage.setItem(lastWeatherPushKey, todayStr);
+            const tag = id === "alerta_clima_calor" ? "sunny" : "thunderstorm";
+            if (typeof enviarNotificacionPushNtfy === "function") {
+                enviarNotificacionPushNtfy(titulo, cuerpo, tag, "default");
+            }
+        }
+    }
 
     if ("Notification" in window) {
         if (Notification.permission === "granted") {
@@ -3962,6 +3984,7 @@ function updateConfigUI(data) {
         }
     }
 
+    if (typeof updateNotificacionesPushUI === 'function') updateNotificacionesPushUI(data.notificaciones);
     if (typeof updateSubtexto === 'function') updateSubtexto();
 }
 
@@ -8556,17 +8579,159 @@ function initVincularCuitModule() {
     }
 }
 
+// =========================================================================
+// === MÓDULO DE NOTIFICACIONES PUSH MÓVILES (ntfy.sh) ===
+// =========================================================================
+
+function getNtfyTopic() {
+    if (!currentMac) return "dosimat_----";
+    return `dosimat_${currentMac.slice(-4).toLowerCase()}`;
+}
+
+function updateNotificacionesPushUI(configNotif) {
+    const topic = getNtfyTopic();
+    const inpTopic = document.getElementById('inpNtfyTopic');
+    const lblModalTopic = document.getElementById('lblNtfyModalTopic');
+    const lnkChannel = document.getElementById('lnkOpenNtfyChannel');
+
+    if (inpTopic) inpTopic.value = topic;
+    if (lblModalTopic) lblModalTopic.innerText = topic;
+    if (lnkChannel) lnkChannel.href = `https://ntfy.sh/${topic}`;
+
+    const notifs = configNotif || (lastConfigData?.notificaciones) || {};
+    
+    const setChk = (id, key) => {
+        const el = document.getElementById(id);
+        if (el) el.checked = (notifs[key] !== undefined) ? !!notifs[key] : true;
+    };
+
+    setChk('chkNotifInicioDosis', 'inicio_dosis');
+    setChk('chkNotifFinDosis', 'fin_dosis');
+    setChk('chkNotifBombaApagada', 'bomba_apagada');
+    setChk('chkNotifBidonBajo', 'bidon_bajo');
+    setChk('chkNotifEquipoPausado', 'equipo_pausado');
+    setChk('chkNotifClimaAlerta', 'clima_alerta');
+}
+
+async function enviarNotificacionPushNtfy(titulo, mensaje, tag = "bell", prioridad = "default") {
+    const topic = getNtfyTopic();
+    if (!topic || topic.includes("----")) return;
+    try {
+        await fetch(`https://ntfy.sh/${topic}`, {
+            method: 'POST',
+            body: mensaje,
+            headers: {
+                'Title': titulo,
+                'Priority': prioridad,
+                'Tags': tag,
+                'Actions': 'view, Abrir Dosimat IoT, https://dosimat-iot-v2.web.app'
+            }
+        });
+        console.log(`[NTFY] Notificación enviada a https://ntfy.sh/${topic}: ${titulo}`);
+    } catch (e) {
+        console.warn("[NTFY] Error enviando push a ntfy:", e);
+    }
+}
+
+function initNotificacionesPushModule() {
+    // 1. Botón copiar canal
+    const btnCopy = document.getElementById('btnCopyNtfyTopic');
+    if (btnCopy) {
+        btnCopy.onclick = async () => {
+            const topic = getNtfyTopic();
+            if (!topic || topic.includes("----")) {
+                showToast("Conecta un equipo para obtener su canal de alertas.", true);
+                return;
+            }
+            try {
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    await navigator.clipboard.writeText(topic);
+                } else {
+                    const temp = document.createElement("input");
+                    temp.value = topic;
+                    document.body.appendChild(temp);
+                    temp.select();
+                    document.execCommand("copy");
+                    document.body.removeChild(temp);
+                }
+                showToast(`📋 Canal copiado: ${topic}`);
+            } catch(e) {
+                showToast(`Canal: ${topic}`);
+            }
+        };
+    }
+
+    // 2. Modal de instrucciones de instalación en celular
+    const modalGuia = document.getElementById('modalGuiaNtfy');
+    const btnShowModal = document.getElementById('btnShowNtfyHelpModal');
+    const btnCloseModal = document.getElementById('btnCloseModalGuiaNtfy');
+    const btnEntendidoModal = document.getElementById('btnEntendidoModalNtfy');
+
+    if (btnShowModal && modalGuia) {
+        btnShowModal.onclick = () => {
+            const topic = getNtfyTopic();
+            const lblModalTopic = document.getElementById('lblNtfyModalTopic');
+            if (lblModalTopic) lblModalTopic.innerText = topic;
+            modalGuia.style.display = 'flex';
+        };
+    }
+    const cerrarModalNtfy = () => {
+        if (modalGuia) modalGuia.style.display = 'none';
+    };
+    if (btnCloseModal) btnCloseModal.onclick = cerrarModalNtfy;
+    if (btnEntendidoModal) btnEntendidoModal.onclick = cerrarModalNtfy;
+
+    // 3. Guardar preferencias
+    const btnGuardar = document.getElementById('btnGuardarNotificaciones');
+    if (btnGuardar) {
+        btnGuardar.onclick = async () => {
+            if (!currentMac) {
+                customAlert("Conéctate primero a un equipo para guardar las preferencias.");
+                return;
+            }
+            const payload = {
+                inicio_dosis: document.getElementById('chkNotifInicioDosis')?.checked ?? true,
+                fin_dosis: document.getElementById('chkNotifFinDosis')?.checked ?? true,
+                bomba_apagada: document.getElementById('chkNotifBombaApagada')?.checked ?? true,
+                bidon_bajo: document.getElementById('chkNotifBidonBajo')?.checked ?? true,
+                equipo_pausado: document.getElementById('chkNotifEquipoPausado')?.checked ?? true,
+                clima_alerta: document.getElementById('chkNotifClimaAlerta')?.checked ?? true
+            };
+
+            btnGuardar.disabled = true;
+            btnGuardar.innerText = "Guardando preferencias...";
+
+            try {
+                sendCommand({
+                    comando: "SET_CONFIG",
+                    notificaciones: payload
+                });
+                showToast("✅ Preferencias de alertas guardadas en el equipo.");
+            } catch (e) {
+                showToast("Error al guardar preferencias: " + e.message, true);
+            } finally {
+                btnGuardar.disabled = false;
+                btnGuardar.innerText = "Guardar Preferencias de Alertas";
+            }
+        };
+    }
+
+    updateNotificacionesPushUI();
+}
+
 // Iniciar módulos al cargar
 if (document.readyState === "loading") {
     document.addEventListener('DOMContentLoaded', () => {
         initPoolCalculator();
         initBidonModule();
         initDosimatProModule();
+        initNotificacionesPushModule();
     });
 } else {
     initPoolCalculator();
     initBidonModule();
     initDosimatProModule();
+    initNotificacionesPushModule();
 }
 
 

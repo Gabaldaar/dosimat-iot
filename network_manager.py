@@ -388,3 +388,120 @@ async def tarea_tx_queue():
                     print("[NET_TX] Error publicando telemetría MQTT:", e)
         feed_watchdog()
         await asyncio.sleep_ms(10)
+
+
+# ======================================================================
+# WEBHOOK DIRECTO A NTFY.SH (NOTIFICACIONES PUSH PWA / MÓVIL)
+# ======================================================================
+
+def disparar_webhook_notificacion(evento, extra=None):
+    """Lanza una tarea asíncrona no bloqueante para enviar push a ntfy.sh."""
+    if not wifi_conectado:
+        return
+    try:
+        asyncio.create_task(_enviar_http_push(evento, extra or {}))
+    except Exception as e:
+        print("[PUSH_HTTP] Error creando tarea:", e)
+
+
+async def _enviar_http_push(evento, extra):
+    """Envío HTTP POST puro (Puerto 80, sin SSL) a ntfy.sh con cero sobrecarga de RAM."""
+    s = None
+    try:
+        prefs = dosimat_core.config_ref.get("notificaciones", {})
+
+        # Comprobar selectores de usuario antes de enviar
+        if evento == "inicio_dosis" and not prefs.get("inicio_dosis", True):
+            return
+        if evento == "fin_dosis" and not prefs.get("fin_dosis", True):
+            return
+        if evento == "bomba_apagada" and not prefs.get("bomba_apagada", True):
+            return
+        if evento == "bidon_bajo" and not prefs.get("bidon_bajo", True):
+            return
+        if evento == "equipo_pausado" and not prefs.get("equipo_pausado", True):
+            return
+        if evento == "clima_alerta" and not prefs.get("clima_alerta", True):
+            return
+
+        gc.collect()
+        topic = f"dosimat_{dosimat_core.chip_id[-4:].lower()}"
+
+        if evento == "inicio_dosis":
+            titulo = "Inicio de Dosis"
+            mensaje = extra.get("msg", "Se inició la dosificación de cloro.")
+            tags = "test_tube"
+            prioridad = "default"
+        elif evento == "fin_dosis":
+            titulo = "Dosis Completada"
+            hora = extra.get("hora", "")
+            hora_txt = f" a las {hora}" if hora else ""
+            mensaje = f"Dosificación de cloro finalizada correctamente{hora_txt}."
+            tags = "white_check_mark"
+            prioridad = "default"
+        elif evento == "bomba_apagada":
+            titulo = "Dosis Suspendida"
+            mensaje = "Dosis cancelada: no se detectó funcionamiento de la bomba de filtrado."
+            tags = "warning"
+            prioridad = "high"
+        elif evento == "bidon_bajo":
+            titulo = "Nivel de Cloro Bajo"
+            litros = extra.get("litros", "")
+            dias = extra.get("dias", "")
+            if litros and dias:
+                mensaje = f"Nivel de cloro bajo: quedan {litros} L (~{dias} días). Se sugiere recargar bidón."
+            elif litros:
+                mensaje = f"Nivel de cloro bajo: quedan {litros} L restantes. Se sugiere recargar bidón."
+            else:
+                mensaje = extra.get("msg", "El nivel de cloro restante es bajo. Se sugiere recargar el bidón.")
+            tags = "oil_drum"
+            prioridad = "high"
+        elif evento == "equipo_pausado":
+            titulo = "Dosificador en Pausa"
+            mensaje = "El dosificador Dosimat se encuentra en Modo Pausa. La dosificación automática está suspendida."
+            tags = "pause_button"
+            prioridad = "default"
+        elif evento == "clima_alerta":
+            titulo = extra.get("titulo", "Sugerencia Meteorológica")
+            mensaje = extra.get("msg", "Condiciones climáticas cambiantes. Te sugerimos revisar el dosificador.")
+            tags = extra.get("tag", "sunny")
+            prioridad = "default"
+        else:
+            titulo = "Alerta Dosimat IoT"
+            mensaje = extra.get("msg", f"Evento: {evento}")
+            tags = "bell"
+            prioridad = "default"
+
+        feed_watchdog()
+
+        # Socket TCP estándar en puerto 80 (< 1KB RAM, sin SSL)
+        s = socket.socket()
+        s.settimeout(4.0)
+        addr = socket.getaddrinfo("ntfy.sh", 80)[0][-1]
+        s.connect(addr)
+
+        msg_bytes = mensaje.encode("utf-8")
+        req = (
+            f"POST /{topic} HTTP/1.1\r\n"
+            f"Host: ntfy.sh\r\n"
+            f"Title: {titulo}\r\n"
+            f"Priority: {prioridad}\r\n"
+            f"Tags: {tags}\r\n"
+            f"Actions: view, Abrir Dosimat IoT, https://dosimat-iot-v2.web.app\r\n"
+            f"Content-Type: text/plain; charset=utf-8\r\n"
+            f"Content-Length: {len(msg_bytes)}\r\n"
+            f"Connection: close\r\n\r\n"
+        )
+
+        s.write(req.encode("utf-8") + msg_bytes)
+        print(f"[PUSH_HTTP] Notificación enviada a https://ntfy.sh/{topic} (Título: {titulo})")
+    except Exception as e:
+        print(f"[PUSH_HTTP] Error notificando \"{evento}\":", e)
+    finally:
+        if s:
+            try:
+                s.close()
+            except:
+                pass
+        gc.collect()
+

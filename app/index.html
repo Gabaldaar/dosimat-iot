@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Dosimat IoT</title>
     <link rel="manifest" href="manifest.json">
-    <link rel="stylesheet" href="index.css?v=7.74">
+    <link rel="stylesheet" href="index.css?v=7.75">
     <!-- Google Fonts & Icons -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -109,7 +109,7 @@
     <header>
         <div class="header-title" style="align-items: flex-start; margin-top: 5px;">
             <div style="display: flex; flex-direction: column;">
-                <h1 style="margin-bottom: 0;"><span id="lblHeaderTitle">Dosimat IoT CB</span> <span style="font-size: 0.7rem; color: var(--accent); margin-left: 5px;">v7.74</span></h1>
+                <h1 style="margin-bottom: 0;"><span id="lblHeaderTitle">Dosimat IoT CB</span> <span style="font-size: 0.7rem; color: var(--accent); margin-left: 5px;">v7.75</span></h1>
                 <div id="lblUserName" style="font-size: 0.85rem; font-weight: 300; color: var(--text-muted); display: none;"></div>
             </div>
         </div>
@@ -807,6 +807,77 @@
                 <button class="btn outline" id="btnBorrarWifi" style="color: var(--danger, #ef4444); border-color: var(--danger, #ef4444); display: flex; align-items: center; justify-content: center; gap: 0.4rem; font-size: 0.85rem; padding: 0.55rem;">
                     <span class="material-symbols-outlined" style="font-size: 1.15rem;">wifi_off</span>
                     Borrar Credenciales WiFi (Modo Solo BLE)
+                </button>
+            </div>
+        </div>
+
+        <!-- Tarjeta: Notificaciones Push Móviles (ntfy.sh) -->
+        <div class="card" id="cardNotificacionesPush">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem;">
+                <h2 style="margin: 0; display: flex; align-items: center; gap: 6px;">
+                    <span>Notificaciones Push y Alertas</span>
+                    <span class="material-symbols-outlined btn-help" data-help="notificaciones-push">help</span>
+                </h2>
+                <span class="badge" style="background: rgba(16, 185, 129, 0.12); color: #10b981; font-weight: 700; padding: 3px 9px; border-radius: 12px; font-size: 0.75rem;">ntfy.sh</span>
+            </div>
+            <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 0.9rem;">
+                Recibe alertas instantáneas en tu celular (sonido y vibración) con la app gratuita <strong>ntfy</strong> o en tu navegador web.
+            </p>
+
+            <!-- Canal / Tópico ntfy -->
+            <div style="background: var(--bg-color); border: 1px solid var(--card-border); border-radius: 10px; padding: 0.85rem; margin-bottom: 1rem;">
+                <div style="font-size: 0.78rem; font-weight: 700; color: var(--text-muted); margin-bottom: 0.35rem;">Canal de Alertas de tu Equipo:</div>
+                <div style="display: flex; gap: 0.4rem; align-items: center;">
+                    <input type="text" id="inpNtfyTopic" readonly style="flex: 1; font-family: monospace; font-weight: 700; font-size: 0.95rem; color: var(--accent); background: var(--input-bg); border: 1px solid var(--card-border); border-radius: 6px; padding: 0.5rem;" value="dosimat_----">
+                    <button type="button" class="btn outline" id="btnCopyNtfyTopic" title="Copiar nombre de canal" style="width: auto; padding: 0.5rem 0.75rem; font-size: 0.8rem; display: flex; align-items: center; gap: 0.3rem;">
+                        <span class="material-symbols-outlined" style="font-size: 1.1rem;">content_copy</span>
+                        Copiar
+                    </button>
+                </div>
+                <div style="display: flex; gap: 0.5rem; margin-top: 0.7rem; flex-wrap: wrap;">
+                    <a id="lnkOpenNtfyChannel" href="https://ntfy.sh" target="_blank" rel="noopener noreferrer" class="btn" style="flex: 1; min-width: 140px; font-size: 0.82rem; padding: 0.5rem; display: flex; align-items: center; justify-content: center; gap: 0.4rem; text-decoration: none; font-weight: 700;">
+                        <span class="material-symbols-outlined" style="font-size: 1.1rem;">open_in_new</span>
+                        Abrir en ntfy.sh
+                    </a>
+                    <button type="button" class="btn outline" id="btnShowNtfyHelpModal" style="flex: 1; min-width: 140px; font-size: 0.82rem; padding: 0.5rem; display: flex; align-items: center; justify-content: center; gap: 0.4rem; font-weight: 700;">
+                        <span class="material-symbols-outlined" style="font-size: 1.1rem;">phone_android</span>
+                        Cómo Instalar en Celular
+                    </button>
+                </div>
+            </div>
+
+            <!-- Filtro de Eventos de Notificación -->
+            <div style="font-size: 0.82rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.6rem;">Eventos Notificables:</div>
+            <div style="display: flex; flex-direction: column; gap: 0.6rem;">
+                <label style="display: flex; align-items: center; justify-content: space-between; font-size: 0.84rem; cursor: pointer; padding: 0.3rem 0;">
+                    <span>🧪 Inicio de Dosificación (Auto / Manual)</span>
+                    <input type="checkbox" id="chkNotifInicioDosis" class="toggle-switch" checked>
+                </label>
+                <label style="display: flex; align-items: center; justify-content: space-between; font-size: 0.84rem; cursor: pointer; padding: 0.3rem 0; border-top: 1px solid var(--card-border);">
+                    <span>✅ Dosificación Completada</span>
+                    <input type="checkbox" id="chkNotifFinDosis" class="toggle-switch" checked>
+                </label>
+                <label style="display: flex; align-items: center; justify-content: space-between; font-size: 0.84rem; cursor: pointer; padding: 0.3rem 0; border-top: 1px solid var(--card-border);">
+                    <span>⚠️ Dosis Suspendida (Bomba Apagada en SCB)</span>
+                    <input type="checkbox" id="chkNotifBombaApagada" class="toggle-switch" checked>
+                </label>
+                <label style="display: flex; align-items: center; justify-content: space-between; font-size: 0.84rem; cursor: pointer; padding: 0.3rem 0; border-top: 1px solid var(--card-border);">
+                    <span>🛢️ Nivel de Cloro Bajo en Bidón (Al cruzar y 9:00 AM)</span>
+                    <input type="checkbox" id="chkNotifBidonBajo" class="toggle-switch" checked>
+                </label>
+                <label style="display: flex; align-items: center; justify-content: space-between; font-size: 0.84rem; cursor: pointer; padding: 0.3rem 0; border-top: 1px solid var(--card-border);">
+                    <span>⏸️ Recordatorio de Equipo en Pausa (Diario 9:00 AM)</span>
+                    <input type="checkbox" id="chkNotifEquipoPausado" class="toggle-switch" checked>
+                </label>
+                <label style="display: flex; align-items: center; justify-content: space-between; font-size: 0.84rem; cursor: pointer; padding: 0.3rem 0; border-top: 1px solid var(--card-border);">
+                    <span>☀️ Sugerencia Meteorológica (Calor Extremo o Lluvias)</span>
+                    <input type="checkbox" id="chkNotifClimaAlerta" class="toggle-switch" checked>
+                </label>
+            </div>
+
+            <div style="margin-top: 1rem;">
+                <button class="btn" id="btnGuardarNotificaciones" style="font-weight: 700; width: 100%;">
+                    Guardar Preferencias de Alertas
                 </button>
             </div>
         </div>
@@ -1765,6 +1836,51 @@
         </div>
     </div>
 
-    <script type="module" src="app.js?v=7.74"></script>
+    <!-- Modal Guía para Notificaciones Móviles ntfy -->
+    <div id="modalGuiaNtfy" class="modal-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.65); z-index: 9999; align-items: center; justify-content: center; padding: 1rem;">
+        <div class="modal-card" style="background: var(--bg-main); border-radius: 14px; max-width: 480px; width: 100%; padding: 1.3rem; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 30px rgba(0,0,0,0.4); border: 1px solid var(--card-border);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.8rem;">
+                <h3 style="margin: 0; display: flex; align-items: center; gap: 0.4rem; font-size: 1.15rem;">
+                    <span class="material-symbols-outlined" style="color: var(--accent);">notifications_active</span>
+                    Configurar Alertas en el Celular
+                </h3>
+                <button class="btn-icon" id="btnCloseModalGuiaNtfy" style="background: none; border: none; font-size: 1.4rem; color: var(--text-muted); cursor: pointer; padding: 0.2rem;">&times;</button>
+            </div>
+            
+            <p style="font-size: 0.84rem; color: var(--text-muted); margin-bottom: 1rem; line-height: 1.4;">
+                Para que tu teléfono suene y vibre automáticamente con cada alerta, dosificación o nivel bajo, se utiliza el servicio gratuito y libre de alertas móviles <strong>ntfy</strong>.
+            </p>
+
+            <div style="background: var(--bg-color); border: 1px solid var(--card-border); border-radius: 10px; padding: 0.9rem; margin-bottom: 1rem;">
+                <div style="font-size: 0.85rem; font-weight: 700; color: var(--accent); margin-bottom: 0.5rem;">📱 Paso 1: Descargar la App gratuita ntfy</div>
+                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                    <a href="https://play.google.com/store/apps/details?id=io.heckel.ntfy" target="_blank" rel="noopener noreferrer" class="btn" style="flex: 1; min-width: 140px; background: #000; color: #fff; text-decoration: none; font-size: 0.8rem; padding: 0.55rem; display: flex; align-items: center; justify-content: center; gap: 0.35rem; font-weight: 700;">
+                        <span>🤖 Google Play</span>
+                    </a>
+                    <a href="https://apps.apple.com/app/ntfy/id1625396347" target="_blank" rel="noopener noreferrer" class="btn" style="flex: 1; min-width: 140px; background: #000; color: #fff; text-decoration: none; font-size: 0.8rem; padding: 0.55rem; display: flex; align-items: center; justify-content: center; gap: 0.35rem; font-weight: 700;">
+                        <span>🍏 App Store (iOS)</span>
+                    </a>
+                </div>
+            </div>
+
+            <div style="background: var(--bg-color); border: 1px solid var(--card-border); border-radius: 10px; padding: 0.9rem; margin-bottom: 1rem;">
+                <div style="font-size: 0.85rem; font-weight: 700; color: var(--accent); margin-bottom: 0.4rem;">🔔 Paso 2: Suscribirse al Canal de tu Equipo</div>
+                <ol style="margin: 0; padding-left: 1.2rem; font-size: 0.82rem; color: var(--text-main); line-height: 1.45;">
+                    <li>Abre la app <strong>ntfy</strong> en tu celular.</li>
+                    <li>Toca el botón <strong>"+" (Suscribirse a un tema)</strong>.</li>
+                    <li>Escribe o pega el nombre del canal: <strong id="lblNtfyModalTopic" style="color: var(--accent); font-family: monospace;">dosimat_----</strong></li>
+                    <li>¡Listo! Tu teléfono ya recibirá las notificaciones instantáneas de Dosimat IoT.</li>
+                </ol>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end;">
+                <button class="btn" id="btnEntendidoModalNtfy" style="width: auto; padding: 0.5rem 1.2rem; font-weight: 700;">
+                    Entendido
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="app.js?v=7.75"></script>
 </body>
 </html>
