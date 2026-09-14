@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Dosimat IoT</title>
     <link rel="manifest" href="manifest.json">
-    <link rel="stylesheet" href="index.css?v=7.71">
+    <link rel="stylesheet" href="index.css?v=7.72">
     <!-- Google Fonts & Icons -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -118,7 +118,7 @@
     <header>
         <div class="header-title" style="align-items: flex-start; margin-top: 5px;">
             <div style="display: flex; flex-direction: column;">
-                <h1 style="margin-bottom: 0;"><span id="lblHeaderTitle">Dosimat IoT CB</span> <span style="font-size: 0.7rem; color: var(--accent); margin-left: 5px;">v7.71</span></h1>
+                <h1 style="margin-bottom: 0;"><span id="lblHeaderTitle">Dosimat IoT CB</span> <span style="font-size: 0.7rem; color: var(--accent); margin-left: 5px;">v7.72</span></h1>
                 <div id="lblUserName" style="font-size: 0.85rem; font-weight: 300; color: var(--text-muted); display: none;"></div>
             </div>
         </div>
@@ -140,21 +140,41 @@
 
     <!-- Bluetooth Connection Overlay -->
     <div id="connectOverlay" class="overlay" style="display: none;">
-        <div class="auth-card" style="text-align: center;">
-            <span class="material-symbols-outlined" style="font-size: 3.5rem; color: var(--accent);">bluetooth</span>
-            <h2 style="margin: 1rem 0;">Vincular Dosificador</h2>
-            <p id="connectStatus" style="color: var(--text-muted); margin-bottom: 1.5rem;">Conéctate por Bluetooth para vincular y configurar tu equipo localmente.</p>
-            <button class="btn" id="btnConnectBLE" onclick="startBLEConnection()">Buscar Dispositivo Bluetooth</button>
-            
-            <div style="margin-top: 1.5rem; border-top: 1px solid var(--card-border); padding-top: 1.5rem;">
-                <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 0.8rem;">O ingresa el ID manualmente (Ej: 841FE8694040):</p>
-                <div style="display: flex; gap: 0.5rem; justify-content: center;">
-                    <input type="text" id="txtManualMac" placeholder="ID del equipo" style="width: 60%; text-transform: uppercase;">
-                    <button class="btn" id="btnConnectManual" onclick="connectManualMac()" style="width: auto; padding: 0.5rem 1rem;">Vincular</button>
+        <div class="auth-card" style="text-align: center; max-width: 420px;">
+            <span class="material-symbols-outlined" style="font-size: 3.2rem; color: var(--accent);">bluetooth</span>
+            <h2 style="margin: 0.8rem 0 0.4rem 0;">Conexión Bluetooth</h2>
+            <p id="connectStatus" style="color: var(--text-muted); font-size: 0.88rem; margin-bottom: 1.2rem;">Conéctate directamente al dosificador para configurarlo.</p>
+
+            <!-- Contenido normal (Android / PC / Bluefy) -->
+            <div id="boxBleNormalContent">
+                <button class="btn" id="btnConnectBLE" style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; width: 100%;">
+                    <span class="material-symbols-outlined">bluetooth_searching</span>
+                    Buscar Dispositivo Bluetooth
+                </button>
+            </div>
+
+            <!-- Contenido guiado para iPhone en Safari / Navegadores sin Web Bluetooth -->
+            <div id="boxBleIosGuideContent" style="display: none; text-align: left; background: rgba(2, 132, 199, 0.05); border: 1px solid rgba(2, 132, 199, 0.2); border-radius: 10px; padding: 0.9rem; margin-bottom: 0.8rem;">
+                <div style="font-size: 0.85rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.4rem; display: flex; align-items: center; gap: 0.4rem;">
+                    <span class="material-symbols-outlined" style="color: var(--accent); font-size: 1.2rem;">phone_iphone</span>
+                    Bluetooth en iPhone / iPad:
+                </div>
+                <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.8rem; line-height: 1.35;">
+                    Apple no permite conexión Bluetooth desde Safari ni Chrome. Para conectar tu dosificador descarga <strong>Bluefy</strong> (navegador BLE gratuito):
+                </p>
+                <div style="display: flex; flex-direction: column; gap: 0.45rem;">
+                    <a href="https://apps.apple.com/app/bluefy-web-ble-browser/id1492822055" target="_blank" rel="noopener noreferrer" class="btn" style="background: #000000; color: #ffffff; text-decoration: none; display: flex; align-items: center; justify-content: center; gap: 0.4rem; font-weight: 700; padding: 0.55rem; font-size: 0.85rem;">
+                        <span class="material-symbols-outlined" style="font-size: 1.1rem;">download</span>
+                        1. Descargar Bluefy en App Store
+                    </a>
+                    <button type="button" class="btn outline" id="btnCopiarUrlModalBle" style="display: flex; align-items: center; justify-content: center; gap: 0.4rem; font-weight: 700; font-size: 0.82rem; padding: 0.55rem;">
+                        <span class="material-symbols-outlined" style="font-size: 1.1rem;">content_copy</span>
+                        2. Copiar enlace para pegar en Bluefy
+                    </button>
                 </div>
             </div>
 
-            <button class="btn outline" id="btnCancelBLE" onclick="cancelBLEConnection()" style="margin-top: 1.5rem;">Ahora no</button>
+            <button class="btn outline" id="btnCancelBLE" style="margin-top: 1rem; width: 100%;">Cerrar</button>
         </div>
     </div>
 
@@ -721,13 +741,51 @@
         </div>
 
         <!-- Tarjeta de Conexión BLE Local -->
-        <div class="card">
+        <div class="card" id="cardVinculacionBLE">
             <h2 style="display: flex; align-items: center; width: 100%;">
                 <span>Vinculación Bluetooth</span>
                 <span class="material-symbols-outlined btn-help" data-help="vinculo-ble">help</span>
             </h2>
-            <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1rem;">Conéctate directamente al dosificador por Bluetooth para realizar configuraciones locales y sincronizar logs.</p>
-            <button class="btn" id="btnShowConnectBLE">Buscar Dosificador por BLE</button>
+            <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 0.8rem;">Conéctate directamente al dosificador por Bluetooth para configurarlo o registrar tu red WiFi.</p>
+
+            <!-- Selector de Dispositivo (Pills) -->
+            <div style="display: flex; background: var(--bg-color); border: 1px solid var(--card-border); border-radius: 8px; padding: 3px; margin-bottom: 0.9rem; gap: 4px;">
+                <button type="button" id="btnTabBleAndroid" style="flex: 1; padding: 0.45rem 0.6rem; border: none; border-radius: 6px; font-weight: 700; font-size: 0.82rem; cursor: pointer; background: var(--accent); color: white; transition: all 0.2s ease;">
+                    🤖 Android / PC / Mac
+                </button>
+                <button type="button" id="btnTabBleIos" style="flex: 1; padding: 0.45rem 0.6rem; border: none; border-radius: 6px; font-weight: 700; font-size: 0.82rem; cursor: pointer; background: transparent; color: var(--text-muted); transition: all 0.2s ease;">
+                    🍏 iPhone / iPad
+                </button>
+            </div>
+
+            <!-- Vista 1: Android / PC / Navegadores con Web Bluetooth -->
+            <div id="viewBleAndroid">
+                <button class="btn" id="btnShowConnectBLE" style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; width: 100%;">
+                    <span class="material-symbols-outlined">bluetooth_searching</span>
+                    Buscar Dosificador por Bluetooth
+                </button>
+            </div>
+
+            <!-- Vista 2: iPhone / iPad (Safari / Chrome sin Web Bluetooth) -->
+            <div id="viewBleIos" style="display: none; background: rgba(2, 132, 199, 0.05); border: 1px solid rgba(2, 132, 199, 0.2); border-radius: 10px; padding: 0.9rem 1rem;">
+                <div style="display: flex; align-items: flex-start; gap: 0.6rem; margin-bottom: 0.8rem;">
+                    <span class="material-symbols-outlined" style="color: var(--accent); font-size: 1.5rem; flex-shrink: 0; margin-top: 2px;">phone_iphone</span>
+                    <div style="font-size: 0.82rem; color: var(--text-main); line-height: 1.4;">
+                        Apple restringe el Bluetooth en Safari y Chrome. Para conectar tu dosificador por Bluetooth desde este iPhone necesitas abrir esta web con el navegador gratuito <strong>Bluefy</strong>.
+                    </div>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                    <a href="https://apps.apple.com/app/bluefy-web-ble-browser/id1492822055" target="_blank" rel="noopener noreferrer" class="btn" style="background: #000000; color: #ffffff; text-decoration: none; display: flex; align-items: center; justify-content: center; gap: 0.5rem; font-weight: 700;">
+                        <span class="material-symbols-outlined" style="font-size: 1.2rem;">download</span>
+                        1. Descargar Bluefy en App Store
+                    </a>
+                    <button type="button" class="btn outline" id="btnCopiarUrlDosimat" style="display: flex; align-items: center; justify-content: center; gap: 0.4rem; font-weight: 700; font-size: 0.85rem;">
+                        <span class="material-symbols-outlined" style="font-size: 1.15rem;">content_copy</span>
+                        2. Copiar enlace para abrir en Bluefy
+                    </button>
+                </div>
+            </div>
         </div>
 
         <div class="card">
@@ -1709,6 +1767,6 @@
         </div>
     </div>
 
-    <script type="module" src="app.js?v=7.71"></script>
+    <script type="module" src="app.js?v=7.72"></script>
 </body>
 </html>

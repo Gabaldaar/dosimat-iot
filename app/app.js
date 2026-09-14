@@ -401,8 +401,10 @@ const HELP_TOPICS = {
             "• **Inicio/Fin de Temporada Alta:** define el intervalo de fechas en las que se aplicará la dosis sin ajuste estacional."
     },
     "vinculo-ble": {
-        title: "Vínculo Bluetooth",
-        text: "Permite conectar el celular directamente al dosificador mediante Bluetooth (BLE) sin necesidad de internet, ideal para la configuración inicial o zonas sin WiFi."
+        title: "Vínculo Bluetooth (BLE)",
+        text: "Permite conectar el celular directamente al dosificador por Bluetooth sin necesidad de internet, ideal para la configuración inicial o zonas sin WiFi.\n\n" +
+            "• **Android y PC/Mac:** Conexión directa desde Google Chrome o Edge.\n" +
+            "• **iPhone / iPad:** Debido a restricciones de Apple en Safari y Chrome, debes abrir la app desde el navegador gratuito **Bluefy** (disponible en App Store) para habilitar Bluetooth."
     },
     "wifi-local": {
         title: "Configuración WiFi (2.4 GHz)",
@@ -5834,17 +5836,116 @@ function syncRtcBLE() {
     }, true);
 }
 
+function initBleUiControls() {
+    const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    const hasWebBluetooth = !!navigator.bluetooth;
+
+    // Selector de Dispositivo en Tarjeta de Ajustes
+    const btnTabAndroid = document.getElementById('btnTabBleAndroid');
+    const btnTabIos = document.getElementById('btnTabBleIos');
+    const viewAndroid = document.getElementById('viewBleAndroid');
+    const viewIos = document.getElementById('viewBleIos');
+
+    const setTab = (target) => {
+        if (target === "ios") {
+            if (viewIos) viewIos.style.display = "block";
+            if (viewAndroid) viewAndroid.style.display = "none";
+            if (btnTabIos) {
+                btnTabIos.style.background = "var(--accent)";
+                btnTabIos.style.color = "#ffffff";
+            }
+            if (btnTabAndroid) {
+                btnTabAndroid.style.background = "transparent";
+                btnTabAndroid.style.color = "var(--text-muted)";
+            }
+        } else {
+            if (viewAndroid) viewAndroid.style.display = "block";
+            if (viewIos) viewIos.style.display = "none";
+            if (btnTabAndroid) {
+                btnTabAndroid.style.background = "var(--accent)";
+                btnTabAndroid.style.color = "#ffffff";
+            }
+            if (btnTabIos) {
+                btnTabIos.style.background = "transparent";
+                btnTabIos.style.color = "var(--text-muted)";
+            }
+        }
+    };
+
+    if (btnTabAndroid) btnTabAndroid.onclick = () => setTab("android");
+    if (btnTabIos) btnTabIos.onclick = () => setTab("ios");
+
+    // Por defecto, si es iOS y NO está en Bluefy, activar pestaña de iPhone
+    if (isIos && !hasWebBluetooth) {
+        setTab("ios");
+    } else {
+        setTab("android");
+    }
+
+    // Botones de copiar URL de la app
+    const copyAppUrl = async () => {
+        const appUrl = "https://dosimat-iot-v2.web.app";
+        try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                await navigator.clipboard.writeText(appUrl);
+            } else {
+                const tempInput = document.createElement("input");
+                tempInput.value = appUrl;
+                document.body.appendChild(tempInput);
+                tempInput.select();
+                document.execCommand("copy");
+                document.body.removeChild(tempInput);
+            }
+            showToast("📋 ¡Enlace copiado! Abrí Bluefy y pegalo en la barra de direcciones.");
+        } catch(e) {
+            showToast(`Enlace: ${appUrl}`);
+        }
+    };
+
+    const btnCopySettings = document.getElementById('btnCopiarUrlDosimat');
+    if (btnCopySettings) btnCopySettings.onclick = copyAppUrl;
+
+    const btnCopyModal = document.getElementById('btnCopiarUrlModalBle');
+    if (btnCopyModal) btnCopyModal.onclick = copyAppUrl;
+}
+
+function openConnectBleModal() {
+    const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    const hasWebBluetooth = !!navigator.bluetooth;
+
+    const auth = document.getElementById("authOverlay");
+    if (auth) auth.style.display = "none";
+    const connect = document.getElementById("connectOverlay");
+    if (connect) connect.style.display = "flex";
+
+    const boxNormal = document.getElementById("boxBleNormalContent");
+    const boxIos = document.getElementById("boxBleIosGuideContent");
+    const connectStatus = document.getElementById("connectStatus");
+
+    if (isIos && !hasWebBluetooth) {
+        if (boxNormal) boxNormal.style.display = "none";
+        if (boxIos) boxIos.style.display = "block";
+        if (connectStatus) connectStatus.innerText = "Se requiere el navegador Bluefy para Bluetooth en iPhone / iPad.";
+    } else {
+        if (boxNormal) boxNormal.style.display = "block";
+        if (boxIos) boxIos.style.display = "none";
+        if (connectStatus) connectStatus.innerText = "Conéctate directamente al dosificador para configurarlo.";
+    }
+}
+
 // BINDINGS DE LOS BOTONES
 document.addEventListener('DOMContentLoaded', () => {
+    initBleUiControls();
+
     const btnConnectBLE = document.getElementById('btnConnectBLE');
     if (btnConnectBLE) {
         btnConnectBLE.onclick = async () => {
             if (!navigator.bluetooth) {
-                customAlert("Tu navegador no soporta Bluetooth Web o la página no es segura. Usa Chrome en Android y asegúrate de acceder mediante HTTPS.");
+                openConnectBleModal();
                 return;
             }
             const status = document.getElementById('connectStatus');
-            status.innerText = "Escaneando dispositivos DOSIMAT...";
+            if (status) status.innerText = "Escaneando dispositivos DOSIMAT...";
             try {
                 bleDevice = await navigator.bluetooth.requestDevice({
                     filters: [{ namePrefix: "Dosimat" }],
@@ -5852,20 +5953,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
                 bleDevice.addEventListener('gattserverdisconnected', onDisconnected);
-                status.innerText = "Conectando al servidor GATT...";
+                if (status) status.innerText = "Conectando al servidor GATT...";
                 bleServer = await bleDevice.gatt.connect();
 
-                status.innerText = "Buscando UART Service...";
+                if (status) status.innerText = "Buscando UART Service...";
                 const service = await bleServer.getPrimaryService(SERVICE_UUID);
 
-                status.innerText = "Configurando características...";
+                if (status) status.innerText = "Configurando características...";
                 rxCharacteristic = await service.getCharacteristic(RX_UUID);
                 txCharacteristic = await service.getCharacteristic(TX_UUID);
 
                 await txCharacteristic.startNotifications();
                 txCharacteristic.addEventListener('characteristicvaluechanged', handleNotifications);
 
-                status.innerText = "¡Conexión BLE establecida!";
+                if (status) status.innerText = "¡Conexión BLE establecida!";
                 setConexionModo("BLE");
                 setTimeout(() => {
                     const overlay = document.getElementById('connectOverlay');
@@ -5877,7 +5978,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 sendCommand({comando: "GET_STATE"}, true);
 
             } catch (e) {
-                status.innerText = `Error BLE: ${e.message}`;
+                if (status) status.innerText = `Error BLE: ${e.message}`;
                 console.error(e);
             }
         };
@@ -5917,10 +6018,7 @@ document.addEventListener('DOMContentLoaded', () => {
 const btnShowConnectBLE = document.getElementById('btnShowConnectBLE');
 if (btnShowConnectBLE) {
     btnShowConnectBLE.onclick = () => {
-        const auth = document.getElementById("authOverlay");
-        if (auth) auth.style.display = "none";
-        const connect = document.getElementById("connectOverlay");
-        if (connect) connect.style.display = "flex";
+        openConnectBleModal();
     };
 }
 
