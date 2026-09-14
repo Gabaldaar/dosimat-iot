@@ -402,9 +402,9 @@ const HELP_TOPICS = {
     },
     "vinculo-ble": {
         title: "Vínculo Bluetooth (BLE)",
-        text: "Permite conectar el celular directamente al dosificador por Bluetooth sin necesidad de internet, ideal para la configuración inicial o zonas sin WiFi.\n\n" +
+        text: "Permite conectar el celular directamente al dosificador por Bluetooth sin necesidad de internet, ideal para la configuración inicial o piscinas donde no llega señal WiFi.\n\n" +
             "• **Android y PC/Mac:** Conexión directa desde Google Chrome o Edge.\n" +
-            "• **iPhone / iPad:** Debido a restricciones de Apple en Safari y Chrome, debes abrir la app desde el navegador gratuito **Bluefy** (disponible en App Store) para habilitar Bluetooth."
+            "• **iPhone / iPad:** Apple bloquea el Bluetooth en Safari, Chrome y accesos de inicio. Para operar por Bluetooth debes **abrir siempre la app desde el navegador Bluefy** (guárdala en Favoritos de Bluefy para ingresar en 1 toque)."
     },
     "wifi-local": {
         title: "Configuración WiFi (2.4 GHz)",
@@ -414,9 +414,9 @@ const HELP_TOPICS = {
         title: "Guía de Conexión y Registro",
         text: "Sigue estos 4 simples pasos para poner en marcha tu equipo:\n\n" +
             "1️⃣ **Ingreso:** Ingresá a la aplicación con tu correo para registrarte.\n\n" +
-            "2️⃣ **Vínculo BLE:** Abrí Ajustes y tocá **Buscar Dosificador por BLE** para conectar en forma directa.\n\n" +
+            "2️⃣ **Vínculo BLE:** Abrí Ajustes y tocá **Buscar Dosificador por BLE** para conectar en forma directa (En iPhone, hacelo siempre desde **Bluefy**).\n\n" +
             "3️⃣ **Registro WiFi:** En la tarjeta **Conectividad WiFi local**, ingresá el Nombre (SSID) y Contraseña de tu red y presioná **Registrar Red WiFi**. El equipo se reiniciará y se vinculará a la Nube.\n\n" +
-            "4️⃣ **Uso sin WiFi:** Si la señal WiFi no llega hasta el Dosimat, simplemente conectate por BLE cuando quieras controlarlo."
+            "4️⃣ **Uso sin WiFi:** Si la señal WiFi no llega hasta el Dosimat, simplemente conectate por BLE cuando quieras controlarlo (en iPhone abriendo Bluefy)."
     },
     "guia-tecnico": {
         title: "Guía de Operaciones Técnicas",

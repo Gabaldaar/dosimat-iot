@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Dosimat IoT</title>
     <link rel="manifest" href="manifest.json">
-    <link rel="stylesheet" href="index.css?v=7.72">
+    <link rel="stylesheet" href="index.css?v=7.73">
     <!-- Google Fonts & Icons -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -118,7 +118,7 @@
     <header>
         <div class="header-title" style="align-items: flex-start; margin-top: 5px;">
             <div style="display: flex; flex-direction: column;">
-                <h1 style="margin-bottom: 0;"><span id="lblHeaderTitle">Dosimat IoT CB</span> <span style="font-size: 0.7rem; color: var(--accent); margin-left: 5px;">v7.72</span></h1>
+                <h1 style="margin-bottom: 0;"><span id="lblHeaderTitle">Dosimat IoT CB</span> <span style="font-size: 0.7rem; color: var(--accent); margin-left: 5px;">v7.73</span></h1>
                 <div id="lblUserName" style="font-size: 0.85rem; font-weight: 300; color: var(--text-muted); display: none;"></div>
             </div>
         </div>
@@ -160,7 +160,7 @@
                     Bluetooth en iPhone / iPad:
                 </div>
                 <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.8rem; line-height: 1.35;">
-                    Apple no permite conexión Bluetooth desde Safari ni Chrome. Para conectar tu dosificador descarga <strong>Bluefy</strong> (navegador BLE gratuito):
+                    Apple bloquea el Bluetooth en Safari y Chrome. Para conectarte por Bluetooth debes abrir siempre esta web desde la app gratuita <strong>Bluefy</strong> (guárdala en Favoritos de Bluefy para ingresar rápido):
                 </p>
                 <div style="display: flex; flex-direction: column; gap: 0.45rem;">
                     <a href="https://apps.apple.com/app/bluefy-web-ble-browser/id1492822055" target="_blank" rel="noopener noreferrer" class="btn" style="background: #000000; color: #ffffff; text-decoration: none; display: flex; align-items: center; justify-content: center; gap: 0.4rem; font-weight: 700; padding: 0.55rem; font-size: 0.85rem;">
@@ -171,6 +171,9 @@
                         <span class="material-symbols-outlined" style="font-size: 1.1rem;">content_copy</span>
                         2. Copiar enlace para pegar en Bluefy
                     </button>
+                </div>
+                <div style="margin-top: 0.65rem; font-size: 0.75rem; color: var(--text-muted); background: rgba(0,0,0,0.03); border-radius: 6px; padding: 0.4rem 0.5rem; line-height: 1.3;">
+                    ⚠️ <em>Nota: Si agregas la app a la pantalla de inicio de tu iPhone, iOS usará Safari (sin Bluetooth). Para operar por Bluetooth abre siempre Bluefy.</em>
                 </div>
             </div>
 
@@ -771,7 +774,7 @@
                 <div style="display: flex; align-items: flex-start; gap: 0.6rem; margin-bottom: 0.8rem;">
                     <span class="material-symbols-outlined" style="color: var(--accent); font-size: 1.5rem; flex-shrink: 0; margin-top: 2px;">phone_iphone</span>
                     <div style="font-size: 0.82rem; color: var(--text-main); line-height: 1.4;">
-                        Apple restringe el Bluetooth en Safari y Chrome. Para conectar tu dosificador por Bluetooth desde este iPhone necesitas abrir esta web con el navegador gratuito <strong>Bluefy</strong>.
+                        Apple restringe el Bluetooth en Safari y Chrome. Para conectar tu dosificador por Bluetooth desde este iPhone necesitas abrir esta web siempre desde el navegador gratuito <strong>Bluefy</strong>.
                     </div>
                 </div>
 
@@ -784,6 +787,10 @@
                         <span class="material-symbols-outlined" style="font-size: 1.15rem;">content_copy</span>
                         2. Copiar enlace para abrir en Bluefy
                     </button>
+                </div>
+
+                <div style="margin-top: 0.75rem; font-size: 0.78rem; color: var(--text-muted); background: rgba(0,0,0,0.03); border-radius: 6px; padding: 0.5rem 0.65rem; line-height: 1.35;">
+                    💡 <strong>Para usar siempre por Bluetooth:</strong> Abrí la app <strong>Bluefy</strong>, pegá el enlace y guardalo en <strong>Favoritos</strong>. Cada vez que quieras conectar tu equipo por Bluetooth, abrí directamente Bluefy <em>(los iconos añadidos a la pantalla de inicio de iPhone usan Safari y no tienen Bluetooth)</em>.
                 </div>
             </div>
         </div>
@@ -1767,6 +1774,6 @@
         </div>
     </div>
 
-    <script type="module" src="app.js?v=7.72"></script>
+    <script type="module" src="app.js?v=7.73"></script>
 </body>
 </html>
