@@ -411,12 +411,17 @@ const HELP_TOPICS = {
         text: "Asigna la red WiFi local (SSID y Contraseña) a la que se conectará el dosificador para poder ser controlado de forma remota desde cualquier lugar. El dosificador solo funciona con redes de 2.4 GHz."
     },
     "guia-conexion": {
-        title: "Guía de Conexión y Registro",
-        text: "Sigue estos 4 simples pasos para poner en marcha tu equipo:\n\n" +
-            "1️⃣ **Ingreso:** Ingresá a la aplicación con tu correo para registrarte.\n\n" +
-            "2️⃣ **Vínculo BLE:** Abrí Ajustes y tocá **Buscar Dosificador por BLE** para conectar en forma directa (En iPhone, hacelo siempre desde **Bluefy**).\n\n" +
-            "3️⃣ **Registro WiFi:** En la tarjeta **Conectividad WiFi local**, ingresá el Nombre (SSID) y Contraseña de tu red y presioná **Registrar Red WiFi**. El equipo se reiniciará y se vinculará a la Nube.\n\n" +
-            "4️⃣ **Uso sin WiFi:** Si la señal WiFi no llega hasta el Dosimat, simplemente conectate por BLE cuando quieras controlarlo (en iPhone abriendo Bluefy)."
+        title: "Guía de Conexión y Puesta en Marcha",
+        text: "Sigue estos sencillos pasos para vincular y poner en marcha tu dosificador:\n\n" +
+            "1️⃣ **Crear tu Cuenta:**\n" +
+            "Ingresá a la app con tu correo (o Google) y registrate para que tu equipo quede asociado a tu cuenta.\n\n" +
+            "2️⃣ **Vincular por Bluetooth (BLE):**\n" +
+            "Una vez dentro de la app, andá a **Ajustes** > **Vinculación Bluetooth** y presioná *Buscar Dosificador por Bluetooth*.\n" +
+            "*(En iPhone / iPad: abrí siempre esta web desde la app gratuita **Bluefy** para habilitar Bluetooth)*.\n\n" +
+            "3️⃣ **Registrar Red WiFi (Opcional):**\n" +
+            "En la tarjeta **Conectividad WiFi local**, ingresá el Nombre (SSID) y Contraseña de tu red de 2.4 GHz y presioná **Registrar Red WiFi**. El equipo se reiniciará y podrás controlarlo desde cualquier lugar por Internet.\n\n" +
+            "4️⃣ **Uso exclusivo por Bluetooth (sin WiFi):**\n" +
+            "Si no disponés de señal WiFi en la piscina, simplemente abrí la app cuando quieras y conectate por Bluetooth para monitorear o dosificar (en iPhone siempre desde Bluefy)."
     },
     "guia-tecnico": {
         title: "Guía de Operaciones Técnicas",
