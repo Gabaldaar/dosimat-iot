@@ -3030,7 +3030,7 @@ function updateUI(raw_data) {
     }
 
     // Tarjeta Dosis Manual (Activa exclusivamente durante fases de dosis manual)
-    const isDosisManualOn = (globalModoCiclo === "MANUAL" && (globalEstadoDosificador === "FILTRO_PRE" || globalEstadoDosificador === "DOSIS" || globalEstadoDosificador === "FILTRO_POST"));
+    const isDosisManualOn = (globalModoCiclo === "MANUAL" && (globalEstadoDosificador === "FILTRO_PRE" || globalEstadoDosificador === "DOSIS" || (globalModelo !== "SCB" && globalEstadoDosificador === "FILTRO_POST")));
     const panelDosisManual = document.getElementById('panelDosisManual');
     const lblDosisManual = document.getElementById('lblDosisManual');
     const iconDosisManual = document.getElementById('iconDosisManual');
@@ -3364,7 +3364,7 @@ if (pDosisManual) {
             customAlert("El equipo se encuentra desconectado. No es posible iniciar una dosificación manual.", "Sin Conexión");
             return;
         }
-        const isDosisManualOn = (globalModoCiclo === "MANUAL" && (globalEstadoDosificador === "FILTRO_PRE" || globalEstadoDosificador === "DOSIS" || globalEstadoDosificador === "FILTRO_POST"));
+        const isDosisManualOn = (globalModoCiclo === "MANUAL" && (globalEstadoDosificador === "FILTRO_PRE" || globalEstadoDosificador === "DOSIS" || (globalModelo !== "SCB" && globalEstadoDosificador === "FILTRO_POST")));
         if (isDosisManualOn) {
             globalModoCiclo = "AUTO";
             globalEstadoDosificador = "IDLE";

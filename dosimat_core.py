@@ -312,6 +312,7 @@ async def procesar_comando(cmd_dict):
             
     elif cmd == "CANCEL_CYCLE":
         if estado_dosimat != "IDLE":
+            modo_ciclo = "AUTO"
             ciclo_suspendido = False
             fase_actual_interrumpida = None
             estado_dosimat = "IDLE"
@@ -885,7 +886,12 @@ async def dispenser_loop():
                 # Evaluar nivel bajo de bidón tras la dosis
                 evaluar_y_notificar_bidon(es_recordatorio=False)
                 
-                estado_dosimat = "FILTRO_POST"
+                if config_ref.get("modelo", "CB") == "SCB":
+                    set_relays(False, False)
+                    estado_dosimat = "IDLE"
+                    modo_ciclo = "AUTO"
+                else:
+                    estado_dosimat = "FILTRO_POST"
                 await enviar_telemetria()
                 
         # ----------------------------------------------------
@@ -915,6 +921,7 @@ async def dispenser_loop():
                     print("[CORE-SCB] Bomba se apagó en FILTRO_POST. Finalizando ciclo...")
                     set_relays(False, False)
                     estado_dosimat = "IDLE"
+                    modo_ciclo = "AUTO"
                     await sys_log.log_event({"tipo": "info", "msg": "Post-filtrado finalizado: Bomba apagada"})
                     await enviar_telemetria()
                     break
@@ -927,6 +934,7 @@ async def dispenser_loop():
             if estado_dosimat == "FILTRO_POST" and not abort_event.is_set():
                 set_relays(False, False)
                 estado_dosimat = "IDLE"
+                modo_ciclo = "AUTO"
                 
         # ----------------------------------------------------
         # 3.8. ESTADO: FILTRO_MANUAL (Solo bomba encendida, cronómetro ascendente en UI)
