@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Dosimat IoT</title>
     <link rel="manifest" href="manifest.json">
-    <link rel="stylesheet" href="index.css?v=7.78">
+    <link rel="stylesheet" href="index.css?v=7.79">
     <!-- Google Fonts & Icons -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -109,7 +109,7 @@
     <header>
         <div class="header-title" style="align-items: flex-start; margin-top: 5px;">
             <div style="display: flex; flex-direction: column;">
-                <h1 style="margin-bottom: 0;"><span id="lblHeaderTitle">Dosimat IoT CB</span> <span style="font-size: 0.7rem; color: var(--accent); margin-left: 5px;">v7.78</span></h1>
+                <h1 style="margin-bottom: 0;"><span id="lblHeaderTitle">Dosimat IoT CB</span> <span style="font-size: 0.7rem; color: var(--accent); margin-left: 5px;">v7.79</span></h1>
                 <div id="lblUserName" style="font-size: 0.85rem; font-weight: 300; color: var(--text-muted); display: none;"></div>
             </div>
         </div>
@@ -301,39 +301,49 @@
             <!-- Sección Superior: Nivel de Bidón y Autonomía -->
             <div class="bidon-main-wrapper">
                 <div class="bidon-visual-container">
-                    <div class="bidon-visual-tank">
-                        <div class="bidon-visual-liquid" id="visualBidonLiquid" style="height: 0%;"></div>
-                        <div class="bidon-visual-level-label" id="visualBidonPct">0%</div>
+                    <div class="bidon-visual" id="bidonVisual">
+                        <div class="bidon-cap"></div>
+                        <div class="bidon-body">
+                            <div class="bidon-liquid" id="bidonLiquid" style="height: 100%;">
+                                <div class="bidon-wave"></div>
+                            </div>
+                            <div class="bidon-percent" id="lblBidonPercent" style="font-size: 0.92rem; font-weight: 800; white-space: nowrap;">27.0 L</div>
+                        </div>
                     </div>
                 </div>
+
                 <div class="bidon-stats-container">
-                    <div class="bidon-stat-row">
+                    <div class="bidon-stat-item">
                         <span class="bidon-stat-label">Litros Restantes:</span>
-                        <span class="bidon-stat-val" id="lblBidonLitros">0.0 L</span>
+                        <span class="bidon-stat-val" id="lblBidonLitros">27.0 L</span>
                     </div>
-                    <div class="bidon-stat-row">
-                        <span class="bidon-stat-label">Capacidad Total:</span>
-                        <span class="bidon-stat-val" id="lblBidonCapacidad">0 L</span>
+                    <div class="bidon-stat-item">
+                        <span class="bidon-stat-label">Nivel por Bidón:</span>
+                        <span class="bidon-stat-val" id="lblBidonNivelPorBidon">27.0 L / bidón</span>
                     </div>
-                    <div class="bidon-stat-row">
-                        <span class="bidon-stat-label">Autonomía Aprox:</span>
-                        <span class="bidon-stat-val" id="lblBidonDiasRestantes">0 días</span>
+                    <div class="bidon-stat-item">
+                        <span class="bidon-stat-label">Autonomía Estimada:</span>
+                        <span class="bidon-stat-val highlight" id="lblBidonDias">-- días</span>
                     </div>
-                    <div class="bidon-stat-row">
+                    <div class="bidon-stat-item">
                         <span class="bidon-stat-label">Dosis Aplicadas:</span>
                         <span class="bidon-stat-val" id="lblBidonDosisAcum">0.0 dosis</span>
                     </div>
-                    <div class="bidon-stat-row">
-                        <span class="bidon-stat-label">Última Recarga:</span>
-                        <span class="bidon-stat-val" id="lblBidonUltimaRecarga">--/--</span>
+                    <div class="bidon-stat-item">
+                        <span class="bidon-stat-label">Capacidad Instalada:</span>
+                        <span class="bidon-stat-sub" id="lblBidonCapacidad">1 Bidón</span>
+                    </div>
+                    <div class="bidon-stat-item">
+                        <span class="bidon-stat-label">Última Reposición:</span>
+                        <span class="bidon-stat-sub" id="lblBidonUltimaRecarga" style="font-weight: 600; color: var(--text-color);">--</span>
                     </div>
                 </div>
             </div>
 
-            <!-- Banner Informativo Dosimat Pro (Reposición Automática) -->
-            <div id="bannerDosimatProStatus" style="display: none; margin-top: 0.8rem; background: rgba(2, 132, 199, 0.08); border: 1px solid rgba(2, 132, 199, 0.25); border-radius: 8px; padding: 0.65rem 0.85rem;">
-                <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;">
-                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <!-- Banner de Próxima Entrega de Reposición (DosimatPro) -->
+            <div id="bannerProReparto" style="display: none; margin-top: 0.75rem; background: linear-gradient(135deg, rgba(2, 132, 199, 0.08) 0%, rgba(16, 185, 129, 0.08) 100%); border: 1px solid rgba(2, 132, 199, 0.25); border-radius: 10px; padding: 0.65rem 0.85rem;">
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.4rem;">
+                    <div style="display: flex; align-items: center; gap: 0.45rem;">
                         <span class="material-symbols-outlined" style="color: var(--accent); font-size: 1.3rem;">local_shipping</span>
                         <div>
                             <div style="font-size: 0.78rem; font-weight: 700; color: var(--text-color);" id="lblProRepartoTitulo">Próxima Entrega Programada</div>
@@ -1913,6 +1923,6 @@
         </div>
     </div>
 
-    <script type="module" src="app.js?v=7.78"></script>
+    <script type="module" src="app.js?v=7.79"></script>
 </body>
 </html>
