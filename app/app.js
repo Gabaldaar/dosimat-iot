@@ -3946,9 +3946,9 @@ function updateConfigUI(data) {
         renderModeloUI();
     }
 
-    // Sincronizar bidón desde Firestore
-    if (data.bidon || data.bidonConfig) {
-        const bData = data.bidon || data.bidonConfig;
+    // Sincronizar bidón desde Firestore o Firmware
+    if (data.bidon || data.bidonConfig || data.bidon_config) {
+        const bData = data.bidon || data.bidonConfig || data.bidon_config;
         bidonConfig = Object.assign(bidonConfig, bData);
         if (currentMac) localStorage.setItem(`dosimat_bidon_config_${currentMac}`, JSON.stringify(bidonConfig));
         localStorage.setItem("dosimat_bidon_config", JSON.stringify(bidonConfig));
@@ -3958,6 +3958,22 @@ function updateConfigUI(data) {
         if (data.bidon_dosis_litros !== undefined) bidonConfig.dosisLitros = Number(data.bidon_dosis_litros);
         if (data.bidon_fecha_recarga) bidonConfig.fechaRecarga = data.bidon_fecha_recarga;
         if (typeof renderBidonUI === "function") renderBidonUI();
+    }
+
+    // Sincronizar selectores de notificaciones desde el equipo o nube
+    if (data.notificaciones && typeof data.notificaciones === "object") {
+        const setSw = (id, key) => {
+            const el = document.getElementById(id);
+            if (el && data.notificaciones[key] !== undefined) {
+                el.checked = Boolean(data.notificaciones[key]);
+            }
+        };
+        setSw('chkNotifInicioDosis', 'inicio_dosis');
+        setSw('chkNotifFinDosis', 'fin_dosis');
+        setSw('chkNotifBombaApagada', 'bomba_apagada');
+        setSw('chkNotifBidonBajo', 'bidon_bajo');
+        setSw('chkNotifEquipoPausado', 'equipo_pausado');
+        setSw('chkNotifClimaAlerta', 'clima_alerta');
     }
 
     // Sincronizar dimensiones de piscina desde Firestore
@@ -6336,6 +6352,26 @@ function syncEquipmentLocation(mac) {
 async function saveBidonConfigCloud() {
     if (currentMac) localStorage.setItem(`dosimat_bidon_config_${currentMac}`, JSON.stringify(bidonConfig));
     localStorage.setItem("dosimat_bidon_config", JSON.stringify(bidonConfig));
+
+    // Sincronizar parámetros de bidón y umbrales de alerta directamente con el hardware ESP32
+    try {
+        const bTotal = Math.max(1, bidonConfig.totalBidones || 1);
+        const dosisL = bidonConfig.dosisLitros || 2.0;
+        const lBase = (bidonConfig.litrosBase !== undefined) ? bidonConfig.litrosBase : (bTotal * 27.0);
+        const aDias = parseInt(bidonConfig.alertaMinDias) || 5;
+        const aLitros = parseFloat(bidonConfig.alertaMinLitros) || 4.0;
+        const dAcum = parseFloat(bidonConfig.dosisAcumuladasHardware) || 0.0;
+
+        sendCommand({
+            comando: "SET_BIDON_CONFIG",
+            totalBidones: bTotal,
+            dosisLitros: dosisL,
+            litrosBase: lBase,
+            alertaMinDias: aDias,
+            alertaMinLitros: aLitros,
+            dosis_acumuladas: dAcum
+        }, true);
+    } catch(e) {}
 
     if (!currentMac || typeof db === "undefined" || !db) return;
     try {

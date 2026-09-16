@@ -398,12 +398,38 @@ async def procesar_comando(cmd_dict):
         if temp_ini: cfg_to_save["temporada_alta_inicio"] = temp_ini
         if temp_fin: cfg_to_save["temporada_alta_fin"] = temp_fin
         if temp_offset is not None: cfg_to_save["temp_offset"] = float(temp_offset)
+        if "bidon_config" in cmd_dict and isinstance(cmd_dict["bidon_config"], dict):
+            cfg_to_save["bidon_config"] = cmd_dict["bidon_config"]
+        if "notificaciones" in cmd_dict and isinstance(cmd_dict["notificaciones"], dict):
+            cfg_to_save["notificaciones"] = cmd_dict["notificaciones"]
 
         await config_manager.guardar_configuracion(cfg_to_save)
         config_ref.update(cfg_to_save)
         await tx_queue.put({"tipo": "ACK_CONFIG", "status": "OK", "_destino": origen})
         await tx_queue.put({"tipo": "CONFIG", "data": config_ref.copy(), "_destino": origen})
         await enviar_telemetria()
+        if "bidon_config" in cfg_to_save:
+            evaluar_y_notificar_bidon(es_recordatorio=False)
+
+    elif cmd in ("SET_BIDON_CONFIG", "config_bidon"):
+        b_cfg = config_ref.get("bidon_config", {})
+        if not isinstance(b_cfg, dict):
+            b_cfg = {}
+        if "totalBidones" in cmd_dict: b_cfg["totalBidones"] = int(cmd_dict["totalBidones"])
+        if "dosisLitros" in cmd_dict: b_cfg["dosisLitros"] = float(cmd_dict["dosisLitros"])
+        if "litrosBase" in cmd_dict: b_cfg["litrosBase"] = float(cmd_dict["litrosBase"])
+        if "alertaMinDias" in cmd_dict: b_cfg["alertaMinDias"] = int(cmd_dict["alertaMinDias"])
+        if "alertaMinLitros" in cmd_dict: b_cfg["alertaMinLitros"] = float(cmd_dict["alertaMinLitros"])
+        if "bidon_config" in cmd_dict and isinstance(cmd_dict["bidon_config"], dict):
+            b_cfg.update(cmd_dict["bidon_config"])
+        if "dosis_acumuladas" in cmd_dict:
+            config_ref["dosis_acumuladas"] = float(cmd_dict["dosis_acumuladas"])
+        config_ref["bidon_config"] = b_cfg
+        await config_manager.guardar_configuracion(config_ref)
+        await tx_queue.put({"tipo": "ACK_BIDON_CONFIG", "status": "OK", "_destino": origen})
+        await tx_queue.put({"tipo": "CONFIG", "data": config_ref.copy(), "_destino": origen})
+        await enviar_telemetria()
+        evaluar_y_notificar_bidon(es_recordatorio=False)
 
     elif cmd in ("SET_PROGRAMAS", "config_cronograma"):
         cron_list = []
@@ -486,12 +512,14 @@ def evaluar_y_notificar_bidon(es_recordatorio=False):
     global ultimo_estado_bidon_bajo
     try:
         b_cfg = config_ref.get("bidon_config", {})
+        if not isinstance(b_cfg, dict):
+            b_cfg = {}
         cant_bidones = int(b_cfg.get("totalBidones", b_cfg.get("total_bidones", 1)))
-        cap_total = cant_bidones * 27.0
         dosis_l = float(b_cfg.get("dosisLitros", b_cfg.get("dosis_litros", 2.0)))
+        litros_base = float(b_cfg.get("litrosBase", b_cfg.get("litros_base", cant_bidones * 27.0)))
         dosis_acum = float(config_ref.get("dosis_acumuladas", 0.0))
         
-        litros_restantes = max(0.0, cap_total - (dosis_acum * dosis_l))
+        litros_restantes = max(0.0, litros_base - (dosis_acum * dosis_l))
         
         cronograma = config_ref.get("cronograma", [])
         total_dosis_sem = 0

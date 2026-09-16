@@ -18,6 +18,13 @@ DEFAULT_CONFIG = {
     "temp_offset": 0.0,                # Offset/calibración de temperatura en °C
     "ultimo_refuerzo_temp_ts": 0,      # Timestamp del último refuerzo por temperatura
     "dosis_acumuladas": 0.0,           # Contador persistente de dosis aplicadas desde la última recarga
+    "bidon_config": {
+        "totalBidones": 1,
+        "dosisLitros": 2.0,
+        "litrosBase": 27.0,
+        "alertaMinDias": 5,
+        "alertaMinLitros": 4.0
+    },
     "notificaciones": {
         "inicio_dosis": True,
         "fin_dosis": True,
