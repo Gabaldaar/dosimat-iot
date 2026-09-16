@@ -2045,12 +2045,19 @@ function renderLogsList(logs) {
     const term = document.getElementById('logsTerminal');
     if (!logs || !Array.isArray(logs)) return;
 
-    currentLogsCache = [...logs];
+    // Ordenar con el evento más reciente primero (arriba)
+    const sortedLogs = [...logs].sort((a, b) => {
+        const tsA = extractLogTimestampMs(a);
+        const tsB = extractLogTimestampMs(b);
+        return tsB - tsA;
+    });
+
+    currentLogsCache = [...sortedLogs];
     calcularDosis15Dias(currentLogsCache);
 
     if (container) {
         container.innerHTML = "";
-        if (logs.length === 0) {
+        if (sortedLogs.length === 0) {
             container.innerHTML = `
                 <div class="historial-empty">
                     <span class="material-symbols-outlined">receipt_long</span>
@@ -2060,7 +2067,7 @@ function renderLogsList(logs) {
             return;
         }
 
-        logs.slice(0, 30).forEach(item => {
+        sortedLogs.slice(0, 30).forEach(item => {
             const parsed = parseLogDetails(item);
             const cardEl = createLogCardElement(parsed);
             container.appendChild(cardEl);
@@ -2068,7 +2075,7 @@ function renderLogsList(logs) {
     }
 
     if (term) {
-        term.innerText = logs.map(item => typeof item === 'string' ? item : (item.msg || JSON.stringify(item))).join('\n');
+        term.innerText = sortedLogs.map(item => typeof item === 'string' ? item : (item.msg || JSON.stringify(item))).join('\n');
     }
     if (typeof evaluarAlertasSistema === "function") evaluarAlertasSistema();
 }
