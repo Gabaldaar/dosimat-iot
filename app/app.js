@@ -3950,6 +3950,9 @@ function updateConfigUI(data) {
     if (data.bidon || data.bidonConfig || data.bidon_config) {
         const bData = data.bidon || data.bidonConfig || data.bidon_config;
         bidonConfig = Object.assign(bidonConfig, bData);
+        if (bidonConfig.alertaMinLitrosPorBidon === undefined && bidonConfig.alertaMinLitros !== undefined) {
+            bidonConfig.alertaMinLitrosPorBidon = bidonConfig.alertaMinLitros / Math.max(1, bidonConfig.totalBidones || 1);
+        }
         if (currentMac) localStorage.setItem(`dosimat_bidon_config_${currentMac}`, JSON.stringify(bidonConfig));
         localStorage.setItem("dosimat_bidon_config", JSON.stringify(bidonConfig));
         if (typeof renderBidonUI === "function") renderBidonUI();
@@ -6359,7 +6362,12 @@ async function saveBidonConfigCloud() {
         const dosisL = bidonConfig.dosisLitros || 2.0;
         const lBase = (bidonConfig.litrosBase !== undefined) ? bidonConfig.litrosBase : (bTotal * 27.0);
         const aDias = parseInt(bidonConfig.alertaMinDias) || 5;
-        const aLitros = parseFloat(bidonConfig.alertaMinLitros) || 4.0;
+        const aLitrosPorBidon = (bidonConfig.alertaMinLitrosPorBidon !== undefined)
+            ? parseFloat(bidonConfig.alertaMinLitrosPorBidon)
+            : ((parseFloat(bidonConfig.alertaMinLitros) || 4.0) / bTotal);
+        const aLitrosTotal = (bidonConfig.alertaMinLitros !== undefined)
+            ? parseFloat(bidonConfig.alertaMinLitros)
+            : (aLitrosPorBidon * bTotal);
         const dAcum = parseFloat(bidonConfig.dosisAcumuladasHardware) || 0.0;
 
         sendCommand({
@@ -6368,7 +6376,7 @@ async function saveBidonConfigCloud() {
             dosisLitros: dosisL,
             litrosBase: lBase,
             alertaMinDias: aDias,
-            alertaMinLitros: aLitros,
+            alertaMinLitros: aLitrosTotal,
             dosis_acumuladas: dAcum
         }, true);
     } catch(e) {}
@@ -6578,6 +6586,7 @@ let bidonConfig = {
     fechaRecarga: new Date().toISOString().split('T')[0],
     bidonesRecargados: 1,
     alertaMinDias: 5,
+    alertaMinLitrosPorBidon: 4.0,
     alertaMinLitros: 4.0
 };
 
@@ -6929,7 +6938,10 @@ function initBidonModule() {
             const bTotal = Math.max(1, bidonConfig.totalBidones || 1);
             if (inpTotalBidones) inpTotalBidones.value = bTotal;
             if (inpAlertaDias) inpAlertaDias.value = bidonConfig.alertaMinDias || 5;
-            if (inpAlertaLitros) inpAlertaLitros.value = bidonConfig.alertaMinLitros || 4.0;
+            const aLitrosPorBidon = (bidonConfig.alertaMinLitrosPorBidon !== undefined)
+                ? parseFloat(bidonConfig.alertaMinLitrosPorBidon)
+                : ((parseFloat(bidonConfig.alertaMinLitros) || 4.0) / bTotal);
+            if (inpAlertaLitros) inpAlertaLitros.value = aLitrosPorBidon.toFixed(1);
 
             // Bloqueo de capacidad por plan oficial de Dosimat Pro
             const boxProLock = document.getElementById('boxBidonesGestionadosPro');
@@ -7010,7 +7022,8 @@ function initBidonModule() {
             const bTotal = parseFloat(inpTotalBidones ? inpTotalBidones.value : 1) || 1;
             const litrosPorBidon = parseFloat(rngAjuste ? rngAjuste.value : 27.0) || 0;
             const aDias = parseInt(inpAlertaDias ? inpAlertaDias.value : 5) || 5;
-            const aLitros = parseFloat(inpAlertaLitros ? inpAlertaLitros.value : 4.0) || 4.0;
+            const aLitrosPorBidon = parseFloat(inpAlertaLitros ? inpAlertaLitros.value : 4.0) || 4.0;
+            const aLitrosTotal = aLitrosPorBidon * bTotal;
 
             const litrosRestantesDeseados = litrosPorBidon * bTotal;
 
@@ -7018,7 +7031,8 @@ function initBidonModule() {
             bidonConfig.litrosBase = litrosRestantesDeseados;
             bidonConfig.dosisAcumuladasHardware = 0.0;
             bidonConfig.alertaMinDias = aDias;
-            bidonConfig.alertaMinLitros = aLitros;
+            bidonConfig.alertaMinLitrosPorBidon = aLitrosPorBidon;
+            bidonConfig.alertaMinLitros = aLitrosTotal;
 
             saveBidonConfigCloud();
 
