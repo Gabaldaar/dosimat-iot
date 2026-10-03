@@ -2083,13 +2083,13 @@ function renderLogsList(logs) {
 let lastNotifiedAlerts = {};
 
 function dispararNotificacionLocal(titulo, cuerpo, id) {
-    if (lastNotifiedAlerts[id] && Date.now() - lastNotifiedAlerts[id] < 10 * 60 * 1000) {
-        return;
-    }
-    lastNotifiedAlerts[id] = Date.now();
-
     // Disparar push de sugerencia meteorológica a ntfy (con control anti-spam diario)
     if (id === "alerta_clima_calor" || id === "alerta_clima_lluvia") {
+        if (lastNotifiedAlerts[id] && Date.now() - lastNotifiedAlerts[id] < 10 * 60 * 1000) {
+            return;
+        }
+        lastNotifiedAlerts[id] = Date.now();
+
         const chkNotifClima = document.getElementById('chkNotifClimaAlerta');
         const notifClimaHabilitada = chkNotifClima ? chkNotifClima.checked : true;
         const todayStr = new Date().toISOString().split('T')[0];
@@ -2101,29 +2101,6 @@ function dispararNotificacionLocal(titulo, cuerpo, id) {
             if (typeof enviarNotificacionPushNtfy === "function") {
                 enviarNotificacionPushNtfy(titulo, cuerpo, tag, "default");
             }
-        }
-    }
-
-    if ("Notification" in window) {
-        if (Notification.permission === "granted") {
-            try {
-                navigator.serviceWorker.ready.then(registration => {
-                    registration.showNotification(titulo, {
-                        body: cuerpo,
-                        icon: "icon-192.png",
-                        badge: "icon-192.png",
-                        vibrate: [200, 100, 200]
-                    });
-                }).catch(() => {
-                    new Notification(titulo, { body: cuerpo, icon: "icon-192.png" });
-                });
-            } catch (e) {
-                try {
-                    new Notification(titulo, { body: cuerpo, icon: "icon-192.png" });
-                } catch(err) {}
-            }
-        } else if (Notification.permission !== "denied") {
-            Notification.requestPermission();
         }
     }
 }
