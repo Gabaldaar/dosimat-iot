@@ -1366,10 +1366,12 @@ async function checkUserRole(user) {
     const navTecnicos = document.getElementById('navTecnicos');
     const cardGestion = document.getElementById('cardGestionTecnicos');
     const cardConfigSoporte = document.getElementById('cardConfigSoporte');
+    const groupWifiClientEmail = document.getElementById('groupWifiClientEmail');
 
     if (navTecnicos) navTecnicos.style.display = "none";
     if (cardGestion) cardGestion.style.display = "none";
     if (cardConfigSoporte) cardConfigSoporte.style.display = "none";
+    if (groupWifiClientEmail) groupWifiClientEmail.style.display = "none";
 
     if (!user || !user.email) return;
     const email = user.email.toLowerCase().trim();
@@ -1409,6 +1411,10 @@ async function checkUserRole(user) {
 
     if (cardConfigSoporte) {
         cardConfigSoporte.style.display = (isSuper || isTecnico) ? "block" : "none";
+    }
+
+    if (groupWifiClientEmail) {
+        groupWifiClientEmail.style.display = (isSuper || isTecnico) ? "block" : "none";
     }
 
     const btnLimpiarHistorial = document.getElementById('btnLimpiarHistorial');
@@ -1511,6 +1517,23 @@ onAuthStateChanged(auth, async (user) => {
                     const snap = await getDocs(collection(db, "usuarios", user.uid, "equipos_asignados"));
                     if (!snap.empty) {
                         macToConnect = snap.docs[0].id;
+                    }
+                }
+
+                // Si no tiene equipo asignado en su documento de usuario, verificar si un técnico preasignó un equipo a su email
+                if (!macToConnect && user.email) {
+                    const userCleanEmail = user.email.toLowerCase().trim();
+                    try {
+                        const qOwner = query(collection(db, "equipos"), where("owner_email", "==", userCleanEmail));
+                        const ownerSnap = await getDocs(qOwner);
+                        if (!ownerSnap.empty) {
+                            const foundEq = ownerSnap.docs[0];
+                            macToConnect = foundEq.id;
+                            await vincularEquipo(macToConnect);
+                            showToast(`🎉 ¡Bienvenido! Tu dosificador (${macToConnect}) se vinculó automáticamente a tu cuenta.`);
+                        }
+                    } catch (eOwner) {
+                        console.warn("Aviso buscando equipo preasignado por email:", eOwner);
                     }
                 }
             }
@@ -4291,6 +4314,15 @@ if (btnGuardarWifi) {
             await vincularEquipo(currentMac);
         }
 
+        // Si es técnico o admin y especificó email de cliente para el equipo
+        if (userEsTecnicoOAdmin && currentMac) {
+            const clientEmailInp = document.getElementById('inpWifiClientEmail');
+            const clientEmail = clientEmailInp ? clientEmailInp.value.trim().toLowerCase() : "";
+            if (clientEmail) {
+                await asignarTitularAEquipo(currentMac, clientEmail);
+            }
+        }
+
         iniciarProcesoWifi(ssid, pwd);
     };
 }
@@ -4775,6 +4807,109 @@ async function setDeviceModeloRemote(mac, nuevoModelo) {
 }
 window.setDeviceModeloRemote = setDeviceModeloRemote;
 
+async function asignarTitularAEquipo(mac, email) {
+    if (!mac) return;
+    const cleanEmail = (email || "").trim().toLowerCase();
+
+    // 1. Desvincular de usuarios previos si se cambia o elimina el email
+    try {
+        const qPrev = query(collection(db, "usuarios"), where("equipos", "array-contains", mac));
+        const prevSnap = await getDocs(qPrev);
+        for (const pDoc of prevSnap.docs) {
+            const pData = pDoc.data();
+            const pEmail = (pData.email || "").trim().toLowerCase();
+            if (pEmail !== cleanEmail) {
+                const filtered = (pData.equipos || []).filter(e => e !== mac);
+                await setDoc(doc(db, "usuarios", pDoc.id), { 
+                    equipos: filtered,
+                    id_equipo: (pData.id_equipo === mac ? (filtered[0] || null) : pData.id_equipo)
+                }, { merge: true });
+                await deleteDoc(doc(db, "usuarios", pDoc.id, "equipos_asignados", mac)).catch(() => {});
+                await deleteDoc(doc(db, "equipos", mac, "propietarios", pDoc.id)).catch(() => {});
+            }
+        }
+    } catch (ePrev) {
+        console.warn("Aviso limpiando dueños anteriores:", ePrev);
+    }
+
+    // 2. Actualizar documento raíz en equipos
+    await setDoc(doc(db, "equipos", mac), {
+        owner_email: cleanEmail
+    }, { merge: true });
+
+    // 3. Si se especificó un email, buscar si ya existe la cuenta en usuarios
+    if (cleanEmail) {
+        try {
+            const qUsers = query(collection(db, "usuarios"), where("email", "==", cleanEmail));
+            const userSnap = await getDocs(qUsers);
+            
+            if (!userSnap.empty) {
+                const userDoc = userSnap.docs[0];
+                const userId = userDoc.id;
+                const udata = userDoc.data();
+                
+                let eqList = udata.equipos || [];
+                if (!eqList.includes(mac)) eqList.push(mac);
+                
+                await setDoc(doc(db, "usuarios", userId), { id_equipo: mac, equipos: eqList }, { merge: true });
+                await setDoc(doc(db, "usuarios", userId, "equipos_asignados", mac), { activo: true }, { merge: true });
+                await setDoc(doc(db, "equipos", mac, "propietarios", userId), { activo: true, email: cleanEmail }, { merge: true });
+            }
+        } catch (err) {
+            console.warn("Aviso vinculando usuario existente en asignarTitularAEquipo:", err);
+        }
+    }
+}
+window.asignarTitularAEquipo = asignarTitularAEquipo;
+
+function abrirModalEditarTitular(mac, currentEmail) {
+    const modal = document.getElementById('modalEditarTitular');
+    const lblMac = document.getElementById('lblEditarTitularMac');
+    const inpEmail = document.getElementById('inpEditarTitularEmail');
+    if (!modal) return;
+    if (lblMac) lblMac.innerText = mac;
+    if (inpEmail) inpEmail.value = (currentEmail && currentEmail !== 'N/A') ? currentEmail : '';
+    modal.style.display = 'flex';
+}
+window.abrirModalEditarTitular = abrirModalEditarTitular;
+
+const btnCloseModalEditarTitular = document.getElementById('btnCloseModalEditarTitular');
+const btnCancelEditarTitular = document.getElementById('btnCancelEditarTitular');
+const btnConfirmarEditarTitular = document.getElementById('btnConfirmarEditarTitular');
+
+const cerrarModalEditarTitular = () => {
+    const modal = document.getElementById('modalEditarTitular');
+    if (modal) modal.style.display = 'none';
+};
+
+if (btnCloseModalEditarTitular) btnCloseModalEditarTitular.onclick = cerrarModalEditarTitular;
+if (btnCancelEditarTitular) btnCancelEditarTitular.onclick = cerrarModalEditarTitular;
+
+if (btnConfirmarEditarTitular) {
+    btnConfirmarEditarTitular.onclick = async () => {
+        const lblMac = document.getElementById('lblEditarTitularMac');
+        const inpEmail = document.getElementById('inpEditarTitularEmail');
+        const mac = lblMac ? lblMac.innerText.trim() : "";
+        const newEmail = inpEmail ? inpEmail.value.trim().toLowerCase() : "";
+
+        if (!mac) return;
+
+        btnConfirmarEditarTitular.disabled = true;
+        btnConfirmarEditarTitular.innerText = "Guardando...";
+        try {
+            await asignarTitularAEquipo(mac, newEmail);
+            showToast(newEmail ? `Titular ${newEmail} asignado a ${mac}` : `Titular eliminado de ${mac}`);
+            cerrarModalEditarTitular();
+            if (typeof loadAdminGlobal === "function") loadAdminGlobal();
+        } catch (e) {
+            customAlert("Error al asignar titular: " + e.message, "Error");
+        } finally {
+            btnConfirmarEditarTitular.disabled = false;
+            btnConfirmarEditarTitular.innerText = "Guardar Titular";
+        }
+    };
+}
+
 async function loadAdminGlobal() {
     const listElem = document.getElementById('adminListContainer');
     if (!listElem) return;
@@ -4824,12 +4959,12 @@ async function loadAdminGlobal() {
                 alias: data.alias || 'Sin alias',
                 modelo: (modEquip && String(modEquip).toUpperCase() === "SCB") ? "SCB" : "CB",
                 ownerName: macToUser[mac].nombre,
-                ownerEmail: macToUser[mac].email
+                ownerEmail: data.owner_email || macToUser[mac].email
             });
             delete rootEquipos[mac]; // Ya procesado
         }
         
-        // Agregar equipos que están en la base raíz pero no tienen dueño asignado
+        // Agregar equipos que están en la base raíz pero no tienen dueño asignado en usuarios
         for (const mac of Object.keys(rootEquipos)) {
             const data = rootEquipos[mac];
             let modEquip = data.modelo;
@@ -4847,12 +4982,14 @@ async function loadAdminGlobal() {
                 } catch(e) {}
             }
 
+            const hasPreassigned = !!(data && data.owner_email);
+
             equipos.push({
                 mac: mac,
                 alias: data.alias || 'Sin alias',
                 modelo: (modEquip && String(modEquip).toUpperCase() === "SCB") ? "SCB" : "CB",
-                ownerName: 'No asignado',
-                ownerEmail: 'N/A'
+                ownerName: hasPreassigned ? 'Preasignado' : 'No asignado',
+                ownerEmail: hasPreassigned ? data.owner_email : 'N/A'
             });
         }
         
@@ -4891,15 +5028,27 @@ function renderDevicesTable(equipos) {
         const emailSafe = (eq.ownerEmail || '').replace(/'/g, "\\'");
         const aliasSafe = (eq.alias || '').replace(/'/g, "\\'");
 
+        const isPreassigned = eq.ownerName === 'Preasignado';
+        const ownerDisplay = isPreassigned 
+            ? `<span style="color: #f59e0b; font-weight: 700;">⏳ Preasignado</span>` 
+            : `👤 ${eq.ownerName}`;
+
         item.innerHTML = `
-            <div>
-                <div style="font-weight: bold; color: var(--text-main); display: flex; align-items: center; gap: 6px;">
+            <div style="flex: 1; min-width: 0; padding-right: 0.5rem;">
+                <div style="font-weight: bold; color: var(--text-main); display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
                     ${eq.mac} ${modBadge}
                 </div>
-                <div style="font-size: 0.85rem; color: var(--text-muted); font-weight: 600;">👤 ${eq.ownerName}</div>
-                <div style="font-size: 0.75rem; color: var(--text-muted);">${eq.ownerEmail}</div>
+                <div style="font-size: 0.85rem; color: var(--text-muted); font-weight: 600; margin-top: 3px;">
+                    ${ownerDisplay}
+                </div>
+                <div style="font-size: 0.78rem; color: var(--text-muted); display: flex; align-items: center; gap: 4px; flex-wrap: wrap; margin-top: 2px;">
+                    <span>${eq.ownerEmail}</span>
+                    <button class="btn-icon" style="background: none; border: none; padding: 0; font-size: 0.78rem; color: var(--accent); cursor: pointer; text-decoration: underline;" onclick="abrirModalEditarTitular('${eq.mac}', '${emailSafe}')" title="Asignar o editar titular">
+                        ✏️ Titular
+                    </button>
+                </div>
             </div>
-            <div style="display: flex; flex-direction: column; gap: 0.4rem;">
+            <div style="display: flex; flex-direction: column; gap: 0.4rem; flex-shrink: 0;">
                 <button class="btn outline" style="width: auto; padding: 0.3rem 0.6rem; font-size: 0.8rem;" onclick="connectRemoteDevice('${eq.mac}', '${ownerSafe}', '${emailSafe}', '${aliasSafe}')">Conectar</button>
                 <button class="btn danger" style="width: auto; padding: 0.3rem 0.6rem; font-size: 0.8rem; background: var(--danger);" onclick="deleteRemoteDevice('${eq.mac}')">Dar de Baja</button>
             </div>
@@ -5656,6 +5805,10 @@ async function vincularEquipo(chipId) {
         if (userDoc.exists() && userDoc.data().equipos) eqList = userDoc.data().equipos;
         if (!eqList.includes(chipId)) eqList.push(chipId);
         await setDoc(refUser, { id_equipo: chipId, equipos: eqList }, { merge: true });
+
+        if (currentUser.email) {
+            await setDoc(doc(db, "equipos", chipId), { owner_email: currentUser.email.toLowerCase().trim() }, { merge: true });
+        }
         
         return true;
     } catch(e) {

@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Dosimat IoT</title>
     <link rel="manifest" href="manifest.json">
-    <link rel="stylesheet" href="index.css?v=7.84">
+    <link rel="stylesheet" href="index.css?v=7.85">
     <!-- Google Fonts & Icons -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -109,7 +109,7 @@
     <header>
         <div class="header-title" style="align-items: flex-start; margin-top: 5px;">
             <div style="display: flex; flex-direction: column;">
-                <h1 style="margin-bottom: 0;"><span id="lblHeaderTitle">Dosimat IoT CB</span> <span style="font-size: 0.7rem; color: var(--accent); margin-left: 5px;">v7.81</span></h1>
+                <h1 style="margin-bottom: 0;"><span id="lblHeaderTitle">Dosimat IoT CB</span> <span style="font-size: 0.7rem; color: var(--accent); margin-left: 5px;">v7.84</span></h1>
                 <div id="lblUserName" style="font-size: 0.85rem; font-weight: 300; color: var(--text-muted); display: none;"></div>
             </div>
         </div>
@@ -694,6 +694,16 @@
                 <div class="pass-wrapper">
                     <input type="password" id="inpWifiPwd" placeholder="••••••••">
                     <span class="material-symbols-outlined btn-toggle-pass" id="btnToggleWifiPass">visibility</span>
+                </div>
+            </div>
+            <div class="form-group" id="groupWifiClientEmail" style="display: none; background: rgba(59, 130, 246, 0.06); border: 1px dashed rgba(59, 130, 246, 0.3); border-radius: 8px; padding: 0.65rem 0.75rem; margin-top: 0.5rem;">
+                <label style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.3rem;">
+                    <span style="font-weight: 700; color: var(--accent);">👤 Email del Cliente / Titular:</span>
+                    <span style="font-size: 0.7rem; background: var(--accent); color: white; padding: 1px 6px; border-radius: 4px; font-weight: 600;">Modo Técnico</span>
+                </label>
+                <input type="email" id="inpWifiClientEmail" placeholder="cliente@ejemplo.com" style="width: 100%; box-sizing: border-box;">
+                <div style="font-size: 0.73rem; color: var(--text-muted); margin-top: 4px; line-height: 1.35;">
+                    Al registrar la red, el equipo quedará preasignado a este correo. Cuando el cliente cree su cuenta o ingrese con Google, se conectará automáticamente.
                 </div>
             </div>
             <div style="display: flex; flex-direction: column; gap: 0.6rem; margin-top: 1rem;">
@@ -1938,6 +1948,33 @@
         </div>
     </div>
 
-    <script type="module" src="app.js?v=7.84"></script>
+    <!-- Modal: Asignar / Cambiar Titular de Equipo (Técnicos) -->
+    <div id="modalEditarTitular" class="overlay" style="display: none; z-index: 10050;">
+        <div class="overlay-content" style="max-width: 420px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.8rem;">
+                <h3 style="margin: 0; display: flex; align-items: center; gap: 0.4rem; font-size: 1.15rem;">
+                    <span class="material-symbols-outlined" style="color: var(--accent);">person</span>
+                    Titular del Equipo
+                </h3>
+                <button class="btn-icon" id="btnCloseModalEditarTitular" style="background: none; border: none; font-size: 1.4rem; color: var(--text-muted); cursor: pointer; padding: 0.2rem;">&times;</button>
+            </div>
+            <p style="font-size: 0.84rem; color: var(--text-muted); margin-bottom: 1rem;">
+                Equipo: <strong id="lblEditarTitularMac" style="color: var(--text-main); font-family: monospace;"></strong>
+            </p>
+            <div class="form-group" style="text-align: left;">
+                <label for="inpEditarTitularEmail" style="font-weight: 600; font-size: 0.85rem;">Email del Cliente / Titular:</label>
+                <input type="email" id="inpEditarTitularEmail" placeholder="cliente@ejemplo.com" style="width: 100%; box-sizing: border-box; padding: 0.55rem; font-size: 0.9rem;">
+                <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 5px; line-height: 1.35;">
+                    Al guardar, cuando el cliente cree su cuenta o inicie sesión con este correo (o mediante "Continuar con Google"), este equipo se le vinculará automáticamente por Nube (WiFi).
+                </div>
+            </div>
+            <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1.2rem;">
+                <button class="btn outline" id="btnCancelEditarTitular" style="width: auto; padding: 0.5rem 1rem;">Cancelar</button>
+                <button class="btn" id="btnConfirmarEditarTitular" style="width: auto; padding: 0.5rem 1.2rem; font-weight: 700;">Guardar Titular</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="app.js?v=7.85"></script>
 </body>
 </html>
