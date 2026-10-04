@@ -557,12 +557,36 @@ nav::-webkit-scrollbar {
 
 .overlay-content {
     background-color: var(--card-bg);
+    color: var(--text-main);
     border: 1px solid var(--card-border);
     border-radius: var(--border-radius);
     padding: 1.5rem;
     width: 100%;
-    max-width: 420px;
+    max-width: 480px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
     box-shadow: var(--shadow);
+    margin: auto;
+    box-sizing: border-box;
+}
+
+#customModal .overlay-content {
+    max-width: 500px;
+}
+
+#modalMessage {
+    color: var(--text-main);
+    font-size: 0.9rem;
+    line-height: 1.5;
+    margin: 0.8rem 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    flex: 1 1 auto;
+    max-height: 65vh;
+    padding-right: 4px;
+    text-align: left;
+    word-break: break-word;
 }
 
 .error-msg {
