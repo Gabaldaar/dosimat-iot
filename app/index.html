@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Dosimat IoT</title>
     <link rel="manifest" href="manifest.json">
-    <link rel="stylesheet" href="index.css?v=7.89">
+    <link rel="stylesheet" href="index.css?v=7.90">
     <!-- Google Fonts & Icons -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -652,6 +652,31 @@
 
     <!-- 3. Pantalla: Configuración General (WiFi y Diagnósticos del Sistema) -->
     <div id="tab-configuracion" class="container">
+        <!-- Selector de Modo de Conectividad de la App (Básico BLE vs Avanzado WiFi) -->
+        <div class="card" id="cardModoConectividadApp" style="border: 1.5px solid var(--accent); background: linear-gradient(135deg, rgba(2, 132, 199, 0.05) 0%, rgba(59, 130, 246, 0.02) 100%);">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.4rem;">
+                <h2 style="margin: 0; display: flex; align-items: center; gap: 6px; font-size: 1.05rem;">
+                    <span class="material-symbols-outlined" style="color: var(--accent);">tune</span>
+                    <span>Modo de Conectividad</span>
+                </h2>
+                <span id="badgeModoAppActual" class="badge" style="background: rgba(2, 132, 199, 0.12); color: var(--accent); font-weight: 700; padding: 3px 9px; border-radius: 12px; font-size: 0.75rem;">Modo Completo</span>
+            </div>
+            <p style="color: var(--text-muted); font-size: 0.82rem; margin-bottom: 0.85rem; line-height: 1.35;">
+                Seleccioná <strong>Solo Bluetooth (Local)</strong> si tu piscina no cuenta con señal WiFi para simplificar la pantalla y ocultar opciones remotas.
+            </p>
+
+            <div style="display: flex; background: var(--bg-color); border: 1px solid var(--card-border); border-radius: 8px; padding: 3px; gap: 4px;">
+                <button type="button" id="btnModoAppBle" style="flex: 1; padding: 0.5rem 0.4rem; border: none; border-radius: 6px; font-weight: 700; font-size: 0.82rem; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; gap: 0.35rem; background: transparent; color: var(--text-muted);">
+                    <span class="material-symbols-outlined" style="font-size: 1.1rem;">bluetooth</span>
+                    Solo Bluetooth (Local)
+                </button>
+                <button type="button" id="btnModoAppWifi" style="flex: 1; padding: 0.5rem 0.4rem; border: none; border-radius: 6px; font-weight: 700; font-size: 0.82rem; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; gap: 0.35rem; background: var(--accent); color: white;">
+                    <span class="material-symbols-outlined" style="font-size: 1.1rem;">cloud</span>
+                    WiFi y Nube (Completo)
+                </button>
+            </div>
+        </div>
+
         <!-- Botón Guía Rápida de Conexión y Registro -->
         <div style="margin-bottom: 0.8rem; display: flex; justify-content: flex-end;">
             <button class="btn outline btn-help" data-help="guia-conexion" style="width: auto; padding: 0.35rem 0.75rem; font-size: 0.82rem; display: inline-flex; align-items: center; gap: 0.4rem; border-color: var(--accent); color: var(--accent); background: rgba(59, 130, 246, 0.05);">
@@ -2007,6 +2032,6 @@
         </div>
     </div>
 
-    <script type="module" src="app.js?v=7.89"></script>
+    <script type="module" src="app.js?v=7.90"></script>
 </body>
 </html>

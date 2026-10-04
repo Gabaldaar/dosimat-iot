@@ -1727,6 +1727,66 @@ onAuthStateChanged(auth, async (user) => {
     }
 });
 
+// === SELECTOR DE MODO DE CONECTIVIDAD DE LA APP (BÁSICO BLE VS AVANZADO WIFI) ===
+function setAppConnectivityMode(mode, save = true) {
+    if (save) {
+        localStorage.setItem("dosimat_connectivity_mode", mode);
+        showToast(mode === "BLE" ? "📱 Modo Local (Solo Bluetooth) activado" : "☁️ Modo Completo (WiFi y Nube) activado");
+    }
+
+    const btnBle = document.getElementById('btnModoAppBle');
+    const btnWifi = document.getElementById('btnModoAppWifi');
+    const badge = document.getElementById('badgeModoAppActual');
+    const cardNotif = document.getElementById('cardNotificacionesPush');
+    const cardShared = document.getElementById('cardCuentasCompartidas');
+    const cardClima = document.getElementById('cardUbicacionClima');
+
+    if (mode === "BLE") {
+        if (btnBle) {
+            btnBle.style.background = "var(--accent)";
+            btnBle.style.color = "#ffffff";
+        }
+        if (btnWifi) {
+            btnWifi.style.background = "transparent";
+            btnWifi.style.color = "var(--text-muted)";
+        }
+        if (badge) {
+            badge.innerText = "📱 Modo Local (BLE)";
+            badge.style.background = "rgba(2, 132, 199, 0.12)";
+            badge.style.color = "var(--accent)";
+        }
+        if (cardNotif) cardNotif.style.display = "none";
+        if (cardShared) cardShared.style.display = "none";
+        if (cardClima) cardClima.style.display = "none";
+    } else {
+        if (btnWifi) {
+            btnWifi.style.background = "var(--accent)";
+            btnWifi.style.color = "#ffffff";
+        }
+        if (btnBle) {
+            btnBle.style.background = "transparent";
+            btnBle.style.color = "var(--text-muted)";
+        }
+        if (badge) {
+            badge.innerText = "☁️ Modo Completo (WiFi)";
+            badge.style.background = "rgba(16, 185, 129, 0.12)";
+            badge.style.color = "#10b981";
+        }
+        if (cardNotif) cardNotif.style.display = "block";
+        if (cardShared) cardShared.style.display = "block";
+        if (cardClima) cardClima.style.display = "block";
+    }
+
+    setConexionModo(modoConexion, globalWifiSSID);
+    if (typeof updateSubtexto === "function") updateSubtexto();
+}
+window.setAppConnectivityMode = setAppConnectivityMode;
+
+const btnModoAppBle = document.getElementById('btnModoAppBle');
+const btnModoAppWifi = document.getElementById('btnModoAppWifi');
+if (btnModoAppBle) btnModoAppBle.onclick = () => setAppConnectivityMode("BLE", true);
+if (btnModoAppWifi) btnModoAppWifi.onclick = () => setAppConnectivityMode("WIFI_CLOUD", true);
+
 // === CONEXIÓN NUBE Y MQTT ===
 function setConexionModo(modo, ssid = "", msg = "Desconectado") {
     const prevModo = modoConexion;
@@ -1739,6 +1799,8 @@ function setConexionModo(modo, ssid = "", msg = "Desconectado") {
         globalWifiSSID = localStorage.getItem(`dosimat_wifi_ssid_${currentMac}`) || localStorage.getItem("dosimat_wifi_ssid") || "";
     }
 
+    const isBleOnlyMode = (localStorage.getItem("dosimat_connectivity_mode") === "BLE");
+
     const badge = document.getElementById('lblConnState') || document.getElementById('badgeConexion');
     if (badge) {
         if (modo === "NUBE") {
@@ -1746,11 +1808,16 @@ function setConexionModo(modo, ssid = "", msg = "Desconectado") {
             badge.innerHTML = `<span class="material-symbols-outlined" style="font-size: 1rem; vertical-align: middle;">wifi</span> <span>${nombreRed}</span>`;
             badge.className = "conn-badge conn-nube";
         } else if (modo === "BLE") {
-            badge.innerHTML = `<span class="material-symbols-outlined" style="font-size: 1rem; vertical-align: middle;">bluetooth</span> <span>BLE</span>`;
+            badge.innerHTML = `<span class="material-symbols-outlined" style="font-size: 1rem; vertical-align: middle;">bluetooth</span> <span>BLE Conectado</span>`;
             badge.className = "conn-badge conn-ble";
         } else {
-            badge.innerHTML = `<span class="material-symbols-outlined" style="font-size: 1rem; vertical-align: middle;">wifi_off</span> <span>${msg}</span>`;
-            badge.className = "conn-badge conn-offline";
+            if (isBleOnlyMode) {
+                badge.innerHTML = `<span class="material-symbols-outlined" style="font-size: 1rem; vertical-align: middle;">bluetooth</span> <span>Modo BLE</span>`;
+                badge.className = "conn-badge conn-ble";
+            } else {
+                badge.innerHTML = `<span class="material-symbols-outlined" style="font-size: 1rem; vertical-align: middle;">wifi_off</span> <span>${msg}</span>`;
+                badge.className = "conn-badge conn-offline";
+            }
         }
     }
 
@@ -2290,8 +2357,9 @@ function evaluarAlertasSistema() {
     const alerts = [];
 
     // 0. ALERTA EQUIPO OFFLINE (Desconectado de la Nube)
+    const isBleOnlyMode = (localStorage.getItem("dosimat_connectivity_mode") === "BLE");
     const isBleConnected = (modoConexion === "BLE" && typeof bleDevice !== "undefined" && bleDevice && bleDevice.gatt && bleDevice.gatt.connected);
-    if (!isBleConnected && modoConexion !== "NUBE") {
+    if (!isBleConnected && modoConexion !== "NUBE" && !isBleOnlyMode) {
         const ssidGuardado = globalWifiSSID || (document.getElementById('inpWifiSsid') ? document.getElementById('inpWifiSsid').value.trim() : "");
         const hayCredenciales = Boolean(ssidGuardado);
 
@@ -3261,8 +3329,32 @@ function updateSubtexto() {
         `;
         return;
     } else if (modoConexion === "OFFLINE") {
+        const isBleOnlyMode = (localStorage.getItem("dosimat_connectivity_mode") === "BLE");
         const lblEstado = document.getElementById('lblEstado');
         const iconEstado = document.getElementById('iconEstado');
+
+        if (isBleOnlyMode) {
+            if (lblEstado) {
+                lblEstado.innerText = "MODO LOCAL (BLUETOOTH)";
+                lblEstado.style.color = "var(--accent)";
+            }
+            if (iconEstado) {
+                iconEstado.innerText = "bluetooth";
+                iconEstado.style.color = "var(--accent)";
+                iconEstado.className = "material-symbols-outlined";
+            }
+            lblEstadoSubtexto.innerHTML = `
+                <div style="background: rgba(2, 132, 199, 0.12); border: 1px solid var(--accent); color: var(--accent); padding: 0.5rem 0.75rem; border-radius: 8px; font-weight: 700; font-size: 0.88rem; display: flex; align-items: center; justify-content: center; gap: 0.4rem; margin-top: 0.2rem;">
+                    <span class="material-symbols-outlined" style="font-size: 1.2rem;">bluetooth_searching</span>
+                    Listo para conectar por Bluetooth
+                </div>
+                <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.3rem;">
+                    Andá a <strong>Ajustes</strong> > <strong>Buscar Dosificador</strong> para ver el estado en vivo o dosificar.
+                </div>
+            `;
+            return;
+        }
+
         if (lblEstado) {
             lblEstado.innerText = "EQUIPO DESCONECTADO";
             lblEstado.style.color = "var(--danger)";
@@ -8997,15 +9089,23 @@ function initNotificacionesPushModule() {
     updateNotificacionesPushUI();
 }
 
+function initAppConnectivityMode() {
+    const savedMode = localStorage.getItem("dosimat_connectivity_mode");
+    const hasWifi = Boolean(globalWifiSSID || localStorage.getItem("dosimat_wifi_ssid"));
+    setAppConnectivityMode(savedMode || (hasWifi ? "WIFI_CLOUD" : "BLE"), false);
+}
+
 // Iniciar módulos al cargar
 if (document.readyState === "loading") {
     document.addEventListener('DOMContentLoaded', () => {
+        initAppConnectivityMode();
         initPoolCalculator();
         initBidonModule();
         initDosimatProModule();
         initNotificacionesPushModule();
     });
 } else {
+    initAppConnectivityMode();
     initPoolCalculator();
     initBidonModule();
     initDosimatProModule();
