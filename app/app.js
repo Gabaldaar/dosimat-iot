@@ -1740,6 +1740,8 @@ function setAppConnectivityMode(mode, save = true) {
     const cardNotif = document.getElementById('cardNotificacionesPush');
     const cardShared = document.getElementById('cardCuentasCompartidas');
     const cardClima = document.getElementById('cardUbicacionClima');
+    const cardWifi = document.getElementById('cardConectividadWiFi');
+    const panelClima = document.getElementById('panelClimaLocal');
 
     if (mode === "BLE") {
         if (btnBle) {
@@ -1758,6 +1760,8 @@ function setAppConnectivityMode(mode, save = true) {
         if (cardNotif) cardNotif.style.display = "none";
         if (cardShared) cardShared.style.display = "none";
         if (cardClima) cardClima.style.display = "none";
+        if (cardWifi) cardWifi.style.display = "none";
+        if (panelClima) panelClima.style.display = "none";
     } else {
         if (btnWifi) {
             btnWifi.style.background = "var(--accent)";
@@ -1775,6 +1779,8 @@ function setAppConnectivityMode(mode, save = true) {
         if (cardNotif) cardNotif.style.display = "block";
         if (cardShared) cardShared.style.display = "block";
         if (cardClima) cardClima.style.display = "block";
+        if (cardWifi) cardWifi.style.display = "block";
+        if (panelClima) panelClima.style.display = "block";
     }
 
     setConexionModo(modoConexion, globalWifiSSID);
@@ -4560,7 +4566,8 @@ async function loadCuentasCompartidasUI() {
 
     if (!card || !listElem) return;
 
-    if (!currentMac) {
+    const isBleMode = (localStorage.getItem("dosimat_connectivity_mode") === "BLE");
+    if (isBleMode || !currentMac) {
         card.style.display = 'none';
         return;
     }
