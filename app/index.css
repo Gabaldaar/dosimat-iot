@@ -532,23 +532,26 @@ nav::-webkit-scrollbar {
     background-color: rgba(15, 23, 42, 0.7);
     backdrop-filter: blur(4px);
     display: none;
-    align-items: center;
-    justify-content: center;
     z-index: 9999;
-    padding: 1rem;
+    padding: 1.5rem 1rem;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    box-sizing: border-box;
 }
 
 #authOverlay {
     background-color: var(--bg-color);
+    padding: 2rem 1rem 4rem 1rem;
 }
 
 .auth-card {
     background-color: var(--card-bg);
     border: 1px solid var(--card-border);
     border-radius: var(--border-radius);
-    padding: 1.75rem;
+    padding: 1.5rem 1.25rem;
     width: 100%;
-    max-width: 380px;
+    max-width: 400px;
+    margin: auto;
     box-shadow: var(--shadow);
 }
 
