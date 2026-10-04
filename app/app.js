@@ -414,9 +414,9 @@ const HELP_TOPICS = {
         title: "Guía de Conexión y Puesta en Marcha",
         text: "Sigue estos sencillos pasos para vincular y poner en marcha tu dosificador:\n\n" +
             "1️⃣ **Crear tu Cuenta:**\n" +
-            "Ingresá a la app con tu correo (o Google) y registrate para que tu equipo quede asociado a tu cuenta.\n\n" +
+            "Ingresá a la app, Crear Cuenta y registrate con tu Correo (o Google) y una Contraseña para que tu equipo quede asociado a tu cuenta.\n\n" +
             "2️⃣ **Vincular por Bluetooth (BLE):**\n" +
-            "Una vez dentro de la app, andá a **Ajustes** > **Vinculación Bluetooth** y presioná *Buscar Dosificador por Bluetooth*.\n" +
+            "Iniciá Sesión con esos mismos datos y andá a **Ajustes** > **Vinculación Bluetooth** y presioná *Buscar Dosificador por Bluetooth*.\n" +
             "*(En iPhone / iPad: abrí siempre esta web desde la app gratuita **Bluefy** para habilitar Bluetooth)*.\n\n" +
             "3️⃣ **Registrar Red WiFi (Opcional):**\n" +
             "En la tarjeta **Conectividad WiFi local**, ingresá el Nombre (SSID) y Contraseña de tu red de 2.4 GHz y presioná **Registrar Red WiFi**. El equipo se reiniciará y podrás controlarlo desde cualquier lugar por Internet.\n\n" +
@@ -427,15 +427,21 @@ const HELP_TOPICS = {
         title: "Guía de Operaciones Técnicas",
         text: "🛠️ **MANUAL RÁPIDO PARA TÉCNICOS E INSTALADORES**\n\n" +
             "1️⃣ **CÓMO CONECTARSE A UN EQUIPO:**\n" +
-            "• **Remoto (WiFi / Nube):** En este Portal Técnico, busca el equipo en la lista y pulsa **Conectar**, o escribe la MAC y pulsa **Conectar**.\n" +
-            "• **Local (Bluetooth / BLE):** Útil en instalaciones nuevas. Ve a Ajustes > Vinculación Bluetooth y presiona **Buscar Dosificador por BLE**.\n\n" +
-            "2️⃣ **CÓMO REGISTRAR UNA NUEVA RED WIFI:**\n" +
-            "• Conéctate al dosificador por Bluetooth (BLE) desde Ajustes.\n" +
-            "• En **Conectividad WiFi local**, escribe el Nombre (SSID) y Contraseña del WiFi del cliente y presiona **Registrar Red WiFi**.\n\n" +
-            "3️⃣ **CÓMO MODIFICAR EL MODELO DE EQUIPO (CB / SCB):**\n" +
-            "• Conéctate al equipo y ve a Ajustes > Modelo de Equipo.\n" +
-            "• Elige entre **CB** (Con Bomba) o **SCB** (Sin Bomba).\n" +
-            "• Si es necesario, pulsa **🔑 Desbloquear con PIN** e ingresa el PIN maestro."
+            "• **Remoto (WiFi / Nube):** En este Portal Técnico, buscá el equipo en la lista y pulsá **Conectar**, o escribí la MAC y pulsá **Conectar**.\n" +
+            "• **Local (Bluetooth / BLE):** Útil en equipos nuevos de fábrica. Andá a **Ajustes** > **Vinculación Bluetooth** y presioná **Buscar Dosificador por Bluetooth**.\n" +
+            "*(En iPhone/iPad usar siempre la app gratuita Bluefy para habilitar Bluetooth)*.\n\n" +
+            "2️⃣ **INSTALACIÓN WIFI Y ASIGNACIÓN AL CLIENTE (Puesta en Marcha):**\n" +
+            "• Conectate al dosificador por Bluetooth (BLE) desde Ajustes.\n" +
+            "• En **Conectividad WiFi local**, ingresá el Nombre (SSID) y Contraseña del WiFi del cliente (red 2.4 GHz).\n" +
+            "• En el campo **📧 Email del Cliente / Titular**, escribí el correo con el que el cliente usará la app.\n" +
+            "• Presioná **Registrar Red WiFi**. El equipo se conectará a Internet y quedará preasignado a ese correo.\n" +
+            "• **¡Listo!** Cuando el cliente descargue la app e ingrese con ese correo (o mediante 'Continuar con Google'), su dosificador se le vinculará automáticamente por Nube sin necesidad de Bluetooth.\n\n" +
+            "3️⃣ **GESTIÓN DE TITULARES DESDE EL PORTAL TÉCNICO:**\n" +
+            "• En la tabla de equipos de este panel, pulsá el botón **✏️ Titular** junto al correo de cualquier equipo.\n" +
+            "• Podés asignar un cliente por primera vez, corregir errores de tipeo en el email o reasignar el titular en caso de cambio de dueño.\n\n" +
+            "4️⃣ **CÓMO MODIFICAR EL MODELO DE EQUIPO (CB / SCB):**\n" +
+            "• Desde la lista de este portal, tocá el botón **CB ✏️** o **SCB ✏️** para cambiar el modelo de forma remota.\n" +
+            "• O conectate al equipo y cambialo desde **Ajustes** > **Modelo de Equipo** (usando el PIN maestro si está bloqueado)."
     },
     "bidon-calculadora": {
         title: "Nivel de Cloro y Autonomía",
