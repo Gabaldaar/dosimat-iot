@@ -1077,33 +1077,63 @@ const txtEmail = document.getElementById('txtEmail');
 const txtPassword = document.getElementById('txtPassword');
 const txtNombre = document.getElementById('txtNombre');
 const btnActionAuth = document.getElementById('btnActionAuth');
+const textActionAuth = document.getElementById('textActionAuth');
+const iconActionAuth = document.getElementById('iconActionAuth');
+const textGoogleAuth = document.getElementById('textGoogleAuth');
+const lblAuthSubtitle = document.getElementById('lblAuthSubtitle');
 const lnkAuthSwitch = document.getElementById('lnkAuthSwitch');
 const lblAuthSwitchText = document.getElementById('lblAuthSwitchText');
 const groupNombre = document.getElementById('groupNombre');
 const wrapForgotPassword = document.getElementById('wrapForgotPassword');
 const lnkForgotPassword = document.getElementById('lnkForgotPassword');
+const boxRegisterHelp = document.getElementById('boxRegisterHelp');
 const lblAuthError = document.getElementById('lblAuthError');
+const tabAuthLogin = document.getElementById('tabAuthLogin');
+const tabAuthRegister = document.getElementById('tabAuthRegister');
 let authMode = "LOGIN";
+
+function setAuthMode(mode) {
+    authMode = mode;
+    if (lblAuthError) {
+        lblAuthError.innerHTML = "";
+        lblAuthError.style.display = "none";
+    }
+
+    if (mode === "LOGIN") {
+        if (tabAuthLogin) tabAuthLogin.classList.add('active');
+        if (tabAuthRegister) tabAuthRegister.classList.remove('active');
+        if (groupNombre) groupNombre.style.display = "none";
+        if (wrapForgotPassword) wrapForgotPassword.style.display = "block";
+        if (textActionAuth) textActionAuth.innerText = "Iniciar Sesión";
+        if (iconActionAuth) iconActionAuth.innerText = "login";
+        if (textGoogleAuth) textGoogleAuth.innerText = "Continuar con Google";
+        if (lblAuthSubtitle) lblAuthSubtitle.innerText = "Ingresá a tu cuenta para controlar tu equipo.";
+        if (lblAuthSwitchText) lblAuthSwitchText.innerText = "¿No tienes cuenta?";
+        if (lnkAuthSwitch) lnkAuthSwitch.innerText = "Crear una cuenta";
+        if (boxRegisterHelp) boxRegisterHelp.style.display = "none";
+    } else {
+        if (tabAuthRegister) tabAuthRegister.classList.add('active');
+        if (tabAuthLogin) tabAuthLogin.classList.remove('active');
+        if (groupNombre) groupNombre.style.display = "block";
+        if (wrapForgotPassword) wrapForgotPassword.style.display = "none";
+        if (textActionAuth) textActionAuth.innerText = "Crear mi Cuenta";
+        if (iconActionAuth) iconActionAuth.innerText = "person_add";
+        if (textGoogleAuth) textGoogleAuth.innerText = "Registrarme con Google";
+        if (lblAuthSubtitle) lblAuthSubtitle.innerText = "¿Primera vez? Creá tu cuenta para vincular tu Dosimat.";
+        if (lblAuthSwitchText) lblAuthSwitchText.innerText = "¿Ya tienes cuenta?";
+        if (lnkAuthSwitch) lnkAuthSwitch.innerText = "Inicia sesión";
+        if (boxRegisterHelp) boxRegisterHelp.style.display = "block";
+    }
+}
+window.setAuthMode = setAuthMode;
+
+if (tabAuthLogin) tabAuthLogin.onclick = () => setAuthMode("LOGIN");
+if (tabAuthRegister) tabAuthRegister.onclick = () => setAuthMode("REGISTER");
 
 if (lnkAuthSwitch) {
     lnkAuthSwitch.onclick = (e) => {
         e.preventDefault();
-        if (lblAuthError) lblAuthError.innerText = "";
-        if (authMode === "LOGIN") {
-            authMode = "REGISTER";
-            if (groupNombre) groupNombre.style.display = "block";
-            if (wrapForgotPassword) wrapForgotPassword.style.display = "none";
-            if (btnActionAuth) btnActionAuth.innerText = "Registrarse";
-            if (lblAuthSwitchText) lblAuthSwitchText.innerText = "¿Ya tienes cuenta?";
-            lnkAuthSwitch.innerText = "Inicia sesión";
-        } else {
-            authMode = "LOGIN";
-            if (groupNombre) groupNombre.style.display = "none";
-            if (wrapForgotPassword) wrapForgotPassword.style.display = "block";
-            if (btnActionAuth) btnActionAuth.innerText = "Iniciar Sesión";
-            if (lblAuthSwitchText) lblAuthSwitchText.innerText = "¿No tienes cuenta?";
-            lnkAuthSwitch.innerText = "Regístrate";
-        }
+        setAuthMode(authMode === "LOGIN" ? "REGISTER" : "LOGIN");
     };
 }
 
@@ -1149,12 +1179,18 @@ if (lnkForgotPassword) {
 
 if (btnActionAuth) {
     btnActionAuth.onclick = async () => {
-        const email = txtEmail.value.trim();
-        const password = txtPassword.value.trim();
-        if (lblAuthError) lblAuthError.innerText = "";
+        const email = (txtEmail ? txtEmail.value : "").trim();
+        const password = (txtPassword ? txtPassword.value : "").trim();
+        if (lblAuthError) {
+            lblAuthError.innerHTML = "";
+            lblAuthError.style.display = "none";
+        }
 
         if (!email || !password) {
-            if (lblAuthError) lblAuthError.innerText = "Por favor, completa todos los campos.";
+            if (lblAuthError) {
+                lblAuthError.innerText = "Por favor, completa tu correo y contraseña.";
+                lblAuthError.style.display = "block";
+            }
             return;
         }
 
@@ -1165,16 +1201,65 @@ if (btnActionAuth) {
                     signInWithEmailAndPassword(proAuth, email, password).catch(() => {});
                 }
             } else {
-                const nombre = txtNombre.value.trim();
+                const nombre = txtNombre ? txtNombre.value.trim() : "";
                 if (!nombre) {
-                    if (lblAuthError) lblAuthError.innerText = "Ingresa tu nombre.";
+                    if (lblAuthError) {
+                        lblAuthError.innerText = "Por favor ingresa tu nombre completo.";
+                        lblAuthError.style.display = "block";
+                    }
                     return;
                 }
                 const res = await createUserWithEmailAndPassword(auth, email, password);
                 await updateProfile(res.user, { displayName: nombre });
             }
         } catch (e) {
-            if (lblAuthError) lblAuthError.innerText = "Error: " + e.message;
+            console.error("Error Auth:", e);
+            if (!lblAuthError) return;
+            lblAuthError.style.display = "block";
+
+            if (authMode === "LOGIN") {
+                if (e.code === 'auth/user-not-found' || e.code === 'auth/invalid-credential' || e.code === 'auth/invalid-login-credentials') {
+                    lblAuthError.innerHTML = `
+                        <div style="font-weight: 600;">⚠️ No pudimos iniciar sesión con estos datos.</div>
+                        <div style="margin-top: 6px; font-size: 0.82rem; color: var(--text-main);">
+                            ¿Es tu primera vez usando la app?
+                            <br><a href="#" id="lnkErrorSwitchRegister" style="color: var(--accent); font-weight: 700; text-decoration: underline;">👉 Toca aquí para Crear tu Cuenta</a>
+                        </div>
+                    `;
+                    const lnkErr = document.getElementById('lnkErrorSwitchRegister');
+                    if (lnkErr) lnkErr.onclick = (ev) => {
+                        ev.preventDefault();
+                        setAuthMode("REGISTER");
+                    };
+                } else if (e.code === 'auth/wrong-password') {
+                    lblAuthError.innerText = "Contraseña incorrecta. Verifícala o recuperala con '¿Olvidaste tu contraseña?'.";
+                } else if (e.code === 'auth/invalid-email') {
+                    lblAuthError.innerText = "El formato de correo electrónico no es válido.";
+                } else {
+                    lblAuthError.innerText = "Error: " + (e.message || e.code);
+                }
+            } else {
+                // Modo REGISTER
+                if (e.code === 'auth/email-already-in-use') {
+                    lblAuthError.innerHTML = `
+                        <div style="font-weight: 600;">ℹ️ Ya existe una cuenta registrada con este correo.</div>
+                        <div style="margin-top: 6px; font-size: 0.82rem; color: var(--text-main);">
+                            <a href="#" id="lnkErrorSwitchLogin" style="color: var(--accent); font-weight: 700; text-decoration: underline;">👉 Toca aquí para Iniciar Sesión con tu contraseña</a>
+                        </div>
+                    `;
+                    const lnkErr = document.getElementById('lnkErrorSwitchLogin');
+                    if (lnkErr) lnkErr.onclick = (ev) => {
+                        ev.preventDefault();
+                        setAuthMode("LOGIN");
+                    };
+                } else if (e.code === 'auth/weak-password') {
+                    lblAuthError.innerText = "La contraseña debe tener al menos 6 caracteres.";
+                } else if (e.code === 'auth/invalid-email') {
+                    lblAuthError.innerText = "El formato de correo electrónico no es válido.";
+                } else {
+                    lblAuthError.innerText = "Error al crear cuenta: " + (e.message || e.code);
+                }
+            }
         }
     };
 }

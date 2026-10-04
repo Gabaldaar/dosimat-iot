@@ -2041,3 +2041,26 @@ details.accordion[open] {
     color: #ef4444;
     border: 1px solid rgba(239, 68, 68, 0.3);
 }
+
+/* Auth Mode Tabs */
+.auth-mode-tab {
+    color: var(--text-muted);
+    background: transparent;
+}
+.auth-mode-tab:hover {
+    color: var(--text-main);
+}
+.auth-mode-tab.active {
+    color: var(--accent) !important;
+    background: var(--card-bg, #ffffff) !important;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12) !important;
+}
+body.dark-mode .auth-mode-selector {
+    background: rgba(255, 255, 255, 0.05) !important;
+}
+body.dark-mode .auth-mode-tab.active {
+    color: var(--accent) !important;
+    background: #1e293b !important;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35) !important;
+}
+
