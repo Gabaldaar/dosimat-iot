@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Dosimat IoT</title>
     <link rel="manifest" href="manifest.json">
-    <link rel="stylesheet" href="index.css?v=7.95">
+    <link rel="stylesheet" href="index.css?v=7.96">
     <!-- Google Fonts & Icons -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1467,11 +1467,31 @@
                     <span>Portal Técnico</span>
                     <span class="material-symbols-outlined btn-help" data-help="guia-tecnico">help</span>
                 </h2>
-                <button class="btn outline" id="btnGuiaTecnico" style="width: auto; padding: 0.35rem 0.75rem; font-size: 0.82rem; border-color: var(--accent); color: var(--accent); display: inline-flex; align-items: center; gap: 0.3rem;">
-                    <span class="material-symbols-outlined" style="font-size: 1.1rem;">menu_book</span> Guía de Operaciones
-                </button>
+                <div style="display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap;">
+                    <a href="docs/Manual_DOSIMAT_IoT_Tecnicos.pdf?v=7.96" target="_blank" rel="noopener noreferrer" class="btn" id="btnManualTecnicoTop" style="width: auto; padding: 0.35rem 0.75rem; font-size: 0.82rem; background: var(--accent); color: white; display: inline-flex; align-items: center; gap: 0.35rem; text-decoration: none; font-weight: 700; border-radius: 6px;">
+                        <span class="material-symbols-outlined" style="font-size: 1.1rem;">picture_as_pdf</span> Manual Técnico
+                    </a>
+                    <button class="btn outline" id="btnGuiaTecnico" style="width: auto; padding: 0.35rem 0.75rem; font-size: 0.82rem; border-color: var(--accent); color: var(--accent); display: inline-flex; align-items: center; gap: 0.3rem;">
+                        <span class="material-symbols-outlined" style="font-size: 1.1rem;">help_outline</span> Guía Rápida
+                    </button>
+                </div>
             </div>
             <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem;">Bienvenido al centro de soporte remoto. Conéctate a cualquier equipo usando su MAC/ID.</p>
+
+            <!-- Banner Manual Tecnico PDF -->
+            <div style="background: rgba(2, 132, 199, 0.08); border: 1px solid rgba(2, 132, 199, 0.25); border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 1.2rem; display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap;">
+                <div style="display: flex; align-items: center; gap: 0.65rem;">
+                    <span class="material-symbols-outlined" style="color: var(--accent); font-size: 1.6rem;">menu_book</span>
+                    <div>
+                        <div style="font-weight: 700; font-size: 0.88rem; color: var(--text-main);">Manual para Técnicos e Instaladores</div>
+                        <div style="font-size: 0.77rem; color: var(--text-muted);">Instalación, calibración, vinculación y servicio técnico en campo.</div>
+                    </div>
+                </div>
+                <a href="docs/Manual_DOSIMAT_IoT_Tecnicos.pdf?v=7.96" target="_blank" rel="noopener noreferrer" class="btn" id="btnManualTecnicoPdf" style="width: auto; padding: 0.45rem 0.9rem; font-size: 0.82rem; display: inline-flex; align-items: center; gap: 0.4rem; text-decoration: none; font-weight: 700; background: var(--accent); color: white; border-radius: 6px;">
+                    <span class="material-symbols-outlined" style="font-size: 1.15rem;">picture_as_pdf</span>
+                    <span>Abrir Manual (PDF)</span>
+                </a>
+            </div>
             
             <div style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem;">
                 <input type="text" id="inpRemoteMac" placeholder="Ej: DOSIMAT_123456" style="flex: 1; padding: 0.5rem; border-radius: 6px; border: 1px solid var(--card-border);">
@@ -2032,6 +2052,6 @@
         </div>
     </div>
 
-    <script type="module" src="app.js?v=7.95"></script>
+    <script type="module" src="app.js?v=7.96"></script>
 </body>
 </html>
