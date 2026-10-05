@@ -1449,6 +1449,10 @@ if (btnSignOut) {
             currentMac = null;
             localStorage.removeItem("dosimat_last_mac");
             localStorage.removeItem("dosimat_guest_email");
+            localStorage.removeItem("dosimat_connectivity_mode");
+            if (typeof setAppConnectivityMode === "function") {
+                setAppConnectivityMode("WIFI_CLOUD", false, false);
+            }
             await signOut(auth);
             showToast("Sesión cerrada.");
         }
@@ -1718,6 +1722,9 @@ onAuthStateChanged(auth, async (user) => {
             currentMac = localStorage.getItem('dosimat_last_mac') || null;
         }
 
+        if (typeof resolveAndApplyConnectivityMode === "function") {
+            await resolveAndApplyConnectivityMode(user, currentMac);
+        }
         if (typeof syncDosimatProClient === "function") syncDosimatProClient();
         if (typeof syncEquipmentLocation === "function" && currentMac) syncEquipmentLocation(currentMac);
         if (typeof updateSubtexto === "function") updateSubtexto();
@@ -1739,10 +1746,30 @@ onAuthStateChanged(auth, async (user) => {
 });
 
 // === SELECTOR DE MODO DE CONECTIVIDAD DE LA APP (BÁSICO BLE VS AVANZADO WIFI) ===
-function setAppConnectivityMode(mode, save = true) {
+function setAppConnectivityMode(mode, save = true, showFeedback = true) {
     if (save) {
         localStorage.setItem("dosimat_connectivity_mode", mode);
-        showToast(mode === "BLE" ? "📱 Modo Local (Solo Bluetooth) activado" : "☁️ Modo Completo (WiFi y Nube) activado");
+        if (currentMac) {
+            localStorage.setItem(`dosimat_connectivity_mode_${currentMac}`, mode);
+            if (typeof db !== "undefined" && db) {
+                setDoc(doc(db, "equipos", currentMac), { 
+                    connectivity_mode: mode,
+                    updatedAt: new Date().toISOString()
+                }, { merge: true }).catch(err => console.warn("Error guardando modo en Firestore equipos:", err));
+            }
+        }
+        if (currentUser && currentUser.uid && !currentUser.isAnonymous) {
+            localStorage.setItem(`dosimat_connectivity_mode_user_${currentUser.uid}`, mode);
+            if (typeof db !== "undefined" && db) {
+                setDoc(doc(db, "usuarios", currentUser.uid), { 
+                    connectivity_mode: mode,
+                    ultima_actualizacion_modo: new Date().toISOString()
+                }, { merge: true }).catch(err => console.warn("Error guardando modo en Firestore usuarios:", err));
+            }
+        }
+        if (showFeedback) {
+            showToast(mode === "BLE" ? "📱 Modo Local (Solo Bluetooth) activado" : "☁️ Modo Completo (WiFi y Nube) activado");
+        }
     }
 
     const btnBle = document.getElementById('btnModoAppBle');
@@ -1799,10 +1826,57 @@ function setAppConnectivityMode(mode, save = true) {
 }
 window.setAppConnectivityMode = setAppConnectivityMode;
 
+async function resolveAndApplyConnectivityMode(user, mac) {
+    let mode = null;
+
+    // 1. Prioridad: Preferencia guardada del equipo específico en localStorage
+    if (mac) {
+        mode = localStorage.getItem(`dosimat_connectivity_mode_${mac}`);
+    }
+
+    // 2. Si no está en local y hay Firestore, verificar en /equipos/{mac}
+    if (!mode && mac && typeof db !== "undefined" && db) {
+        try {
+            const eqSnap = await getDoc(doc(db, "equipos", mac));
+            if (eqSnap.exists() && eqSnap.data().connectivity_mode) {
+                mode = eqSnap.data().connectivity_mode;
+                localStorage.setItem(`dosimat_connectivity_mode_${mac}`, mode);
+            }
+        } catch (e) {
+            console.warn("Aviso obteniendo modo de equipo en Firestore:", e);
+        }
+    }
+
+    // 3. Si no hay modo del equipo, consultar preferencia del usuario
+    if (!mode && user && user.uid) {
+        mode = localStorage.getItem(`dosimat_connectivity_mode_user_${user.uid}`);
+        if (!mode && typeof db !== "undefined" && db && !user.isAnonymous) {
+            try {
+                const uSnap = await getDoc(doc(db, "usuarios", user.uid));
+                if (uSnap.exists() && uSnap.data().connectivity_mode) {
+                    mode = uSnap.data().connectivity_mode;
+                    localStorage.setItem(`dosimat_connectivity_mode_user_${user.uid}`, mode);
+                }
+            } catch (e) {
+                console.warn("Aviso obteniendo modo de usuario en Firestore:", e);
+            }
+        }
+    }
+
+    // 4. Fallback: Si no tiene modo guardado, por defecto es WIFI_CLOUD
+    if (!mode) {
+        mode = "WIFI_CLOUD";
+    }
+
+    // Aplicar el modo resuelto sin emitir toast emergente
+    setAppConnectivityMode(mode, true, false);
+}
+window.resolveAndApplyConnectivityMode = resolveAndApplyConnectivityMode;
+
 const btnModoAppBle = document.getElementById('btnModoAppBle');
 const btnModoAppWifi = document.getElementById('btnModoAppWifi');
-if (btnModoAppBle) btnModoAppBle.onclick = () => setAppConnectivityMode("BLE", true);
-if (btnModoAppWifi) btnModoAppWifi.onclick = () => setAppConnectivityMode("WIFI_CLOUD", true);
+if (btnModoAppBle) btnModoAppBle.onclick = () => setAppConnectivityMode("BLE", true, true);
+if (btnModoAppWifi) btnModoAppWifi.onclick = () => setAppConnectivityMode("WIFI_CLOUD", true, true);
 
 // === CONEXIÓN NUBE Y MQTT ===
 function setConexionModo(modo, ssid = "", msg = "Desconectado") {
@@ -5336,6 +5410,9 @@ async function connectRemoteDevice(mac, ownerName = "", ownerEmail = "", alias =
         }
     }
 
+    if (typeof resolveAndApplyConnectivityMode === "function") {
+        await resolveAndApplyConnectivityMode(currentUser, mac);
+    }
     connectNube();
     if (typeof syncDosimatProClient === "function") syncDosimatProClient();
     if (typeof syncEquipmentLocation === "function") syncEquipmentLocation(mac);
@@ -6045,6 +6122,10 @@ async function vincularEquipo(chipId) {
         if (currentUser.email) {
             await setDoc(doc(db, "equipos", chipId), { owner_email: currentUser.email.toLowerCase().trim() }, { merge: true });
         }
+
+        const activeMode = localStorage.getItem("dosimat_connectivity_mode") || "WIFI_CLOUD";
+        localStorage.setItem(`dosimat_connectivity_mode_${chipId}`, activeMode);
+        await setDoc(doc(db, "equipos", chipId), { connectivity_mode: activeMode }, { merge: true }).catch(() => {});
         
         return true;
     } catch(e) {
@@ -9161,9 +9242,15 @@ function initNotificacionesPushModule() {
 }
 
 function initAppConnectivityMode() {
-    const savedMode = localStorage.getItem("dosimat_connectivity_mode");
-    const hasWifi = Boolean(globalWifiSSID || localStorage.getItem("dosimat_wifi_ssid"));
-    setAppConnectivityMode(savedMode || (hasWifi ? "WIFI_CLOUD" : "BLE"), false);
+    const activeMac = currentMac || localStorage.getItem("dosimat_last_mac");
+    let savedMode = null;
+    if (activeMac) {
+        savedMode = localStorage.getItem(`dosimat_connectivity_mode_${activeMac}`);
+    }
+    if (!savedMode) {
+        savedMode = localStorage.getItem("dosimat_connectivity_mode");
+    }
+    setAppConnectivityMode(savedMode || "WIFI_CLOUD", false, false);
 }
 
 // Iniciar módulos al cargar
