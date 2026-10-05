@@ -6064,6 +6064,22 @@ async function vincularEquipo(chipId) {
 
     // Verificación de seguridad para usuarios clientes: ¿Está asignado a otra persona?
     try {
+        const userCleanEmail = (currentUser.email || "").toLowerCase().trim();
+
+        // 1. Comprobar si el equipo fue preasignado o tiene como owner_email este mismo correo
+        let isDesignatedOwner = false;
+        try {
+            const eqSnap = await getDoc(doc(db, "equipos", chipId));
+            if (eqSnap.exists() && eqSnap.data()) {
+                const eqOwnerEmail = (eqSnap.data().owner_email || "").toLowerCase().trim();
+                if (eqOwnerEmail && eqOwnerEmail === userCleanEmail) {
+                    isDesignatedOwner = true;
+                }
+            }
+        } catch (eOwnerCheck) {
+            console.warn("Aviso verificando owner_email en vincularEquipo:", eOwnerCheck);
+        }
+
         const q = query(collection(db, "usuarios"), where("equipos", "array-contains", chipId));
         const snaps = await getDocs(q);
         let alreadyOwnedByClient = false;
@@ -6074,6 +6090,9 @@ async function vincularEquipo(chipId) {
                 const udata = s.data();
                 const uEmail = (udata.email || "").toLowerCase().trim();
                 
+                // Si el dueño registrado tiene el MISMO email del usuario actual (re-registro del usuario, cambio de UID o cuenta previa)
+                const isSameEmail = Boolean(uEmail && userCleanEmail && uEmail === userCleanEmail);
+
                 // Si el dueño anterior registrado era una cuenta técnica/admin, limpiar la referencia para transferir al cliente real
                 const isPreviousOwnerTech = (uEmail === "gab.aldazabal@gmail.com" || uEmail === "gab.aldazabal@gmail.com.ar");
                 let isTechAdminDoc = false;
@@ -6086,12 +6105,16 @@ async function vincularEquipo(chipId) {
                     } catch (eT) {}
                 }
 
-                if (isPreviousOwnerTech || isTechAdminDoc) {
+                // Si es el mismo correo, o si el usuario actual es el titular designado por el técnico, o si el dueño anterior era técnico:
+                if (isSameEmail || isDesignatedOwner || isPreviousOwnerTech || isTechAdminDoc) {
                     try {
                         const techEq = (udata.equipos || []).filter(e => e !== chipId);
-                        await setDoc(doc(db, "usuarios", s.id), { equipos: techEq }, { merge: true });
-                        await deleteDoc(doc(db, "usuarios", s.id, "equipos_asignados", chipId));
-                        await deleteDoc(doc(db, "equipos", chipId, "propietarios", s.id));
+                        await setDoc(doc(db, "usuarios", s.id), { 
+                            equipos: techEq,
+                            id_equipo: (udata.id_equipo === chipId ? (techEq[0] || null) : udata.id_equipo)
+                        }, { merge: true });
+                        await deleteDoc(doc(db, "usuarios", s.id, "equipos_asignados", chipId)).catch(() => {});
+                        await deleteDoc(doc(db, "equipos", chipId, "propietarios", s.id)).catch(() => {});
                     } catch (eClean) {}
                 } else {
                     alreadyOwnedByClient = true;
@@ -6099,15 +6122,27 @@ async function vincularEquipo(chipId) {
                 }
             }
         }
+
+        // Limpiar propietarios residuales en la subcolección del equipo si el usuario es el titular legítimo
+        if (isDesignatedOwner) {
+            try {
+                const propSnap = await getDocs(collection(db, "equipos", chipId, "propietarios"));
+                for (const pDoc of propSnap.docs) {
+                    if (pDoc.id !== currentUser.uid) {
+                        await deleteDoc(pDoc.ref).catch(() => {});
+                    }
+                }
+            } catch (eP) {}
+        }
         
-        if (alreadyOwnedByClient) {
+        if (alreadyOwnedByClient && !isDesignatedOwner) {
             customAlert("Este equipo ya se encuentra registrado por otro usuario" + (ownerEmails.length ? " (" + ownerEmails.join(", ") + ")" : "") + ". Si consideras que es un error, solicita un reseteo de fábrica al soporte técnico.");
             return false;
         }
         
         // Proceder con la vinculación para el cliente real
         const refProp = doc(db, "equipos", chipId, "propietarios", currentUser.uid);
-        await setDoc(refProp, { activo: true }, { merge: true });
+        await setDoc(refProp, { activo: true, email: userCleanEmail }, { merge: true });
         
         const refAsign = doc(db, "usuarios", currentUser.uid, "equipos_asignados", chipId);
         await setDoc(refAsign, { activo: true }, { merge: true });
@@ -6117,10 +6152,10 @@ async function vincularEquipo(chipId) {
         let eqList = [];
         if (userDoc.exists() && userDoc.data().equipos) eqList = userDoc.data().equipos;
         if (!eqList.includes(chipId)) eqList.push(chipId);
-        await setDoc(refUser, { id_equipo: chipId, equipos: eqList }, { merge: true });
+        await setDoc(refUser, { id_equipo: chipId, equipos: eqList, email: userCleanEmail }, { merge: true });
 
         if (currentUser.email) {
-            await setDoc(doc(db, "equipos", chipId), { owner_email: currentUser.email.toLowerCase().trim() }, { merge: true });
+            await setDoc(doc(db, "equipos", chipId), { owner_email: userCleanEmail }, { merge: true });
         }
 
         const activeMode = localStorage.getItem("dosimat_connectivity_mode") || "WIFI_CLOUD";
