@@ -1446,6 +1446,8 @@ if (btnSignOut) {
             if (unsubscribeLogs) { unsubscribeLogs(); unsubscribeLogs = null; }
             if (mqttClient) { try { mqttClient.disconnect(); } catch (e) { } mqttClient = null; }
 
+            currentMac = null;
+            localStorage.removeItem("dosimat_last_mac");
             localStorage.removeItem("dosimat_guest_email");
             await signOut(auth);
             showToast("Sesión cerrada.");
@@ -1691,14 +1693,21 @@ onAuthStateChanged(auth, async (user) => {
             }
 
             if (!macToConnect) {
-                // Si no tiene equipo propio ni compartido, no conectar automáticamente.
-                currentMac = null;
-                const status = document.getElementById('connectStatus');
-                if (status) status.innerText = "No tienes equipos vinculados ni compartidos. Vincula tu equipo por Bluetooth.";
-                const lblMac = document.getElementById('lblMac');
-                if (lblMac) lblMac.innerText = "-";
+                const lastMac = localStorage.getItem('dosimat_last_mac');
+                if (lastMac) {
+                    currentMac = lastMac;
+                    const lblMac = document.getElementById('lblMac');
+                    if (lblMac) lblMac.innerText = currentMac;
+                } else {
+                    currentMac = null;
+                    const status = document.getElementById('connectStatus');
+                    if (status) status.innerText = "No tienes equipos vinculados ni compartidos. Vincula tu equipo por Bluetooth.";
+                    const lblMac = document.getElementById('lblMac');
+                    if (lblMac) lblMac.innerText = "-";
+                }
             } else {
                 currentMac = macToConnect;
+                localStorage.setItem('dosimat_last_mac', currentMac);
                 connectNube();
                 if (isCurrentMacShared) {
                     showToast(`Conectado a equipo compartido (Autorizado por ${currentMacOwnerEmail})`);
@@ -1706,11 +1715,13 @@ onAuthStateChanged(auth, async (user) => {
             }
         } catch (e) {
             console.error("Error buscando equipos de usuario:", e);
-            currentMac = null;
+            currentMac = localStorage.getItem('dosimat_last_mac') || null;
         }
 
         if (typeof syncDosimatProClient === "function") syncDosimatProClient();
         if (typeof syncEquipmentLocation === "function" && currentMac) syncEquipmentLocation(currentMac);
+        if (typeof updateSubtexto === "function") updateSubtexto();
+        if (typeof evaluarAlertasSistema === "function") evaluarAlertasSistema();
     } else {
         if (authOverlay) authOverlay.style.display = 'flex';
         if (userBar) userBar.style.display = 'none';
@@ -3305,6 +3316,47 @@ function updateSubtexto() {
     const lblEstadoSubtexto = document.getElementById('lblEstadoSubtexto');
     if (!lblEstadoSubtexto) return;
 
+    const isBleOnlyMode = (localStorage.getItem("dosimat_connectivity_mode") === "BLE");
+    const isTech = (typeof userEsTecnicoOAdmin !== 'undefined' && userEsTecnicoOAdmin) || 
+                   (localStorage.getItem("dosimat_user_role") === "tecnico" || localStorage.getItem("dosimat_user_role") === "super_admin");
+
+    // 1. Si está en Modo Solo Bluetooth y aún no se conectó por BLE
+    if (isBleOnlyMode && modoConexion !== "BLE") {
+        const lblEstado = document.getElementById('lblEstado');
+        const iconEstado = document.getElementById('iconEstado');
+        const panelEstado = document.querySelector('.panel-estado');
+
+        if (lblEstado) {
+            lblEstado.innerText = "MODO LOCAL (BLUETOOTH)";
+            lblEstado.style.color = "var(--accent)";
+        }
+        if (iconEstado) {
+            iconEstado.innerText = "bluetooth";
+            iconEstado.style.color = "var(--accent)";
+            iconEstado.className = "material-symbols-outlined";
+        }
+        if (panelEstado) {
+            panelEstado.classList.remove('bg-green-soft', 'bg-red-soft', 'bg-yellow-soft');
+            panelEstado.classList.add('bg-blue-soft');
+        }
+
+        lblEstadoSubtexto.innerHTML = `
+            <div style="background: rgba(2, 132, 199, 0.12); border: 1px solid var(--accent); color: var(--accent); padding: 0.45rem 0.75rem; border-radius: 8px; font-weight: 700; font-size: 0.88rem; display: flex; align-items: center; justify-content: center; gap: 0.4rem; margin-top: 0.2rem;">
+                <span class="material-symbols-outlined" style="font-size: 1.2rem;">bluetooth_searching</span>
+                Listo para conectar por Bluetooth
+            </div>
+            <button id="btnConnectBleFromPanel" class="btn" type="button" style="margin-top: 0.6rem; width: 100%; max-width: 270px; padding: 0.55rem 1rem; font-weight: 700; font-size: 0.86rem; display: inline-flex; align-items: center; justify-content: center; gap: 0.45rem; background: var(--accent); color: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(2, 132, 199, 0.35);">
+                <span class="material-symbols-outlined" style="font-size: 1.2rem;">bluetooth</span>
+                <span>Conectar por Bluetooth</span>
+            </button>
+            <div style="font-size: 0.76rem; color: var(--text-muted); margin-top: 0.35rem;">
+                Toca para conectarte al dosificador y operar localmente.
+            </div>
+        `;
+        return;
+    }
+
+    // 2. Si está en Modo WiFi / Nube pero no tiene equipo vinculado y no está por BLE
     if (!currentMac && modoConexion !== "BLE") {
         const lblEstado = document.getElementById('lblEstado');
         const iconEstado = document.getElementById('iconEstado');
@@ -3324,42 +3376,28 @@ function updateSubtexto() {
             panelEstado.classList.add('bg-red-soft');
         }
 
+        const msgDetalle = isTech
+            ? "Conéctate por Bluetooth en Ajustes o selecciona un equipo en la pestaña de Técnicos."
+            : "Conéctate a tu dosificador por Bluetooth para comenzar a usarlo y vincularlo a tu cuenta.";
+
         lblEstadoSubtexto.innerHTML = `
             <div style="background: rgba(239, 68, 68, 0.15); border: 1px solid var(--danger); color: var(--danger); padding: 0.5rem 0.75rem; border-radius: 8px; font-weight: 700; font-size: 0.88rem; display: flex; align-items: center; justify-content: center; gap: 0.4rem; margin-top: 0.2rem;">
                 <span class="material-symbols-outlined" style="font-size: 1.2rem;">warning</span>
                 ⚠️ Atención: No hay ningún equipo seleccionado.
             </div>
-            <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.3rem;">
-                Conéctate por Bluetooth en Ajustes o selecciona un equipo en la pestaña de Técnicos.
+            <button id="btnConnectBleFromPanel" class="btn" type="button" style="margin-top: 0.6rem; width: 100%; max-width: 270px; padding: 0.55rem 1rem; font-weight: 700; font-size: 0.86rem; display: inline-flex; align-items: center; justify-content: center; gap: 0.45rem; background: var(--accent); color: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(2, 132, 199, 0.35);">
+                <span class="material-symbols-outlined" style="font-size: 1.2rem;">bluetooth_searching</span>
+                <span>Buscar Dosificador por Bluetooth</span>
+            </button>
+            <div style="font-size: 0.76rem; color: var(--text-muted); margin-top: 0.35rem;">
+                ${msgDetalle}
             </div>
         `;
         return;
     } else if (modoConexion === "OFFLINE") {
-        const isBleOnlyMode = (localStorage.getItem("dosimat_connectivity_mode") === "BLE");
         const lblEstado = document.getElementById('lblEstado');
         const iconEstado = document.getElementById('iconEstado');
-
-        if (isBleOnlyMode) {
-            if (lblEstado) {
-                lblEstado.innerText = "MODO LOCAL (BLUETOOTH)";
-                lblEstado.style.color = "var(--accent)";
-            }
-            if (iconEstado) {
-                iconEstado.innerText = "bluetooth";
-                iconEstado.style.color = "var(--accent)";
-                iconEstado.className = "material-symbols-outlined";
-            }
-            lblEstadoSubtexto.innerHTML = `
-                <div style="background: rgba(2, 132, 199, 0.12); border: 1px solid var(--accent); color: var(--accent); padding: 0.5rem 0.75rem; border-radius: 8px; font-weight: 700; font-size: 0.88rem; display: flex; align-items: center; justify-content: center; gap: 0.4rem; margin-top: 0.2rem;">
-                    <span class="material-symbols-outlined" style="font-size: 1.2rem;">bluetooth_searching</span>
-                    Listo para conectar por Bluetooth
-                </div>
-                <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.3rem;">
-                    Andá a <strong>Ajustes</strong> > <strong>Buscar Dosificador</strong> para ver el estado en vivo o dosificar.
-                </div>
-            `;
-            return;
-        }
+        const panelEstado = document.querySelector('.panel-estado');
 
         if (lblEstado) {
             lblEstado.innerText = "EQUIPO DESCONECTADO";
@@ -3369,12 +3407,20 @@ function updateSubtexto() {
             iconEstado.innerText = "wifi_off";
             iconEstado.style.color = "var(--danger)";
         }
+        if (panelEstado) {
+            panelEstado.classList.remove('bg-green-soft', 'bg-blue-soft', 'bg-yellow-soft');
+            panelEstado.classList.add('bg-red-soft');
+        }
         lblEstadoSubtexto.innerHTML = `
             <div style="background: rgba(239, 68, 68, 0.12); border: 1px solid var(--danger); color: var(--danger); padding: 0.5rem 0.75rem; border-radius: 8px; font-weight: 700; font-size: 0.88rem; display: flex; align-items: center; justify-content: center; gap: 0.4rem; margin-top: 0.2rem;">
                 <span class="material-symbols-outlined" style="font-size: 1.2rem;">cloud_off</span>
                 ⚠️ Sin comunicación en tiempo real con el dosificador
             </div>
-            <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.3rem;">
+            <button id="btnConnectBleFromPanel" class="btn outline" type="button" style="margin-top: 0.6rem; width: 100%; max-width: 260px; padding: 0.5rem 1rem; font-weight: 700; font-size: 0.85rem; display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem; border-color: var(--accent); color: var(--accent); background: rgba(59, 130, 246, 0.05); border-radius: 8px;">
+                <span class="material-symbols-outlined" style="font-size: 1.15rem;">bluetooth</span>
+                <span>Conectar por Bluetooth</span>
+            </button>
+            <div style="font-size: 0.76rem; color: var(--text-muted); margin-top: 0.35rem;">
                 Verifica que el equipo esté encendido y conectado a la red, o conéctate mediante Bluetooth.
             </div>
         `;
@@ -6395,6 +6441,24 @@ if (btnShowConnectBLE) {
         openConnectBleModal();
     };
 }
+
+// Delegación de click para botón de conexión BLE en el Panel principal
+document.addEventListener('click', (e) => {
+    const btn = e.target.closest('#btnConnectBleFromPanel');
+    if (btn) {
+        if (typeof openConnectBleModal === "function") {
+            openConnectBleModal();
+            const btnConnectBLE = document.getElementById('btnConnectBLE');
+            if (btnConnectBLE && navigator.bluetooth) {
+                btnConnectBLE.click();
+            }
+        } else {
+            const btnBLE = document.getElementById('btnShowConnectBLE');
+            if (btnBLE) btnBLE.click();
+        }
+    }
+});
+
 
 // ==========================================
 // PWA INSTALL LOGIC
