@@ -62,6 +62,7 @@ var globalUltRefTs = 0;
 var currentDosisSec = 0;
 var expectedPhaseEndTs = 0;
 var lastTelemetryReceivedTs = 0;
+var nubeHandshakeTimeout = null;
 var globalTemp = null;
 var globalWifiSSID = "";
 var lastConfigData = null;
@@ -288,6 +289,17 @@ var ledStepIndex = 0;
 function actualizarLedVirtual() {
     const ledEl = document.getElementById('panelLed');
     if (!ledEl) return;
+
+    if (modoConexion === "OFFLINE") {
+        if (ledTimerId) {
+            clearTimeout(ledTimerId);
+            ledTimerId = null;
+        }
+        currentLedPattern = 'off';
+        ledEl.classList.remove('on');
+        ledEl.classList.add('off');
+        return;
+    }
 
     const state = globalEstadoDosificador;
     const refuerzo_activo = (globalRefuerzo === 1 || globalRefuerzo === true);
@@ -1901,6 +1913,9 @@ function setConexionModo(modo, ssid = "", msg = "Desconectado") {
         } else if (modo === "BLE") {
             badge.innerHTML = `<span class="material-symbols-outlined" style="font-size: 1rem; vertical-align: middle;">bluetooth</span> <span>BLE Conectado</span>`;
             badge.className = "conn-badge conn-ble";
+        } else if (modo === "VERIFICANDO") {
+            badge.innerHTML = `<span class="material-symbols-outlined anim-spin" style="font-size: 1rem; vertical-align: middle;">sync</span> <span>${msg || "Verificando enlace..."}</span>`;
+            badge.className = "conn-badge conn-verificando";
         } else {
             if (isBleOnlyMode) {
                 badge.innerHTML = `<span class="material-symbols-outlined" style="font-size: 1rem; vertical-align: middle;">bluetooth</span> <span>Modo BLE</span>`;
@@ -2450,7 +2465,7 @@ function evaluarAlertasSistema() {
     // 0. ALERTA EQUIPO OFFLINE (Desconectado de la Nube)
     const isBleOnlyMode = (localStorage.getItem("dosimat_connectivity_mode") === "BLE");
     const isBleConnected = (modoConexion === "BLE" && typeof bleDevice !== "undefined" && bleDevice && bleDevice.gatt && bleDevice.gatt.connected);
-    if (!isBleConnected && modoConexion !== "NUBE" && !isBleOnlyMode) {
+    if (!isBleConnected && modoConexion !== "NUBE" && modoConexion !== "VERIFICANDO" && !isBleOnlyMode) {
         const ssidGuardado = globalWifiSSID || (document.getElementById('inpWifiSsid') ? document.getElementById('inpWifiSsid').value.trim() : "");
         const hayCredenciales = Boolean(ssidGuardado);
 
@@ -2832,6 +2847,26 @@ function connectNube() {
     if (lblMac) lblMac.innerText = currentMac;
     if (typeof updateEquipoInfoAyuda === "function") updateEquipoInfoAyuda(currentMac);
 
+    const isBleOnlyMode = (localStorage.getItem("dosimat_connectivity_mode") === "BLE");
+    if (isBleOnlyMode) return;
+
+    if (nubeHandshakeTimeout) {
+        clearTimeout(nubeHandshakeTimeout);
+        nubeHandshakeTimeout = null;
+    }
+
+    if (modoConexion !== "BLE") {
+        setConexionModo("VERIFICANDO", globalWifiSSID, "Verificando enlace...");
+    }
+
+    nubeHandshakeTimeout = setTimeout(() => {
+        if (modoConexion === "VERIFICANDO") {
+            console.log("Tiempo de espera agotado sin telemetría viva. Marcando OFFLINE.");
+            setConexionModo("OFFLINE", globalWifiSSID, "Fuera de línea");
+            if (typeof evaluarAlertasSistema === "function") evaluarAlertasSistema();
+        }
+    }, 5000);
+
     if (mqttClient) {
         try { mqttClient.disconnect(); } catch (e) { }
     }
@@ -2845,7 +2880,11 @@ function connectNube() {
     mqttClient.onConnectionLost = (responseObject) => {
         if (responseObject.errorCode !== 0) {
             console.log("MQTT Conexión perdida: " + responseObject.errorMessage);
-            if (modoConexion !== "BLE") setConexionModo("OFFLINE");
+            if (nubeHandshakeTimeout) {
+                clearTimeout(nubeHandshakeTimeout);
+                nubeHandshakeTimeout = null;
+            }
+            if (modoConexion !== "BLE") setConexionModo("OFFLINE", globalWifiSSID, "Desconectado");
             setTimeout(connectNube, 5000);
         }
     };
@@ -2876,13 +2915,17 @@ function connectNube() {
             }
 
             if (topic.startsWith(`dosimat/`) && topic.endsWith(`/telemetry`)) {
+                if (nubeHandshakeTimeout) {
+                    clearTimeout(nubeHandshakeTimeout);
+                    nubeHandshakeTimeout = null;
+                }
                 lastTelemetryReceivedTs = Date.now();
                 if (typeof window.onCloudTelemetrySuccess === 'function') {
                     window.onCloudTelemetrySuccess(data);
                 }
                 if (modoConexion !== "BLE") {
                     setConexionModo("NUBE", innerData.wifi_ssid || innerData.ssid || "");
-                    updateUI(data);
+                    updateUI(data, true);
                 }
             } else if (topic === `dosimat/${currentMac}/config`) {
                 updateConfigUI(innerData);
@@ -2940,7 +2983,11 @@ function connectNube() {
         },
         onFailure: (err) => {
             console.error("MQTT Failure:", err);
-            if (modoConexion !== "BLE") setConexionModo("OFFLINE", "", "Fallo Conexión MQTT");
+            if (nubeHandshakeTimeout) {
+                clearTimeout(nubeHandshakeTimeout);
+                nubeHandshakeTimeout = null;
+            }
+            if (modoConexion !== "BLE") setConexionModo("OFFLINE", globalWifiSSID, "Fallo Conexión MQTT");
             setTimeout(connectNube, 5000);
         }
     };
@@ -2952,13 +2999,23 @@ function connectNube() {
     unsubscribeFirestore = onSnapshot(docRef, (docSnap) => {
         if (docSnap.exists()) {
             const data = docSnap.data();
-            updateUI(data);
-            
-            if (modoConexion !== "BLE" && data.ultima_sincronizacion) {
+            let isFresh = false;
+            if (data.ultima_sincronizacion) {
                 const now = Date.now();
-                const syncTime = data.ultima_sincronizacion.toMillis ? data.ultima_sincronizacion.toMillis() : data.ultima_sincronizacion;
-                if (now - syncTime <= 20000) {
+                const syncTime = data.ultima_sincronizacion.toMillis ? data.ultima_sincronizacion.toMillis() : Number(data.ultima_sincronizacion);
+                if (syncTime && (now - syncTime <= 15000)) {
+                    isFresh = true;
                     lastTelemetryReceivedTs = Math.max(lastTelemetryReceivedTs, syncTime);
+                }
+            }
+            updateUI(data, isFresh);
+            
+            if (modoConexion !== "BLE") {
+                if (isFresh) {
+                    if (nubeHandshakeTimeout) {
+                        clearTimeout(nubeHandshakeTimeout);
+                        nubeHandshakeTimeout = null;
+                    }
                     setConexionModo("NUBE", data.wifi_ssid || "");
                 }
             }
@@ -3065,7 +3122,7 @@ function formatTime(totalSeconds) {
 }
 
 // === RENDERIZADO DEL DASHBOARD, ESTADOS Y TARJETAS TÁCTILES ===
-function updateUI(raw_data) {
+function updateUI(raw_data, isLive = false) {
     if (!raw_data) return;
     const data = raw_data.tipo === "TELEMETRIA" ? raw_data.data : raw_data;
 
@@ -3177,8 +3234,7 @@ function updateUI(raw_data) {
         }
     }
 
-    const isLiveTelemetry = (raw_data && (raw_data.tipo === "TELEMETRIA" || raw_data.fase_real !== undefined || (raw_data.bomba_on !== undefined && raw_data.modelo !== undefined)));
-    if (isLiveTelemetry) {
+    if (isLive) {
         lastTelemetryReceivedTs = Date.now();
         if (modoConexion !== "BLE") {
             const wifiName = data.wifi_ssid || data.ssid || "";
@@ -3348,7 +3404,6 @@ function updateUI(raw_data) {
             globalWifiSSID = detectedSsid;
             if (currentMac) localStorage.setItem(`dosimat_wifi_ssid_${currentMac}`, detectedSsid);
             localStorage.setItem("dosimat_wifi_ssid", detectedSsid);
-            if (modoConexion !== "BLE") setConexionModo("NUBE", detectedSsid);
         }
     }
 
@@ -3465,6 +3520,30 @@ function updateSubtexto() {
             </button>
             <div style="font-size: 0.76rem; color: var(--text-muted); margin-top: 0.35rem;">
                 ${msgDetalle}
+            </div>
+        `;
+        return;
+    } else if (modoConexion === "VERIFICANDO") {
+        const lblEstado = document.getElementById('lblEstado');
+        const iconEstado = document.getElementById('iconEstado');
+        const panelEstado = document.querySelector('.panel-estado');
+
+        if (lblEstado) {
+            lblEstado.innerText = "VERIFICANDO...";
+            lblEstado.style.color = "var(--warning, #f59e0b)";
+        }
+        if (iconEstado) {
+            iconEstado.innerText = "sync";
+            iconEstado.style.color = "var(--warning, #f59e0b)";
+            iconEstado.className = "material-symbols-outlined anim-spin";
+        }
+        if (panelEstado) {
+            panelEstado.classList.remove('bg-green-soft', 'bg-red-soft', 'bg-yellow-soft', 'bg-blue-soft');
+        }
+        lblEstadoSubtexto.innerHTML = `
+            <div style="color: var(--text-muted); font-size: 0.85rem; display: flex; align-items: center; justify-content: center; gap: 0.4rem; margin-top: 0.2rem;">
+                <span class="material-symbols-outlined anim-spin" style="font-size: 1.1rem; color: var(--warning, #f59e0b);">sync</span>
+                <span>Verificando enlace en vivo con el dosificador...</span>
             </div>
         `;
         return;
@@ -3626,12 +3705,12 @@ setInterval(() => {
         const isBleGattConnected = (typeof bleDevice !== "undefined" && bleDevice && bleDevice.gatt && bleDevice.gatt.connected);
         if (!isBleGattConnected) {
             setConexionModo("OFFLINE", "", "BLE Desconectado");
-        } else if (lastTelemetryReceivedTs > 0 && (Date.now() - lastTelemetryReceivedTs > 16000)) {
+        } else if (lastTelemetryReceivedTs > 0 && (Date.now() - lastTelemetryReceivedTs > 12000)) {
             setConexionModo("OFFLINE", "", "Sin Respuesta BLE");
         }
     } else if (modoConexion === "NUBE") {
-        if (lastTelemetryReceivedTs > 0 && (Date.now() - lastTelemetryReceivedTs > 16000)) {
-            setConexionModo("OFFLINE", "", "Equipo Desconectado");
+        if (lastTelemetryReceivedTs > 0 && (Date.now() - lastTelemetryReceivedTs > 12000)) {
+            setConexionModo("OFFLINE", globalWifiSSID, "Fuera de línea");
         }
     }
 }, 3000);
@@ -4186,7 +4265,6 @@ function updateConfigUI(data) {
         if (currentMac) localStorage.setItem(`dosimat_wifi_ssid_${currentMac}`, detectedSsid);
         const inpSsid = document.getElementById('inpWifiSsid');
         if (inpSsid && !inpSsid.value) inpSsid.value = detectedSsid;
-        if (modoConexion !== "BLE") setConexionModo("NUBE", globalWifiSSID);
     }
     actualizarPanelTemporada();
 

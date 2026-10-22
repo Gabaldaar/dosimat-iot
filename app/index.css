@@ -2069,6 +2069,12 @@ details.accordion[open] {
     border: 1px solid rgba(239, 68, 68, 0.3);
 }
 
+.conn-badge.conn-verificando {
+    background: rgba(245, 158, 11, 0.15);
+    color: #f59e0b;
+    border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
 /* Auth Mode Tabs */
 .auth-mode-tab {
     color: var(--text-muted);
